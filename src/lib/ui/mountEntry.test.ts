@@ -77,7 +77,7 @@ describe('mountEntry — ApiCall', () => {
     expect(document.getElementById('cabt-entry-abc-123')).toBe(div);
   });
 
-  it('registers the entry in EntryRegistry', () => {
+  it('registers the entry in EntryRegistry with its data payload', () => {
     const call = apiCall({ id: 'reg-test' });
 
     mountEntry(call);
@@ -85,6 +85,9 @@ describe('mountEntry — ApiCall', () => {
     const record = EntryRegistry.get('reg-test');
     expect(record).toBeDefined();
     expect(record!.element).toBe(document.getElementById('cabt-entry-reg-test'));
+    // The captured per-entry payload must be registered for fresh-container
+    // revival (UI-MOUNT-05) — register receives the same data as the props.
+    expect(record!.data).toBe(call);
   });
 
   it('calls Svelte mount with EntryPanel and correct props', () => {
@@ -125,12 +128,14 @@ describe('mountEntry — DbQuery', () => {
     expect(document.getElementById('cabt-entry-db-001')).toBe(div);
   });
 
-  it('registers DB entries in EntryRegistry', () => {
+  it('registers DB entries in EntryRegistry with their data payload', () => {
     const q = dbQuery({ id: 'db-reg' });
 
     mountEntry(q);
 
-    expect(EntryRegistry.get('db-reg')).toBeDefined();
+    const record = EntryRegistry.get('db-reg');
+    expect(record).toBeDefined();
+    expect(record!.data).toBe(q);
   });
 
   it('passes the DbQuery as data prop', () => {

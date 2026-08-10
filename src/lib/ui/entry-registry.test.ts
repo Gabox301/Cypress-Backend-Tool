@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // see the mocked version.
 vi.mock('svelte', () => ({ unmount: vi.fn() }));
 
+import type { ApiCall } from '$lib/types';
 import { unmount } from 'svelte';
 import { EntryRegistry } from './entry-registry';
 
@@ -23,6 +24,15 @@ function mockElement(id: string): HTMLElement {
   return el;
 }
 
+function mockData(id: string): ApiCall {
+  return {
+    id,
+    request: { url: `https://example.com/${id}`, method: 'GET' },
+    response: null,
+    timestamp: 1,
+  } as ApiCall;
+}
+
 beforeEach(() => {
   document.body.innerHTML = '';
   EntryRegistry.clear();
@@ -37,13 +47,15 @@ describe('register + get', () => {
     const id = 'entry-1';
     const comp = mockComponent();
     const el = mockElement(id);
+    const data = mockData(id);
 
-    EntryRegistry.register(id, comp, el);
+    EntryRegistry.register(id, comp, el, data);
 
     const record = EntryRegistry.get(id);
     expect(record).toBeDefined();
     expect(record!.component).toBe(comp);
     expect(record!.element).toBe(el);
+    expect(record!.data).toBe(data);
   });
 
   it('rejects duplicate IDs with a throw and does NOT overwrite', () => {
@@ -51,12 +63,12 @@ describe('register + get', () => {
     const comp1 = mockComponent();
     const el1 = mockElement('dup-1');
 
-    EntryRegistry.register(id, comp1, el1);
+    EntryRegistry.register(id, comp1, el1, mockData(id));
 
     const comp2 = mockComponent();
     const el2 = mockElement('dup-2');
 
-    expect(() => EntryRegistry.register(id, comp2, el2)).toThrow();
+    expect(() => EntryRegistry.register(id, comp2, el2, mockData(id))).toThrow();
 
     // First entry is still intact
     const record = EntryRegistry.get(id);
@@ -82,7 +94,7 @@ describe('unmount', () => {
     const id = 'remove-me';
     const comp = mockComponent();
     const el = mockElement(id);
-    EntryRegistry.register(id, comp, el);
+    EntryRegistry.register(id, comp, el, mockData(id));
 
     expect(EntryRegistry.get(id)).toBeDefined();
     expect(document.getElementById(id)).not.toBeNull();
@@ -97,7 +109,7 @@ describe('unmount', () => {
     const id = 'call-unmount';
     const comp = mockComponent();
     const el = mockElement(id);
-    EntryRegistry.register(id, comp, el);
+    EntryRegistry.register(id, comp, el, mockData(id));
 
     EntryRegistry.unmount(id);
 
@@ -114,9 +126,9 @@ describe('unmount', () => {
 // ===========================================================================
 describe('clear', () => {
   it('empties the registry of all entries', () => {
-    EntryRegistry.register('a', mockComponent(), mockElement('a'));
-    EntryRegistry.register('b', mockComponent(), mockElement('b'));
-    EntryRegistry.register('c', mockComponent(), mockElement('c'));
+    EntryRegistry.register('a', mockComponent(), mockElement('a'), mockData('a'));
+    EntryRegistry.register('b', mockComponent(), mockElement('b'), mockData('b'));
+    EntryRegistry.register('c', mockComponent(), mockElement('c'), mockData('c'));
 
     expect(EntryRegistry.size()).toBe(3);
 
@@ -134,8 +146,8 @@ describe('clear', () => {
   it('calls Svelte unmount for every registered entry', () => {
     const compA = mockComponent();
     const compB = mockComponent();
-    EntryRegistry.register('a', compA, mockElement('a'));
-    EntryRegistry.register('b', compB, mockElement('b'));
+    EntryRegistry.register('a', compA, mockElement('a'), mockData('a'));
+    EntryRegistry.register('b', compB, mockElement('b'), mockData('b'));
 
     EntryRegistry.clear();
 
@@ -154,13 +166,59 @@ describe('size', () => {
   });
 
   it('reflects the number of registered entries', () => {
-    EntryRegistry.register('x', mockComponent(), mockElement('x'));
+    EntryRegistry.register('x', mockComponent(), mockElement('x'), mockData('x'));
     expect(EntryRegistry.size()).toBe(1);
 
-    EntryRegistry.register('y', mockComponent(), mockElement('y'));
+    EntryRegistry.register('y', mockComponent(), mockElement('y'), mockData('y'));
     expect(EntryRegistry.size()).toBe(2);
 
     EntryRegistry.unmount('x');
     expect(EntryRegistry.size()).toBe(1);
+  });
+});
+
+// ===========================================================================
+// snapshot — {id, data} payloads for fresh-container revival (UI-MOUNT-05)
+// ===========================================================================
+describe('snapshot', () => {
+  it('returns {id, data} in insertion order with no element/component refs', () => {
+    const dataA = mockData('snap-a');
+    const dataB = mockData('snap-b');
+    const dataC = mockData('snap-c');
+    EntryRegistry.register('snap-a', mockComponent(), mockElement('snap-a'), dataA);
+    EntryRegistry.register('snap-b', mockComponent(), mockElement('snap-b'), dataB);
+    EntryRegistry.register('snap-c', mockComponent(), mockElement('snap-c'), dataC);
+
+    const snap = EntryRegistry.snapshot();
+
+    expect(snap).toHaveLength(3);
+    // Insertion order preserved
+    expect(snap.map((e) => e.id)).toEqual(['snap-a', 'snap-b', 'snap-c']);
+    // Same data references — the captured per-entry payload
+    expect(snap[0].data).toBe(dataA);
+    expect(snap[1].data).toBe(dataB);
+    expect(snap[2].data).toBe(dataC);
+    // NO element/component refs — only id + data keys (D4: never reuse refs)
+    expect(Object.keys(snap[0]).sort()).toEqual(['data', 'id']);
+    expect('element' in snap[0]).toBe(false);
+    expect('component' in snap[0]).toBe(false);
+  });
+
+  it('returns an empty array when nothing is registered', () => {
+    expect(EntryRegistry.snapshot()).toEqual([]);
+  });
+
+  it('is an independent copy — survives later registry mutation', () => {
+    const dataA = mockData('snap-independent');
+    EntryRegistry.register('snap-independent', mockComponent(), mockElement('snap-independent'), dataA);
+
+    const snap = EntryRegistry.snapshot();
+    expect(snap).toHaveLength(1);
+
+    EntryRegistry.clear();
+    expect(EntryRegistry.size()).toBe(0);
+
+    // The captured payload still describes the entry (usable for revival)
+    expect(snap[0]).toEqual({ id: 'snap-independent', data: dataA });
   });
 });

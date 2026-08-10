@@ -9,7 +9,7 @@
 import { configure, getConfigOverrides, getPluginConfig, mergeConfig } from '$lib/config';
 import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries, pluginConfig } from '$lib/stores.svelte';
 import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
-import { ensurePluginMounted, mountEntry } from '$lib/ui';
+import { ensurePluginMounted, mountEntry, teardownPluginUI } from '$lib/ui';
 import { EntryRegistry } from '$lib/ui/entry-registry';
 
 // ============================================
@@ -175,59 +175,48 @@ export { getOrCreateContainer as createFreshContainer };
 // Re-exported public API
 export { configure };
 
-function showApiUi(call: ApiCall): Cypress.Chainable<ApiResponse> {
-  if (!call.response) return cy.wrap(null) as unknown as Cypress.Chainable<ApiResponse>;
+function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
+  if (!call.response) return null as unknown as ApiResponse;
 
   const config = readPluginConfig();
   const win = cy.state('window') as Window;
   const doc = win.document;
 
-  const log = Cypress.log({
-    name: call.request.method,
-    autoEnd: false,
-    message: `${call.request.method} ${call.request.url}`,
-    consoleProps: () => ({ request: call.request, response: call.response }),
-  });
-
   const container = getOrCreateContainer(doc);
   applySnapshotOnly(container, config);
 
-  return cy.window({ log: false }).then(() => {
-    mountEntry(call, doc);
-    const elementId = `cabt-entry-${call.id}`;
-    scrollToEntry(doc, elementId);
-    const $el = Cypress.$(`#${elementId}`, { log: false });
-    log.set({ $el }).snapshot('response').end();
-    return call.response!;
-  });
+  // Mount the entry, then update the log with the populated DOM. The log was
+  // created at the START of the cy.http() command (before cy.request), so
+  // Cypress tracks its lifecycle correctly. We set $el to the stable plugin
+  // container (NOT the per-entry div, which is recreated on snapshot restore)
+  // and take an explicit snapshot so the AUT view restores the populated
+  // entry when hovering this log.
+  mountEntry(call, doc);
+  const elementId = `cabt-entry-${call.id}`;
+  scrollToEntry(doc, elementId);
+
+  const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
+  log.set({ $el }).snapshot('response').end();
+  return call.response;
 }
 
-function showDbQueryUi(query: DbQuery): void {
+function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
   const config = readPluginConfig();
   const win = cy.state('window') as Window;
   const doc = win.document;
 
-  // Previously, DB queries had no Cypress.log() entry at all — there was
-  // nothing in the command log to click on to inspect a query's snapshot.
-  // This gives every cy.query() call its own logged, snapshot-able entry,
-  // exactly like cy.http() already has.
-  const log = Cypress.log({
-    name: 'QUERY',
-    autoEnd: false,
-    message: query.query,
-    consoleProps: () => ({ query: query.query, result: query.result, duration: query.duration, error: query.error }),
-  });
-
   const container = getOrCreateContainer(doc);
   applySnapshotOnly(container, config);
 
-  cy.window({ log: false }).then(() => {
-    mountEntry(query, doc);
-    const elementId = `cabt-entry-${query.id}`;
-    scrollToEntry(doc, elementId);
-    const $el = Cypress.$(`#${elementId}`, { log: false });
-    log.set({ $el }).snapshot('response').end();
-  });
+  // Mount the entry, then update the log with the populated DOM — same
+  // rationale as showApiUi. The log was created at the START of the cy.query()
+  // command, so Cypress tracks its lifecycle correctly.
+  mountEntry(query, doc);
+  const elementId = `cabt-entry-${query.id}`;
+  scrollToEntry(doc, elementId);
+
+  const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
+  log.set({ $el }).snapshot('response').end();
 
   logDebug('DB Query UI rendered (id:', query.id, ')');
 }
@@ -246,7 +235,11 @@ Cypress.Commands.add(
         : urlOrOptions;
     const startTime = Date.now();
 
-    return cy.request(options as unknown as Record<string, unknown>).then((cyResponse) => {
+    // log: false — suppress Cypress's OWN internal "request" log entry. That
+    // internal log takes an automatic snapshot of the AUT at creation time,
+    // which for API-only specs is Cypress's blank "Default blank page" (no
+    // plugin container yet).
+    return cy.request({ ...options, log: false } as unknown as Record<string, unknown>).then((cyResponse) => {
       const response: ApiResponse = {
         status: cyResponse.status,
         statusText: cyResponse.statusText || '',
@@ -273,7 +266,27 @@ Cypress.Commands.add(
 
       addApiCall(call);
       getTestStore().apiCalls.push(call);
-      return showApiUi(call);
+
+      // Create the log HERE — AFTER cy.request has resolved. Creating the log
+      // at the START of the command (before cy.request) let Cypress's internal
+      // command machinery inject an UNNAMED snapshot of the pre-mount AUT into
+      // our log; the Command Log hover restores that FIRST (empty) snapshot and
+      // the runner viewport goes blank. From the .then callback no nested
+      // command pass happens anymore, so the ONLY snapshot is the explicit
+      // 'response' one taken after the entry is mounted (verified interactively:
+      // snapshots === ['response'], no empty entries). The log still shows up in
+      // the Command Log exactly like the reference plugin (cypress-plugin-api)
+      // does. snapshot: false — we take the explicit .snapshot('response')
+      // ourselves; autoEnd: false — we call .end() explicitly after it.
+      const log = Cypress.log({
+        name: options.method,
+        autoEnd: false,
+        message: `${options.method} ${options.url}`,
+        snapshot: false,
+        consoleProps: () => ({ request: options, response }),
+      } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+
+      return showApiUi(call, log);
     });
   },
 );
@@ -307,7 +320,20 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
 
       addDbQuery(dbCall);
       getTestStore().dbQueries.push(dbCall);
-      showDbQueryUi(dbCall);
+
+      // Same rationale as cy.http(): the log is created AFTER cy.task has
+      // resolved, so no internal command-pass snapshot of the pre-mount AUT
+      // can be injected into it — the ONLY snapshot is the explicit
+      // 'response' one taken after the entry is mounted.
+      const log = Cypress.log({
+        name: 'QUERY',
+        autoEnd: false,
+        message: query,
+        snapshot: false,
+        consoleProps: () => ({ query, result: dbResponse.rows, duration: dbResponse.duration, error: undefined }),
+      } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+
+      showDbQueryUi(dbCall, log);
       return cy.wrap(dbResponse);
     });
   });
@@ -319,18 +345,29 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
 // ============================================
 
 beforeEach(() => {
-  // Clear accumulated data from previous test — Cypress does NOT reload
-  // the AUT page between tests (default testIsolation), so module-level
-  // stores and mounted entries persist across tests. Without clearing,
-  // every test inherits all cy.http()/cy.query() entries from every
-  // previous test in the spec.
+  // Per-test state clearing. Under the default testIsolation (true), Cypress
+  // navigates the AUT to about:blank before EVERY test, so the previous
+  // test's DOM — including any mounted plugin UI — is gone and the viewport
+  // shows the plain about:blank page until the test's first cy.http() /
+  // cy.query() call. That between-test blank is INTENTIONAL (UI-RENDER-04):
+  // it means "no test running", not an unmounted plugin. Module-level state
+  // (stores, registry, mount flags) survives in the spec-bridge realm,
+  // however, so without clearing, every test would inherit all
+  // cy.http()/cy.query() entries from every previous test in the spec. The
+  // plugin container is NOT created here — the first cy.http()/cy.query()
+  // call of the test creates and mounts it lazily via getOrCreateContainer
+  // (UI-MOUNT-07).
   EntryRegistry.clear();
   clearApiCalls();
   clearDbQueries();
 
-  cy.document({ log: false }).then((doc) => {
-    if (!doc.getElementById('cypress-api-plugin-container')) {
-      getOrCreateContainer(doc);
-    }
-  });
+  // Retry guard (UI-MOUNT-10): on a retried test, tear down stale UI from
+  // the failed attempt so the retry re-mounts deterministically. Skipped
+  // when _currentRetry is unavailable — the MutationObserver fallback then
+  // remains the degradation path.
+  const runnable = cy.state('runnable') as { _currentRetry?: unknown } | undefined;
+  if (runnable && typeof runnable._currentRetry === 'number' && runnable._currentRetry > 0) {
+    teardownPluginUI(); // resets mountedInstance/mountedDocument, disconnects observer
+    (cy.state('window') as Window | undefined)?.document.getElementById('cypress-api-plugin-container')?.remove();
+  }
 });
