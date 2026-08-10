@@ -26,8 +26,7 @@
   let selectedTab = $derived(controlledTab ?? internalTab);
   let method = $derived(request?.method || 'GET');
   let url = $derived(request?.url || '');
-
-  // Credential masking — blank all values for masked tabs
+  // Enmascarado de credenciales — deja en blanco todos los valores de las pestañas enmascaradas
   function maskObject(obj: Record<string, unknown>): Record<string, string> {
     const result: Record<string, string> = {};
     for (const key of Object.keys(obj)) {
@@ -35,7 +34,6 @@
     }
     return result;
   }
-
   function deepMask(val: unknown): unknown {
     if (val === null || val === undefined) return val;
     if (typeof val === 'object' && !Array.isArray(val)) {
@@ -43,7 +41,6 @@
     }
     return '***';
   }
-
   let maskedHeaders = $derived.by(() => {
     if (!request?.headers) return undefined;
     if (hideCredentials && hideCredentialsOptions.headers) {
@@ -51,7 +48,6 @@
     }
     return request.headers;
   });
-
   let maskedAuth = $derived.by(() => {
     if (!request?.auth) return undefined;
     if (hideCredentials && hideCredentialsOptions.auth) {
@@ -59,7 +55,6 @@
     }
     return request.auth;
   });
-
   let maskedBody = $derived.by(() => {
     if (request?.body === undefined || request?.body === null) return request?.body;
     if (hideCredentials && hideCredentialsOptions.body) {
@@ -67,7 +62,6 @@
     }
     return request.body;
   });
-
   let maskedQs = $derived.by(() => {
     if (!request?.qs) return undefined;
     if (hideCredentials && hideCredentialsOptions.query) {
@@ -75,7 +69,6 @@
     }
     return request.qs;
   });
-
   function handleTabChange(tab: string) {
     if (controlledTab === undefined) internalTab = tab;
     onTabChange?.(tab);

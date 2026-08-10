@@ -10,19 +10,19 @@ describe('cypress-backend-tool - Smoke Test (cy.query)', () => {
           user: dbUser,
           password: dbPassword,
         }).then((result: any) => {
-          // Verify result structure
+          // Verifica la estructura del resultado
           expect(result).to.have.property('rows');
           expect(result).to.have.property('rowCount');
           expect(result).to.have.property('duration');
-          // Verify row count and types
+          // Verifica el número de filas y los tipos
           expect(result.rows).to.be.an('array').with.lengthOf(1);
           expect(result.rowCount).to.equal(1);
-          // Verify returned data
+          // Verifica los datos devueltos
           const row = result.rows[0];
           expect(row).to.have.property('message', 'Hello World');
           expect(row).to.have.property('number', 42);
           expect(row).to.have.property('timestamp');
-          // Verify duration is a positive number
+          // Verifica que la duración sea un número positivo
           expect(result.duration).to.be.a('number').and.be.greaterThan(0);
         });
       },

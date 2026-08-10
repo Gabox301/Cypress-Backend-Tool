@@ -1,24 +1,17 @@
 /// <reference types="cypress" />
 
 /**
- * Credential Masking E2E Tests — RED (Strict TDD)
+ * Pruebas E2E de enmascarado de credenciales
+ * Cuando hideCredentialsOptions.{tab} es
+ * true, TODOS los valores de esa pestaña se muestran como ***.
  *
- * Validates:
- *   CA-UI-01: Credential Masking in RequestPanel
- *   CA-UI-02: Masking Rules via hideCredentialsOptions
- *
- * Implements task 4.2, validates tasks 3.1, 3.2, 3.3
- *
- * Design decision: tab-level blanket masking (per design #7 — boolean toggles per tab).
- * When hideCredentialsOptions.{tab} is true, ALL values in that tab display as ***.
- *
- * IMPORTANT: Both RequestPanel and ResponsePanel have "Body" and "Headers" tab buttons.
- * All tab interactions are scoped to [data-testid="request-panel"].
+ * IMPORTANTE: Tanto RequestPanel como ResponsePanel tienen botones de pestañas
+ * "Body" y "Headers". Todas las interacciones de pestañas están limitadas a
+ * [data-testid="request-panel"].
  */
-
 const RP = '[data-testid="request-panel"]';
 
-describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
+describe('Credential Masking', () => {
   const BASE_URL = 'https://jsonplaceholder.typicode.com/posts/1';
 
   afterEach(() => {
@@ -32,10 +25,7 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
     });
   });
 
-  // ==========================================
-  // CA-UI-01: Basic Credential Masking
-  // ==========================================
-  describe('Basic Masking (CA-UI-01)', () => {
+  describe('Basic Masking', () => {
     it('masks Authorization header value when hideCredentials is true', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
@@ -82,7 +72,7 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
         },
       });
       cy.get(RP).should('exist');
-      // Force Body tab re-render: switch away then back
+      // Fuerza el re-render de la pestaña Body: cambia a otra y vuelve
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('button', 'Body').click();
       cy.get(RP).within(() => {
@@ -120,22 +110,19 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
         auth: { username: 'user', password: 'visible-pass' },
       });
       cy.get(RP).should('exist');
-      // Headers tab — values visible
+      // Pestaña Headers — valores visibles
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('visible-token-123').should('exist');
-      // Auth tab — values visible
+      // Pestaña Auth — valores visibles
       cy.get(RP).contains('button', 'Auth').click();
       cy.get(RP).contains('visible-pass').should('exist');
-      // Body tab — values visible
+      // Pestaña Body — valores visibles
       cy.get(RP).contains('button', 'Body').click();
       cy.get(RP).contains('visible-secret').should('exist');
     });
   });
 
-  // ==========================================
-  // CA-UI-02: Granular hideCredentialsOptions
-  // ==========================================
-  describe('Granular Masking via hideCredentialsOptions (CA-UI-02)', () => {
+  describe('Granular Masking via hideCredentialsOptions', () => {
     it('body-only masking: body masked, headers visible', () => {
       Cypress.expose({
         hideCredentials: true,
@@ -152,17 +139,17 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
         auth: { username: 'admin', password: 'auth-visible' },
       });
       cy.get(RP).should('exist');
-      // Body tab — masked (force re-render)
+      // Pestaña Body — enmascarada (fuerza re-render)
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('button', 'Body').click();
       cy.get(RP).within(() => {
         cy.contains('***').should('exist');
         cy.contains('body-hidden-secret').should('not.exist');
       });
-      // Headers tab — visible
+      // Pestaña Headers — visible
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('headers-visible-token').should('exist');
-      // Auth tab — visible
+      // Pestaña Auth — visible
       cy.get(RP).contains('button', 'Auth').click();
       cy.get(RP).contains('auth-visible').should('exist');
     });
@@ -183,17 +170,17 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
         auth: { username: 'admin', password: 'auth-masked' },
       });
       cy.get(RP).should('exist');
-      // Headers tab — visible
+      // Pestaña Headers — visible
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('only-headers-visible').should('exist');
-      // Body tab — masked (force re-render)
+      // Pestaña Body — enmascarada (fuerza re-render)
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('button', 'Body').click();
       cy.get(RP).within(() => {
         cy.contains('***').should('exist');
         cy.contains('body-masked-pw').should('not.exist');
       });
-      // Auth tab — masked
+      // Pestaña Auth — enmascarada
       cy.get(RP).contains('button', 'Auth').click();
       cy.get(RP).contains('auth-masked').should('not.exist');
     });
@@ -207,10 +194,10 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
         body: { password: 'default-masked-secret' },
       });
       cy.get(RP).should('exist');
-      // Headers tab — masked (default headers: true)
+      // Pestaña Headers — enmascarada (headers predeterminado: true)
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('default-masked-token').should('not.exist');
-      // Body tab — masked (default body: true), force re-render
+      // Pestaña Body — enmascarada (body predeterminado: true), fuerza re-render
       cy.get(RP).contains('button', 'Headers').click();
       cy.get(RP).contains('button', 'Body').click();
       cy.get(RP).within(() => {
@@ -231,9 +218,6 @@ describe('Credential Masking (CA-UI-01, CA-UI-02)', () => {
     });
   });
 
-  // ==========================================
-  // Edge Cases
-  // ==========================================
   describe('Edge Cases', () => {
     it('handles request with empty body/headers/auth gracefully', () => {
       Cypress.expose({ hideCredentials: true });

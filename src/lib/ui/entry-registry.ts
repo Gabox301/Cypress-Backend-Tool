@@ -2,31 +2,33 @@ import type { ApiCall, DbQuery } from '$lib/types';
 import { unmount } from 'svelte';
 
 // ───────────────────────────────────────────────────────────────────────────
-// EntryRecord — tracks a persistent Svelte mount, its DOM element, and the
-// captured per-entry props data (used to revive the entry after a body swap).
+// EntryRecord — registra un montaje Svelte persistente, su elemento DOM y los
+// datos de props capturados por entrada (usados para revivir la entrada después
+// de un intercambio de body).
 // ───────────────────────────────────────────────────────────────────────────
 export interface EntryRecord {
-  /** The return value of Svelte 5's mount() — opaque to consumers. */
+  /** El valor de retorno de mount() de Svelte 5 — opaco para los consumidores. */
   component: object;
-  /** The div#cabt-entry-{id} DOM element the component was mounted into. */
+  /** El elemento DOM div#cabt-entry-{id} en el que se montó el componente. */
   element: HTMLElement;
-  /** The captured per-entry payload (ApiCall or DbQuery), used for revival. */
+  /** El payload capturado por entrada (ApiCall o DbQuery), usado para el revival. */
   data: ApiCall | DbQuery;
 }
 
-// Module-scoped Map — no class, no instantiation, one instance per JS realm.
+// Map con ámbito de módulo — sin clase, sin instanciación, una instancia por realm de JS.
 const _entries = new Map<string, EntryRecord>();
 
 /**
- * Module-level singleton that manages persistent entry component lifecycles.
+ * Singleton a nivel de módulo que gestiona los ciclos de vida de los componentes
+ * de entradas persistentes.
  *
- * All imports in the same JavaScript realm share the same registry. There is
- * no constructor or factory — the singleton is the module itself.
+ * Todos los imports del mismo realm de JavaScript comparten el mismo registry. No
+ * hay constructor ni factory — el singleton es el propio módulo.
  */
 export const EntryRegistry = {
   /**
-   * Register a mounted entry by its unique ID. Throws if the ID already
-   * exists (defensive — each cabt-entry-{id} div must be unique in the DOM).
+   * Registra una entrada montada por su ID único. Lanza un error si el ID ya
+   * existe (defensivo — cada div cabt-entry-{id} debe ser único en el DOM).
    */
   register(id: string, component: object, element: HTMLElement, data: ApiCall | DbQuery): void {
     if (_entries.has(id)) {
@@ -35,14 +37,14 @@ export const EntryRegistry = {
     _entries.set(id, { component, element, data });
   },
 
-  /** Retrieve a registered entry, or undefined if not found. */
+  /** Recupera una entrada registrada, o undefined si no se encuentra. */
   get(id: string): EntryRecord | undefined {
     return _entries.get(id);
   },
 
   /**
-   * Unmount a registered entry: calls Svelte unmount(), removes the DOM
-   * element, and deletes the record. A no-op for unknown IDs.
+   * Desmonta una entrada registrada: llama a unmount() de Svelte, elimina el
+   * elemento DOM y borra el registro. Es un no-op para IDs desconocidos.
    */
   unmount(id: string): void {
     const entry = _entries.get(id);
@@ -52,18 +54,19 @@ export const EntryRegistry = {
     _entries.delete(id);
   },
 
-  /** Unmount and remove every registered entry. */
+  /** Desmonta y elimina cada entrada registrada. */
   clear(): void {
-    // Iterate over a snapshot of keys because unmount() mutates the Map.
+    // Itera sobre un snapshot de las claves porque unmount() muta el Map.
     for (const id of Array.from(_entries.keys())) {
       this.unmount(id);
     }
   },
 
   /**
-   * Capture the registered entries as pure {id, data} payloads in insertion
-   * order — NO element or component references (reconnect invariant D4:
-   * detached refs are never reused; revival always creates fresh mounts).
+   * Captura las entradas registradas como payloads puros {id, data} en orden de
+   * inserción — SIN referencias a elementos ni a componentes (invariante de
+   * reconexión D4: las refs desmontadas nunca se reutilizan; el revival siempre
+   * crea montajes nuevos).
    */
   snapshot(): Array<{ id: string; data: ApiCall | DbQuery }> {
     const payloads: Array<{ id: string; data: ApiCall | DbQuery }> = [];
@@ -73,7 +76,7 @@ export const EntryRegistry = {
     return payloads;
   },
 
-  /** The number of currently registered entries. */
+  /** El número de entradas registradas actualmente. */
   size(): number {
     return _entries.size;
   },

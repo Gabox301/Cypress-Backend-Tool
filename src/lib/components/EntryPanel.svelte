@@ -3,14 +3,12 @@
   import QueryPanel from './QueryPanel.svelte';
   import RequestPanel from './RequestPanel.svelte';
   import ResponsePanel from './ResponsePanel.svelte';
-
   interface Props {
     data: ApiCall | DbQuery;
     hideCredentials: boolean;
     hideCredentialsOptions: { headers: boolean; auth: boolean; body: boolean; query: boolean };
     snapshotOnly: boolean;
   }
-
   let { data, hideCredentials, hideCredentialsOptions, snapshotOnly }: Props = $props();
 </script>
 

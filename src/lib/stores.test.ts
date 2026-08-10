@@ -50,7 +50,7 @@ function makeDbConnection(overrides: Partial<DbConnection> = {}): DbConnection {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: reset all reactive store arrays before each test
+// Helper: reinicia todos los arrays reactivos de los stores antes de cada test
 // ---------------------------------------------------------------------------
 function resetStores(): void {
   apiCalls.length = 0;
@@ -72,11 +72,9 @@ describe('addApiCall', () => {
     const call1 = makeApiCall({ id: 'first', timestamp: 100 });
     const call2 = makeApiCall({ id: 'second', timestamp: 200 });
     const call3 = makeApiCall({ id: 'third', timestamp: 300 });
-
     addApiCall(call1);
     addApiCall(call2);
     addApiCall(call3);
-
     expect(apiCalls).toHaveLength(3);
     expect(apiCalls[0].id).toBe('first');
     expect(apiCalls[1].id).toBe('second');
@@ -148,7 +146,6 @@ describe('removeDbConnection', () => {
     const conn = makeDbConnection({ id: 'to-remove' });
     addDbConnection(conn);
     expect(dbConnectionsGlobal).toHaveLength(1);
-
     removeDbConnection('to-remove');
     expect(dbConnectionsGlobal).toHaveLength(0);
   });
@@ -157,7 +154,6 @@ describe('removeDbConnection', () => {
     const conn = makeDbConnection({ id: 'keep' });
     addDbConnection(conn);
     expect(dbConnectionsGlobal).toHaveLength(1);
-
     removeDbConnection('nonexistent');
     expect(dbConnectionsGlobal).toHaveLength(1);
     expect(dbConnectionsGlobal[0].id).toBe('keep');
@@ -168,7 +164,6 @@ describe('removeDbConnection', () => {
     addDbConnection(makeDbConnection({ id: 'b' }));
     addDbConnection(makeDbConnection({ id: 'c' }));
     expect(dbConnectionsGlobal).toHaveLength(3);
-
     removeDbConnection('b');
     expect(dbConnectionsGlobal).toHaveLength(2);
     expect(dbConnectionsGlobal.map((c) => c.id)).toEqual(['a', 'c']);
@@ -181,11 +176,10 @@ describe('updateDbConnection', () => {
   it('partially merges fields on an existing connection', () => {
     const conn = makeDbConnection({ id: 'upd', name: 'Old Name', host: 'old-host' });
     addDbConnection(conn);
-
     updateDbConnection('upd', { name: 'New Name', port: 9999 });
     expect(dbConnectionsGlobal[0].name).toBe('New Name');
     expect(dbConnectionsGlobal[0].port).toBe(9999);
-    // Unchanged fields stay
+    // Los campos sin cambios permanecen
     expect(dbConnectionsGlobal[0].host).toBe('old-host');
     expect(dbConnectionsGlobal[0].database).toBe('test_db');
   });
@@ -193,7 +187,6 @@ describe('updateDbConnection', () => {
   it('is a no-op when the id does not exist', () => {
     const conn = makeDbConnection({ id: 'keep-me' });
     addDbConnection(conn);
-
     updateDbConnection('ghost', { name: 'Ghost' });
     expect(dbConnectionsGlobal).toHaveLength(1);
     expect(dbConnectionsGlobal[0].name).toBe('Test DB');
@@ -210,18 +203,18 @@ describe('state isolation', () => {
   it('does not leak state across tests — adding in one scenario', () => {
     addApiCall(makeApiCall({ id: 'iso-test' }));
     expect(apiCalls).toHaveLength(1);
-    // Next test runs with its own beforeEach reset, proving isolation
+    // El siguiente test corre con su propio reset de beforeEach, probando el aislamiento
   });
 
   it('confirming isolation — apiCalls is empty again after reset', () => {
-    // This test pair proves that the beforeEach in the next test
-    // successfully reset the state from the previous test
+    // Este par de tests prueba que el beforeEach del siguiente test
+    // reinició exitosamente el estado del test anterior
     expect(apiCalls).toHaveLength(0);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Task 1: Store clear helpers
+// Helpers de limpieza de stores
 // ---------------------------------------------------------------------------
 
 describe('clearApiCalls', () => {
@@ -238,7 +231,7 @@ describe('clearApiCalls', () => {
     expect(apiCalls).toHaveLength(0);
     clearApiCalls();
     expect(apiCalls).toHaveLength(0);
-    // Call a second time — still empty, no errors
+    // Llama una segunda vez — sigue vacío, sin errores
     clearApiCalls();
     expect(apiCalls).toHaveLength(0);
   });
@@ -261,13 +254,11 @@ describe('clear both — independent arrays', () => {
   it('both clears run in sequence, arrays stay independent', () => {
     addApiCall(makeApiCall({ id: 'api-1' }));
     addDbQuery(makeDbQuery({ id: 'db-1' }));
-
     clearApiCalls();
     expect(apiCalls).toHaveLength(0);
-    // dbQueries untouched by clearApiCalls
+    // dbQueries intacto tras clearApiCalls
     expect(dbQueries).toHaveLength(1);
     expect(dbQueries[0].id).toBe('db-1');
-
     clearDbQueries();
     expect(dbQueries).toHaveLength(0);
   });

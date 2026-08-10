@@ -3,7 +3,6 @@
     data?: unknown;
     format?: string;
   }
-
   let { data = null, format = 'json' }: Props = $props();
   let copied = $state(false);
   let formattedData = $derived.by(() => {
@@ -16,20 +15,17 @@
     }
   });
   let lines = $derived(formattedData.split('\n'));
-
   interface Token {
     text: string;
     class?: string;
   }
-
-  /** Breaks a JSON line into classified tokens for safe <span>-based rendering.
-   *  Never generates raw HTML — returns structured tokens instead. */
+  /** Divide una línea JSON en tokens clasificados para un renderizado seguro basado en <span>.
+   *  Nunca genera HTML crudo — devuelve tokens estructurados en su lugar. */
   function tokenize(line: string): Token[] {
     const tokens: Token[] = [];
     const re = /("[^"]+")(?=\s*:)|:\s*("[^"]*")|:\s*(\d+\.?\d*)|:\s*(true|false)|:\s*(null)/g;
     let lastIndex = 0;
     let m: RegExpExecArray | null;
-
     while ((m = re.exec(line)) !== null) {
       if (m.index > lastIndex) {
         tokens.push({ text: line.slice(lastIndex, m.index) });
@@ -46,12 +42,11 @@
     }
     return tokens;
   }
-
   async function copyToClipboard() {
     try {
       await navigator.clipboard.writeText(formattedData);
     } catch {
-      // Clipboard may be unavailable (Cypress runner, headless, etc.)
+      // El portapapeles puede no estar disponible (runner de Cypress, headless, etc.)
     }
     copied = true;
     setTimeout(() => (copied = false), 2000);

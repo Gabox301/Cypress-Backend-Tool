@@ -1,21 +1,21 @@
 <script lang="ts">
   // ────────────────────────────────────────────────────────────────────────
-  // App is the container shell.
+  // App es el shell contenedor.
   //
-  // Individual entries (ApiCall / DbQuery) are mounted into #cabt-scroll-area
-  // by mountEntry() as persistent sibling divs. This design means:
+  // Las entradas individuales (ApiCall / DbQuery) se montan en #cabt-scroll-area
+  // por mountEntry() como divs hermanos persistentes. Este diseño significa:
   //
-  //   • Each entry is an independent Svelte mount — Cypress.log().snapshot()
-  //     targets a stable DOM node that never gets replaced.
-  //   • Clearing the stores (clearApiCalls / clearDbQueries in beforeEach)
-  //     does NOT affect the rendered UI — entries survive until the page
-  //     reloads or EntryRegistry.clear() is called.
-  //   • No {#each} from stores = no duplicate rendering.
+  //   • Cada entrada es un montaje Svelte independiente — Cypress.log().snapshot()
+  //     apunta a un nodo DOM estable que nunca se reemplaza.
+  //   • Limpiar los stores (clearApiCalls / clearDbQueries en beforeEach)
+  //     NO afecta a la UI renderizada — las entradas sobreviven hasta que la
+  //     página se recarga o se llama a EntryRegistry.clear().
+  //   • Sin {#each} desde los stores = sin renderizado duplicado.
   // ────────────────────────────────────────────────────────────────────────
 </script>
 
 <div class="scroll-area" id="cabt-scroll-area">
-  <!-- Entries are inserted here by mountEntry() -->
+  <!-- Las entradas se insertan aquí por mountEntry() -->
   <div class="bottom-anchor"></div>
 </div>
 
@@ -37,8 +37,9 @@
     flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
-  /* snapshotOnly: hide the live overlay without removing any entry from the
-     DOM. Every past call stays inspectable through Cypress's snapshot feature. */
+  /* snapshotOnly: oculta el overlay activo sin eliminar ninguna entrada del
+     DOM. Cada llamada pasada sigue siendo inspeccionable mediante la función
+     de snapshot de Cypress. */
   :global(#cypress-api-plugin-container.cypress-plugin-collapsed) {
     display: none;
   }

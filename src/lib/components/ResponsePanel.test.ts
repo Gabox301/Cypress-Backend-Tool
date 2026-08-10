@@ -16,17 +16,15 @@ function makeResponse(overrides: Partial<ApiResponse> = {}): ApiResponse {
 }
 
 // ---------------------------------------------------------------------------
-// 4.1 — Status config (colors, glow, and labels)
+// Configuración de estado (colores, brillo y etiquetas)
 // ---------------------------------------------------------------------------
 describe('ResponsePanel — status config', () => {
   it('renders 200 status with green color and OK label', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 200, statusText: 'OK' }) } });
     expect(screen.getByText('200')).toBeInTheDocument();
     expect(screen.getByText('OK')).toBeInTheDocument();
-
     const dot = document.querySelector('.status-dot') as HTMLElement;
     expect(dot.style.background).toBe('rgb(74, 222, 128)');
-
     const code = document.querySelector('.status-code') as HTMLElement;
     expect(code.style.color).toBe('rgb(74, 222, 128)');
   });
@@ -35,10 +33,8 @@ describe('ResponsePanel — status config', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 301, statusText: 'Moved Permanently' }) } });
     expect(screen.getByText('301')).toBeInTheDocument();
     expect(screen.getByText('Moved Permanently')).toBeInTheDocument();
-
     const dot = document.querySelector('.status-dot') as HTMLElement;
     expect(dot.style.background).toBe('rgb(250, 204, 21)');
-
     const code = document.querySelector('.status-code') as HTMLElement;
     expect(code.style.color).toBe('rgb(250, 204, 21)');
   });
@@ -47,10 +43,8 @@ describe('ResponsePanel — status config', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 404, statusText: 'Not Found' }) } });
     expect(screen.getByText('404')).toBeInTheDocument();
     expect(screen.getByText('Not Found')).toBeInTheDocument();
-
     const dot = document.querySelector('.status-dot') as HTMLElement;
     expect(dot.style.background).toBe('rgb(239, 68, 68)');
-
     const code = document.querySelector('.status-code') as HTMLElement;
     expect(code.style.color).toBe('rgb(239, 68, 68)');
   });
@@ -59,10 +53,8 @@ describe('ResponsePanel — status config', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 500, statusText: 'Internal Server Error' }) } });
     expect(screen.getByText('500')).toBeInTheDocument();
     expect(screen.getByText('Internal Server Error')).toBeInTheDocument();
-
     const dot = document.querySelector('.status-dot') as HTMLElement;
     expect(dot.style.background).toBe('rgb(251, 146, 60)');
-
     const code = document.querySelector('.status-code') as HTMLElement;
     expect(code.style.color).toBe('rgb(251, 146, 60)');
   });
@@ -70,17 +62,15 @@ describe('ResponsePanel — status config', () => {
   it('renders info-level status (1xx) with gray fallback color', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 100, statusText: 'Continue' }) } });
     expect(screen.getByText('100')).toBeInTheDocument();
-
     const dot = document.querySelector('.status-dot') as HTMLElement;
     expect(dot.style.background).toBe('rgb(148, 163, 184)');
-
     const code = document.querySelector('.status-code') as HTMLElement;
     expect(code.style.color).toBe('rgb(148, 163, 184)');
   });
 });
 
 // ---------------------------------------------------------------------------
-// 4.2 — Size formatting + null response
+// Formateo de tamaño + respuesta null
 // ---------------------------------------------------------------------------
 describe('ResponsePanel — size formatting and empty state', () => {
   it('formats 512 B correctly', () => {
@@ -115,7 +105,7 @@ describe('ResponsePanel — size formatting and empty state', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4.3 — Tab interaction (Headers, Cookies)
+// Interacción de pestañas (Headers, Cookies)
 // ---------------------------------------------------------------------------
 describe('ResponsePanel — tab interaction', () => {
   it('shows headers when Headers tab is clicked', () => {
@@ -123,9 +113,7 @@ describe('ResponsePanel — tab interaction', () => {
       headers: { 'Content-Type': 'application/json', 'X-Custom': 'test-value' },
     });
     render(ResponsePanel, { props: { response } });
-
     fireEvent.click(screen.getByText('Headers'));
-
     expect(screen.getByText('Content-Type')).toBeInTheDocument();
     expect(screen.getByText('application/json')).toBeInTheDocument();
     expect(screen.getByText('X-Custom')).toBeInTheDocument();
@@ -140,34 +128,28 @@ describe('ResponsePanel — tab interaction', () => {
       ],
     });
     render(ResponsePanel, { props: { response } });
-
     fireEvent.click(screen.getByText('Cookies'));
-
     expect(screen.getByText('session')).toBeInTheDocument();
     expect(screen.getByText('abc123')).toBeInTheDocument();
     expect(screen.getByText('example.com')).toBeInTheDocument();
     expect(screen.getByText('theme')).toBeInTheDocument();
     expect(screen.getByText('dark')).toBeInTheDocument();
-    // Undefined domain/path should render em dash
+    // El domain/path undefined debería renderizar la raya em
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
   it('shows empty cookies state when Cookies tab is clicked and no cookies exist', () => {
     const response = makeResponse({ cookies: [] });
     render(ResponsePanel, { props: { response } });
-
     fireEvent.click(screen.getByText('Cookies'));
-
     expect(screen.getByText('Sin cookies')).toBeInTheDocument();
   });
 
   it('shows empty cookies state when cookies are undefined', () => {
     const response = makeResponse();
-    // cookies is undefined by default
+    // cookies es undefined por defecto
     render(ResponsePanel, { props: { response } });
-
     fireEvent.click(screen.getByText('Cookies'));
-
     expect(screen.getByText('Sin cookies')).toBeInTheDocument();
   });
 });

@@ -31,7 +31,7 @@ export default defineConfig({
     rollupOptions: {
       external: (source: string, importer: string | undefined) => {
         if (source === 'cypress') return true;
-        // Only externalize 'pg' when imported from the tasks entry
+        // Solo externaliza 'pg' cuando se importa desde el entry de tasks
         if (source === 'pg' && importer?.includes('src/node/tasks.ts')) return true;
         return false;
       },

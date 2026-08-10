@@ -1,17 +1,18 @@
 /**
- * Tests for src/node/tasks.ts — setupDatabaseTasks()
+ * Pruebas para src/node/tasks.ts — setupDatabaseTasks()
  *
- * Uses mocked pg.Pool to avoid real database connections.
+ * Usa pg.Pool simulado para evitar conexiones de base de datos reales.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Mock pg.Pool before any imports.
+// Mock de pg.Pool antes de cualquier import.
 // ---------------------------------------------------------------------------
 
 /**
- * Shared references set up inside the vi.mock factory so they are tracked
- * spies. Tests access them via `pgMock` which is populated after import.
+ * Referencias compartidas configuradas dentro de la factory de vi.mock para que
+ * sean spies rastreados. Los tests acceden a ellas vía `pgMock`, que se puebla
+ * después del import.
  */
 let mockPoolQuery: ReturnType<typeof vi.fn>;
 let mockPoolCtor: ReturnType<typeof vi.fn>;
@@ -39,7 +40,7 @@ vi.mock('pg', () => {
 
 let setupDatabaseTasks: (on: Record<string, unknown>, options?: Record<string, unknown>) => void;
 
-/** Helper to extract task handlers from the on spy */
+/** Helper para extraer los handlers de tareas del spy on */
 function getTasks(on: ReturnType<typeof vi.fn>): Record<string, unknown> {
   return (on.mock.calls.find(([e]) => e === 'task')?.[1] ?? {}) as Record<string, unknown>;
 }
@@ -60,13 +61,11 @@ describe('setupDatabaseTasks', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Task registration
+  // Registro de tareas
   // -----------------------------------------------------------------------
-
   it('registers db:getConfig and db:query tasks with default prefix', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-
     expect(on).toHaveBeenCalledWith('task', expect.any(Object));
     const tasks = getTasks(on);
     expect(tasks).toHaveProperty('db:getConfig');
@@ -76,7 +75,6 @@ describe('setupDatabaseTasks', () => {
   it('registers tasks with custom prefix when defaultPrefix is provided', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>, { defaultPrefix: 'myapp_' });
-
     const tasks = getTasks(on);
     expect(tasks).toHaveProperty('myapp_db:getConfig');
     expect(tasks).toHaveProperty('myapp_db:query');
@@ -84,20 +82,17 @@ describe('setupDatabaseTasks', () => {
   });
 
   // -----------------------------------------------------------------------
-  // db:getConfig — env parsing, CYPRESS_DB_* > DB_*
+  // db:getConfig — parsing de env, CYPRESS_DB_* > DB_*
   // -----------------------------------------------------------------------
-
   it('db:getConfig reads CYPRESS_DB_* env vars', () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'cypress-db.example.com');
     vi.stubEnv('CYPRESS_DB_PORT', '7777');
     vi.stubEnv('CYPRESS_DB_NAME', 'cypress_test');
     vi.stubEnv('CYPRESS_DB_USER', 'cypress_user');
     vi.stubEnv('CYPRESS_DB_PASSWORD', 'cypress_secret');
-
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('cypress-db.example.com');
     expect(config.port).toBe(7777);
     expect(config.database).toBe('cypress_test');
@@ -111,11 +106,9 @@ describe('setupDatabaseTasks', () => {
     vi.stubEnv('DB_NAME', 'test_db');
     vi.stubEnv('DB_USER', 'db_user');
     vi.stubEnv('DB_PASSWORD', 'db_secret');
-
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('db.example.com');
     expect(config.port).toBe(5432);
     expect(config.database).toBe('test_db');
@@ -126,11 +119,9 @@ describe('setupDatabaseTasks', () => {
   it('db:getConfig prefers CYPRESS_DB_* over DB_* when both are set', () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'preferred.example.com');
     vi.stubEnv('DB_HOST', 'fallback.example.com');
-
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('preferred.example.com');
   });
 
@@ -138,7 +129,6 @@ describe('setupDatabaseTasks', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('localhost');
     expect(config.port).toBe(5432);
     expect(config.database).toBe('test_db');
@@ -147,19 +137,16 @@ describe('setupDatabaseTasks', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Persistent Pool reuse
+  // Reutilización del Pool persistente
   // -----------------------------------------------------------------------
-
   it('creates a pg.Pool with connection config from env vars', async () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'mydb.example.com');
     vi.stubEnv('CYPRESS_DB_PORT', '5555');
     vi.stubEnv('CYPRESS_DB_NAME', 'myapp');
     vi.stubEnv('CYPRESS_DB_USER', 'app_user');
     vi.stubEnv('CYPRESS_DB_PASSWORD', 's3cret');
-
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-
     expect(mockPoolCtor).toHaveBeenCalledWith({
       max: 1,
       host: 'mydb.example.com',
@@ -173,7 +160,6 @@ describe('setupDatabaseTasks', () => {
   it('pool uses built-in defaults when no env vars are set', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-
     expect(mockPoolCtor).toHaveBeenCalledWith({
       max: 1,
       host: 'localhost',
@@ -187,11 +173,9 @@ describe('setupDatabaseTasks', () => {
   it('reuses the same pool across multiple task handler invocations', async () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-
     mockPoolQuery.mockResolvedValue({ rows: [{ col: 1 }], rowCount: 1 });
-
     const queryHandler = getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>;
-    // args match pool defaults (test_db), so pool.query is used
+    // los args coinciden con los valores por defecto del pool (test_db), por lo que se usa pool.query
     await queryHandler({
       query: 'SELECT 1',
       host: 'localhost',
@@ -208,20 +192,16 @@ describe('setupDatabaseTasks', () => {
       user: 'postgres',
       password: '',
     });
-
     expect(mockPoolCtor).toHaveBeenCalledTimes(1);
   });
 
   // -----------------------------------------------------------------------
-  // db:query — delegates to pool.query
+  // db:query — delega en pool.query
   // -----------------------------------------------------------------------
-
   it('db:query calls pool.query with the given SQL when args match pool config', async () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-
     mockPoolQuery.mockResolvedValue({ rows: [{ result: 1 }], rowCount: 1 });
-
     const result = await (getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>)({
       query: 'SELECT 1 AS result',
       host: 'localhost',
@@ -230,20 +210,16 @@ describe('setupDatabaseTasks', () => {
       user: 'postgres',
       password: '',
     });
-
     expect(mockPoolQuery).toHaveBeenCalledWith('SELECT 1 AS result');
     expect(result).toEqual({ rows: [{ result: 1 }], rowCount: 1 });
   });
 
   it('uses a one-off pg.Client when db:query args differ from pool config', async () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'pool-host');
-
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-
     mockClientQuery.mockResolvedValue({ rows: [{ val: 'override' }], rowCount: 1 });
-
-    // args use a different host than the pool (pool-host vs some-other-host)
+    // los args usan un host distinto al del pool (pool-host vs some-other-host)
     const result = await (getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>)({
       query: 'SELECT $1 AS val',
       host: 'some-other-host',
@@ -252,7 +228,6 @@ describe('setupDatabaseTasks', () => {
       user: 'postgres',
       password: '',
     });
-
     expect(mockClientConnect).toHaveBeenCalledOnce();
     expect(mockClientQuery).toHaveBeenCalledWith('SELECT $1 AS val');
     expect(mockClientEnd).toHaveBeenCalledOnce();
@@ -261,16 +236,13 @@ describe('setupDatabaseTasks', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Options with defaults
+  // Options con valores por defecto
   // -----------------------------------------------------------------------
-
   it('accepts custom envPrefix option', () => {
     vi.stubEnv('MYAPP_DB_HOST', 'custom-prefix.example.com');
-
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>, { envPrefix: 'MYAPP_DB_' });
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('custom-prefix.example.com');
   });
 
@@ -283,24 +255,20 @@ describe('setupDatabaseTasks', () => {
       } as Record<string, unknown>,
     );
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('default-host');
     expect(config.port).toBe(9999);
     expect(config.database).toBe('test_db');
   });
 
   // -----------------------------------------------------------------------
-  // Edge cases
+  // Casos límite
   // -----------------------------------------------------------------------
-
   it('handles missing port env var by using default', () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'srv.example.com');
-    // Port intentionally not set
-
+    // Puerto intencionalmente no definido
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-
     expect(config.host).toBe('srv.example.com');
     expect(config.port).toBe(5432);
   });

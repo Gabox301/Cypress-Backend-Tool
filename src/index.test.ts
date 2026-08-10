@@ -1,13 +1,15 @@
 /**
- * Tests for src/index.ts — container reuse, store wiring, MutationObserver.
+ * Pruebas para src/index.ts — reutilización de contenedor, conexión de stores,
+ * MutationObserver.
  *
- * Cypress globals are mocked via vi.stubGlobal BEFORE the module is imported.
- * The module auto-executes on import (registers commands), so mocks must exist first.
+ * Los globales de Cypress se simulan vía vi.stubGlobal ANTES de importar el módulo.
+ * El módulo se auto-ejecuta al importarse (registra comandos), por lo que los
+ * mocks deben existir primero.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Mock factories (hoisted — available before module import)
+// Fábricas de mocks (hoisted — disponibles antes de la importación del módulo)
 // ---------------------------------------------------------------------------
 const { capturedCommands, cyStateMock, cypressExposeMock } = vi.hoisted(() => {
   const captured: Record<string, (...args: unknown[]) => unknown> = {};
@@ -19,7 +21,7 @@ const { capturedCommands, cyStateMock, cypressExposeMock } = vi.hoisted(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Stub Cypress globals BEFORE any import of src/index.ts
+// Stub de los globales de Cypress ANTES de cualquier import de src/index.ts
 // ---------------------------------------------------------------------------
 vi.stubGlobal('cy', {
   state: cyStateMock,
@@ -45,7 +47,7 @@ vi.stubGlobal('Cypress', {
 });
 
 // ---------------------------------------------------------------------------
-// Clean document between tests
+// Limpia el documento entre tests
 // ---------------------------------------------------------------------------
 function cleanDocument() {
   document.body.innerHTML = '';
@@ -55,14 +57,14 @@ function cleanDocument() {
 
 beforeEach(() => {
   cleanDocument();
-  // cy.state() returns different things depending on key
+  // cy.state() devuelve cosas distintas según la clave
   cyStateMock.mockImplementation((key: string) => {
     if (key === 'window') return window;
     if (key === 'document') return document;
     if (key === 'runnable') return { id: 'test-1' };
     return undefined;
   });
-  // Default plugin config — snapshotOnly disabled
+  // Config del plugin por defecto — snapshotOnly deshabilitado
   cypressExposeMock.mockImplementation((key: string) => {
     if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
     if (key === 'snapshotOnly') return false;
@@ -71,12 +73,11 @@ beforeEach(() => {
     if (key === 'requestMode') return 'auto';
     return undefined;
   });
-  // Polyfill scrollIntoView for jsdom (used by showApiUi/scrollToEntry)
+  // Polyfill de scrollIntoView para jsdom (usado por showApiUi/scrollToEntry)
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = vi.fn();
   }
-
-  // cy.request mock (needed for http handler tests)
+  // Mock de cy.request (necesario para los tests del handler http)
   const originalCy = globalThis.cy as unknown as Record<string, unknown>;
   originalCy.request = vi.fn().mockResolvedValue({
     status: 200,
@@ -94,10 +95,9 @@ afterEach(() => {
 });
 
 // ===========================================================================
-// Task 2 — Container Reuse Unit Tests
+// Pruebas unitarias de reutilización de contenedor
 // ===========================================================================
-
-describe('createFreshContainer (Task 2)', () => {
+describe('createFreshContainer', () => {
   let createFreshContainer: (doc?: Document) => HTMLElement;
 
   beforeAll(async () => {
@@ -131,10 +131,9 @@ describe('createFreshContainer (Task 2)', () => {
 });
 
 // ===========================================================================
-// Task 3 — Store Wiring Integration Tests
+// Pruebas de integración de conexión de stores
 // ===========================================================================
-
-describe('store wiring (Task 3)', () => {
+describe('store wiring', () => {
   let addApiCall: (...args: any[]) => void;
   let addDbQuery: (...args: any[]) => void;
   let clearApiCalls: () => void;
@@ -148,13 +147,13 @@ describe('store wiring (Task 3)', () => {
     addDbQuery = stores.addDbQuery;
     clearApiCalls = stores.clearApiCalls;
     clearDbQueries = stores.clearDbQueries;
-    // Access reactive $state arrays — vitest unwraps them via proxy
+    // Accede a los arrays reactivos $state — vitest los desempaqueta vía proxy
     apiCalls = stores.apiCalls as unknown[];
     dbQueries = stores.dbQueries as unknown[];
   });
 
   beforeEach(() => {
-    // Clear stores before each test
+    // Limpia los stores antes de cada test
     clearApiCalls();
     clearDbQueries();
   });
@@ -173,14 +172,13 @@ describe('store wiring (Task 3)', () => {
 
   function mockHttpHandler(url: string, method = 'GET', status = 200) {
     const options = { url, method };
-    // Simulate what the real handler does: call cy.request → .then()
+    // Simula lo que hace el handler real: llama a cy.request → .then()
     const cyResponse = {
       status,
       statusText: status === 200 ? 'OK' : 'Error',
       headers: { 'content-type': 'application/json' },
       body: { result: 'ok' },
     };
-
     const response = {
       status: cyResponse.status,
       statusText: cyResponse.statusText,
@@ -190,7 +188,6 @@ describe('store wiring (Task 3)', () => {
       size: JSON.stringify(cyResponse.body).length,
       cookies: [],
     };
-
     const call = {
       id: crypto.randomUUID(),
       request: {
@@ -204,14 +201,12 @@ describe('store wiring (Task 3)', () => {
       response,
       timestamp: Date.now(),
     };
-
     addApiCall(call);
     return call;
   }
 
   it('after one cy.http() simulation, apiCalls contains one entry with correct data', () => {
     const call = mockHttpHandler('https://api.example.com/users', 'GET');
-
     expect(apiCalls).toHaveLength(1);
     const stored = apiCalls[0] as Record<string, unknown>;
     expect(stored.id).toBe(call.id);
@@ -230,7 +225,6 @@ describe('store wiring (Task 3)', () => {
       timestamp: Date.now(),
     };
     addDbQuery(queryCall);
-
     expect(dbQueries).toHaveLength(1);
     const stored = dbQueries[0] as Record<string, unknown>;
     expect(stored.id).toBe(queryCall.id);
@@ -241,7 +235,6 @@ describe('store wiring (Task 3)', () => {
   it('two sequential cy.http() calls preserve insertion order', () => {
     const call1 = mockHttpHandler('https://api.example.com/first', 'GET');
     const call2 = mockHttpHandler('https://api.example.com/second', 'POST');
-
     expect(apiCalls).toHaveLength(2);
     expect((apiCalls[0] as Record<string, unknown>).id).toBe(call1.id);
     expect((apiCalls[1] as Record<string, unknown>).id).toBe(call2.id);
@@ -254,7 +247,7 @@ describe('store wiring (Task 3)', () => {
   });
 
   it('beforeEach clear empties both arrays between simulated tests', () => {
-    // Simulate test A execution
+    // Simula la ejecución del test A
     mockHttpHandler('https://api.example.com/a', 'GET');
     const queryCall = {
       id: crypto.randomUUID(),
@@ -265,18 +258,14 @@ describe('store wiring (Task 3)', () => {
       timestamp: Date.now(),
     };
     addDbQuery(queryCall);
-
     expect(apiCalls).toHaveLength(1);
     expect(dbQueries).toHaveLength(1);
-
-    // Simulate beforeEach clearing (as would happen between tests)
+    // Simula la limpieza de beforeEach (como ocurriría entre tests)
     clearApiCalls();
     clearDbQueries();
-
     expect(apiCalls).toHaveLength(0);
     expect(dbQueries).toHaveLength(0);
-
-    // Simulate test B execution — should start fresh
+    // Simula la ejecución del test B — debería empezar desde cero
     const callB = mockHttpHandler('https://api.example.com/b', 'POST');
     expect(apiCalls).toHaveLength(1);
     expect((apiCalls[0] as Record<string, unknown>).id).toBe(callB.id);
@@ -284,10 +273,9 @@ describe('store wiring (Task 3)', () => {
 });
 
 // ===========================================================================
-// Task 4 — MutationObserver Retry Resilience
+// Resiliencia de reintentos del MutationObserver
 // ===========================================================================
-
-describe('MutationObserver resilience (Task 4)', () => {
+describe('MutationObserver resilience', () => {
   let createFreshContainer: (doc?: Document) => HTMLElement;
 
   beforeAll(async () => {
@@ -298,12 +286,10 @@ describe('MutationObserver resilience (Task 4)', () => {
   it('removing container from DOM — next call creates fresh one', () => {
     const container = createFreshContainer(document);
     expect(container.isConnected).toBe(true);
-
-    // Simulate Cypress snapshot replay removing it
+    // Simula la reproducción de snapshot de Cypress eliminándolo
     container.remove();
     expect(container.isConnected).toBe(false);
-
-    // Next call should create a fresh container (always does)
+    // La siguiente llamada debe crear un contenedor nuevo (siempre lo hace)
     const fresh = createFreshContainer(document);
     expect(fresh.isConnected).toBe(true);
     expect(fresh).not.toBe(container);
@@ -313,15 +299,13 @@ describe('MutationObserver resilience (Task 4)', () => {
   it('after container removal, next mount creates fresh element', () => {
     const container1 = createFreshContainer(document);
     expect(document.body.contains(container1)).toBe(true);
-
-    // Remove it (snapshot replay)
+    // Lo elimina (reproducción de snapshot)
     container1.remove();
-
-    // Always creates a new container
+    // Siempre crea un contenedor nuevo
     const container2 = createFreshContainer(document);
     expect(document.body.contains(container2)).toBe(true);
     expect(container2).not.toBe(container1);
-    expect(document.body.contains(container1)).toBe(false); // old one is gone
+    expect(document.body.contains(container1)).toBe(false); // el anterior ya no está
   });
 
   it('every call produces exactly one container in the DOM', () => {
@@ -329,7 +313,7 @@ describe('MutationObserver resilience (Task 4)', () => {
     createFreshContainer(document);
     createFreshContainer(document);
     const last = createFreshContainer(document);
-    // Only one container should exist
+    // Solo debería existir un contenedor
     const all = document.querySelectorAll('#cypress-api-plugin-container');
     expect(all.length).toBe(1);
     expect(all[0]).toBe(last);
@@ -337,17 +321,16 @@ describe('MutationObserver resilience (Task 4)', () => {
 });
 
 // ===========================================================================
-// Task 5 — Empty response body bug fix (TDD Phase 1)
+// Corrección del bug de cuerpo de respuesta vacío
 // ===========================================================================
-
-describe('empty response body handling (Task 5)', () => {
+describe('empty response body handling', () => {
   beforeAll(async () => {
-    // Ensure the module is loaded so commands are captured
+    // Asegura que el módulo esté cargado para que los comandos se capturen
     await import('./index');
   });
 
   it('RED: returns size: 0 when cy.request returns body: undefined (204 No Content)', async () => {
-    // Arrange: mock cy.request to return a 204 with undefined body
+    // Arrange: mockea cy.request para devolver un 204 con body undefined
     const mockRequest = vi.fn().mockResolvedValue({
       status: 204,
       body: undefined,
@@ -355,18 +338,16 @@ describe('empty response body handling (Task 5)', () => {
       statusText: 'No Content',
     });
     (globalThis.cy as unknown as Record<string, unknown>).request = mockRequest;
-
-    // Act: call the real http handler captured during module import
+    // Act: llama al handler http real capturado durante la importación del módulo
     const httpHandler = capturedCommands['http'] as (...args: unknown[]) => Promise<Record<string, unknown>>;
     const result = await httpHandler({ url: 'https://api.example.com/no-content', method: 'GET' });
-
-    // Assert: size must be 0 (not crash from JSON.stringify(undefined).length)
+    // Assert: size debe ser 0 (no romper por JSON.stringify(undefined).length)
     expect(result).toBeDefined();
     expect(result.size).toBe(0);
   });
 
   it('still computes size correctly when body is present', async () => {
-    // Arrange: mock cy.request with a normal response
+    // Arrange: mockea cy.request con una respuesta normal
     const mockRequest = vi.fn().mockResolvedValue({
       status: 200,
       body: { id: 1, name: 'test' },
@@ -374,12 +355,10 @@ describe('empty response body handling (Task 5)', () => {
       statusText: 'OK',
     });
     (globalThis.cy as unknown as Record<string, unknown>).request = mockRequest;
-
     // Act
     const httpHandler = capturedCommands['http'] as (...args: unknown[]) => Promise<Record<string, unknown>>;
     const result = await httpHandler({ url: 'https://api.example.com/data', method: 'GET' });
-
-    // Assert: size should be JSON.stringify(body).length = 22
+    // Assert: size debería ser JSON.stringify(body).length = 22
     expect(result).toBeDefined();
     expect(result.size).toBe(22);
   });

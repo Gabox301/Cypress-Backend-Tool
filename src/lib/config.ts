@@ -1,8 +1,8 @@
 import type { CypressApiPluginConfig } from '$lib/types';
 
 /**
- * Resolves plugin configuration from a key-value reader (Cypress.expose).
- * Pure function — testable without Cypress global.
+ * Resuelve la configuración del plugin desde un lector clave-valor (Cypress.expose).
+ * Función pura — testeable sin el global de Cypress.
  */
 export function getPluginConfig(read: (key: string) => unknown): CypressApiPluginConfig {
   return {
@@ -20,19 +20,19 @@ export function getPluginConfig(read: (key: string) => unknown): CypressApiPlugi
 }
 
 // ---------------------------------------------------------------------------
-// configure() override layer
+// Capa de overrides de configure()
 // ---------------------------------------------------------------------------
 
 /**
- * Module-level config overrides. Applied on top of values from Cypress.expose().
- * Configure wins because it's an explicit programmatic choice.
+ * Overrides de configuración a nivel de módulo. Se aplican sobre los valores de
+ * Cypress.expose(). configure gana porque es una elección programática explícita.
  */
 let configOverrides: Partial<CypressApiPluginConfig> = {};
 
 /**
- * Deep-merges override values into the base config.
- * Top-level scalars use shallow spread; `hideCredentialsOptions` uses deep merge
- * so partial overrides don't wipe unset keys.
+ * Mezcla en profundidad los valores de override dentro de la config base.
+ * Los escalares de nivel superior usan spread superficial; `hideCredentialsOptions` usa
+ * una mezcla profunda para que los overrides parciales no borren las claves no establecidas.
  */
 export function mergeConfig(
   base: CypressApiPluginConfig,
@@ -49,8 +49,8 @@ export function mergeConfig(
 }
 
 /**
- * Sets programmatic config overrides that take precedence over
- * Cypress.expose() values. Call in `setupNodeEvents` or `beforeEach`.
+ * Establece overrides de configuración programáticos que tienen precedencia sobre
+ * los valores de Cypress.expose(). Llama en `setupNodeEvents` o `beforeEach`.
  *
  * @example
  * ```ts
@@ -63,8 +63,8 @@ export function configure(overrides: Partial<CypressApiPluginConfig>): void {
 }
 
 /**
- * Returns the current config overrides. Used internally by readPluginConfig()
- * to merge with base values from Cypress.expose().
+ * Devuelve los overrides de configuración actuales. Se usa internamente por
+ * readPluginConfig() para mezclarlos con los valores base de Cypress.expose().
  * @internal
  */
 export function getConfigOverrides(): Partial<CypressApiPluginConfig> {
@@ -72,7 +72,7 @@ export function getConfigOverrides(): Partial<CypressApiPluginConfig> {
 }
 
 /**
- * Resets config overrides. Exported for testing only.
+ * Reinicia los overrides de configuración. Exportado solo para pruebas.
  * @internal
  */
 export function resetConfig(): void {

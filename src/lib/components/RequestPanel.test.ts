@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import RequestPanel from './RequestPanel.svelte';
 
 // ---------------------------------------------------------------------------
-// Test helpers
+// Helpers de test
 // ---------------------------------------------------------------------------
 function makeRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
   return {
@@ -22,7 +22,7 @@ function makeRequest(overrides: Partial<ApiRequest> = {}): ApiRequest {
 const ALL_MASKED = { headers: true, auth: true, body: true, query: true };
 
 // ---------------------------------------------------------------------------
-// 3.1 — Basic render
+// Renderizado básico
 // ---------------------------------------------------------------------------
 describe('RequestPanel — basic render', () => {
   it('renders method and URL', () => {
@@ -30,7 +30,7 @@ describe('RequestPanel — basic render', () => {
       props: { request: makeRequest({ method: 'PUT', url: '/api/data' }), hideCredentials: false },
     });
     expect(screen.getByText('PUT')).toBeInTheDocument();
-    // URL is split across segments in TitlePanel — verify each segment
+    // La URL se divide en segmentos en TitlePanel — verifica cada segmento
     expect(screen.getByText('/api')).toBeInTheDocument();
     expect(screen.getByText('/data')).toBeInTheDocument();
   });
@@ -52,7 +52,7 @@ describe('RequestPanel — basic render', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3.2 — Masking with hideCredentials enabled
+// Enmascarado con hideCredentials activado
 // ---------------------------------------------------------------------------
 describe('RequestPanel — masking enabled', () => {
   it('headers tab shows masked values when hideCredentials is true', async () => {
@@ -64,13 +64,11 @@ describe('RequestPanel — masking enabled', () => {
         hideCredentialsOptions: ALL_MASKED,
       },
     });
-
-    // Navigate to Headers tab
+    // Navega a la pestaña Headers
     await user.click(screen.getByText('Headers'));
-
-    // Masked values should show ***, not the original value
+    // Los valores enmascarados deberían mostrar ***, no el valor original
     expect(screen.queryByText('Bearer secret-token')).not.toBeInTheDocument();
-    // The key should still be visible (it's the JSON key, not the value)
+    // La clave debería seguir siendo visible (es la clave JSON, no el valor)
   });
 
   it('auth tab shows masked password when hideCredentials is true', async () => {
@@ -82,12 +80,10 @@ describe('RequestPanel — masking enabled', () => {
         hideCredentialsOptions: ALL_MASKED,
       },
     });
-
     await user.click(screen.getByText('Auth'));
-
-    // The real password should NOT appear
+    // La contraseña real NO debería aparecer
     expect(screen.queryByText('p@ssw0rd')).not.toBeInTheDocument();
-    // 'username' key should still be visible
+    // La clave 'username' debería seguir siendo visible
   });
 
   it('query tab shows masked query params when hideCredentials is true', async () => {
@@ -99,16 +95,14 @@ describe('RequestPanel — masking enabled', () => {
         hideCredentialsOptions: ALL_MASKED,
       },
     });
-
     await user.click(screen.getByText('Query'));
-
-    // The real value should NOT appear
+    // El valor real NO debería aparecer
     expect(screen.queryByText('private-key-123')).not.toBeInTheDocument();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3.3 — Masking disabled + per-tab options
+// Enmascarado deshabilitado + opciones por pestaña
 // ---------------------------------------------------------------------------
 describe('RequestPanel — masking disabled / selective', () => {
   it('shows unmasked values when hideCredentials is false', async () => {
@@ -120,10 +114,8 @@ describe('RequestPanel — masking disabled / selective', () => {
         hideCredentialsOptions: ALL_MASKED,
       },
     });
-
     await user.click(screen.getByText('Headers'));
-
-    // Value should be visible since masking is off (quoted in JSON-syntax-highlighted span)
+    // El valor debería ser visible ya que el enmascarado está apagado (entre comillas en un span con resaltado de sintaxis JSON)
     expect(screen.getByText('"visible-key"')).toBeInTheDocument();
   });
 
@@ -140,12 +132,10 @@ describe('RequestPanel — masking disabled / selective', () => {
         hideCredentialsOptions: selectiveOptions,
       },
     });
-
-    // Headers should be visible (not masked) (quoted in JSON-syntax-highlighted span)
+    // Los headers deberían ser visibles (no enmascarados) (entre comillas en un span con resaltado de sintaxis JSON)
     await user.click(screen.getByText('Headers'));
     expect(screen.getByText('"shown-value"')).toBeInTheDocument();
-
-    // Body is masked — body-secret should be replaced with ***
+    // El body está enmascarado — body-secret debería ser reemplazado por ***
     await user.click(screen.getByText('Body'));
     expect(screen.queryByText('body-secret')).not.toBeInTheDocument();
     expect(screen.queryByText('"body-secret"')).not.toBeInTheDocument();
@@ -153,7 +143,7 @@ describe('RequestPanel — masking disabled / selective', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3.4 — deepMask nested object + empty state
+// deepMask de objetos anidados + estado vacío
 // ---------------------------------------------------------------------------
 describe('RequestPanel — deepMask and empty state', () => {
   it('fully masks nested object values with deepMask', async () => {
@@ -166,10 +156,8 @@ describe('RequestPanel — deepMask and empty state', () => {
         hideCredentialsOptions: ALL_MASKED,
       },
     });
-
     await user.click(screen.getByText('Body'));
-
-    // All nested values should be masked (replaced with ***)
+    // Todos los valores anidados deberían estar enmascarados (reemplazados por ***)
     expect(screen.queryByText('deep-secret')).not.toBeInTheDocument();
     expect(screen.queryByText('abc123')).not.toBeInTheDocument();
   });
@@ -181,7 +169,6 @@ describe('RequestPanel — deepMask and empty state', () => {
         hideCredentials: false,
       },
     });
-
     expect(screen.getByText('Selecciona una solicitud')).toBeInTheDocument();
   });
 
@@ -192,14 +179,13 @@ describe('RequestPanel — deepMask and empty state', () => {
         hideCredentials: false,
       },
     });
-
-    // Tab buttons should NOT be present
+    // Los botones de pestañas NO deberían estar presentes
     expect(screen.queryByText('Body')).not.toBeInTheDocument();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 3.5 — Empty states and cURL tab
+// Estados vacíos y pestaña cURL
 // ---------------------------------------------------------------------------
 describe('RequestPanel — empty tabs and cURL', () => {
   it('shows empty headers message when request has no headers', async () => {
@@ -210,7 +196,6 @@ describe('RequestPanel — empty tabs and cURL', () => {
         hideCredentials: false,
       },
     });
-
     await user.click(screen.getByText('Headers'));
     expect(screen.getByText('Sin headers')).toBeInTheDocument();
   });
@@ -223,7 +208,6 @@ describe('RequestPanel — empty tabs and cURL', () => {
         hideCredentials: false,
       },
     });
-
     await user.click(screen.getByText('Auth'));
     expect(screen.getByText('Sin auth')).toBeInTheDocument();
   });
@@ -236,9 +220,8 @@ describe('RequestPanel — empty tabs and cURL', () => {
         hideCredentials: false,
       },
     });
-
     await user.click(screen.getByText('cURL'));
-    // cURL tab renders CodeBlock with bash format
+    // La pestaña cURL renderiza CodeBlock con formato bash
     const bashBadge = document.querySelector('.format-badge');
     expect(bashBadge).not.toBeNull();
     expect(bashBadge!.textContent).toBe('bash');
@@ -252,7 +235,6 @@ describe('RequestPanel — empty tabs and cURL', () => {
         hideCredentials: false,
       },
     });
-
     await user.click(screen.getByText('Query'));
     expect(screen.getByText('Sin query params')).toBeInTheDocument();
   });
@@ -265,7 +247,6 @@ describe('RequestPanel — empty tabs and cURL', () => {
         hideCredentials: false,
       },
     });
-
     await user.click(screen.getByText('Auth'));
     expect(screen.getByText('"visible"')).toBeInTheDocument();
   });
@@ -278,7 +259,6 @@ describe('RequestPanel — empty tabs and cURL', () => {
         hideCredentials: false,
       },
     });
-
     await user.click(screen.getByText('Query'));
     expect(screen.getByText('"abc"')).toBeInTheDocument();
     expect(screen.getByText('"1"')).toBeInTheDocument();

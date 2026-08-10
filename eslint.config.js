@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default [
   // -----------------------------------------------------------------------
-  // Base: ignore patterns
+  // Base: patrones de ignorado
   // -----------------------------------------------------------------------
   {
     ignores: [
@@ -22,13 +22,13 @@ export default [
     ],
   },
   // -----------------------------------------------------------------------
-  // Recommended rulesets
+  // Conjuntos de reglas recomendados
   // -----------------------------------------------------------------------
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...sveltePlugin.configs.recommended,
   // -----------------------------------------------------------------------
-  // Global language options for all files
+  // Opciones de lenguaje globales para todos los archivos
   // -----------------------------------------------------------------------
   {
     languageOptions: {
@@ -39,7 +39,7 @@ export default [
     },
   },
   // -----------------------------------------------------------------------
-  // TypeScript source files
+  // Archivos fuente de TypeScript
   // -----------------------------------------------------------------------
   {
     files: ['src/**/*.ts'],
@@ -59,7 +59,7 @@ export default [
     },
   },
   // -----------------------------------------------------------------------
-  // Config files — no tsconfig project needed
+  // Archivos de configuración — no se necesita proyecto tsconfig
   // -----------------------------------------------------------------------
   {
     files: ['*.config.{ts,js}', 'cypress.config.ts'],
@@ -71,7 +71,7 @@ export default [
     },
   },
   // -----------------------------------------------------------------------
-  // Svelte files — override TS parser with Svelte parser
+  // Archivos Svelte — sobrescribe el parser de TS con el parser de Svelte
   // -----------------------------------------------------------------------
   {
     files: ['**/*.svelte'],
@@ -90,7 +90,7 @@ export default [
     },
   },
   // -----------------------------------------------------------------------
-  // Cypress E2E test files — relaxed rules
+  // Archivos de tests E2E de Cypress — reglas relajadas
   // -----------------------------------------------------------------------
   {
     files: ['cypress/e2e/**/*.cy.ts'],
@@ -102,7 +102,7 @@ export default [
     },
   },
   // -----------------------------------------------------------------------
-  // Cypress support files
+  // Archivos de support de Cypress
   // -----------------------------------------------------------------------
   {
     files: ['cypress/support/**/*.ts'],
@@ -111,7 +111,7 @@ export default [
     },
   },
   // -----------------------------------------------------------------------
-  // Unit test files — relaxed rules
+  // Archivos de tests unitarios — reglas relajadas
   // -----------------------------------------------------------------------
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**'],

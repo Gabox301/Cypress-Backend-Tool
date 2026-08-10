@@ -31,33 +31,27 @@ describe('TitlePanel — method and URL display', () => {
 
   it('shows tooltip on URL origin hover', async () => {
     render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users' } });
-
     const origin = screen.getByText('https://api.example.com');
     await fireEvent.mouseEnter(origin);
-
-    // Tooltip should show the full URL
+    // El tooltip debería mostrar la URL completa
     expect(screen.getByText('https://api.example.com/users')).toBeInTheDocument();
   });
 
   it('shows tooltip on URL path hover', async () => {
     render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users/42' } });
-
     const path = screen.getByText('/users/42');
     await fireEvent.mouseEnter(path);
-
-    // Tooltip should show the full URL
+    // El tooltip debería mostrar la URL completa
     expect(screen.getByText('https://api.example.com/users/42')).toBeInTheDocument();
   });
 
   it('hides tooltip on mouse leave', async () => {
     render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users' } });
-
     const origin = screen.getByText('https://api.example.com');
     await fireEvent.mouseEnter(origin);
     expect(screen.getByText('https://api.example.com/users')).toBeInTheDocument();
-
     await fireEvent.mouseLeave(origin);
-    // Tooltip should be removed from DOM
+    // El tooltip debería eliminarse del DOM
     expect(screen.queryByText('https://api.example.com/users')).toBeNull();
   });
 });

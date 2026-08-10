@@ -1,17 +1,11 @@
 /// <reference types="cypress" />
 
 /**
- * Credential Isolation E2E Tests — RED (Strict TDD)
- *
- * Validates:
- *   CA-CMD-01: DB Credential Isolation via cy.task() exclusively
- *
- * Implements task 4.3, validates task 2.4
+ * Pruebas E2E de aislamiento de credenciales
  */
-
-describe('Credential Isolation (CA-CMD-01)', () => {
+describe('Credential Isolation', () => {
   afterEach(() => {
-    // Clean up any exposed values between tests
+    // Limpia cualquier valor expuesto entre tests
     cy.document().then((doc) => {
       const container = doc.getElementById('cypress-api-plugin-container');
       if (container) container.remove();
@@ -20,14 +14,13 @@ describe('Credential Isolation (CA-CMD-01)', () => {
 
   describe('DB credentials NEVER enter browser context', () => {
     it('dbPassword is not exposed on window after cy.query()', () => {
-      // cy.task('db:getConfig') returns credentials from Node.js process
-      // Cypress.expose('dbPassword') fallback MUST NOT exist after fix
+      // cy.task('db:getConfig') devuelve las credenciales desde el proceso de Node.js
+      // El fallback de Cypress.expose('dbPassword') NO DEBE existir tras la corrección
       cy.task('db:getConfig').then((config: any) => {
-        // The task returns credentials — this is in Node.js, safe
+        // La tarea devuelve las credenciales — esto ocurre en Node.js, es seguro
         expect(config).to.have.property('host');
         expect(config).to.have.property('password');
-
-        // Now verify that these are NOT on the browser window
+        // Ahora verifica que estas NO estén en la ventana del navegador
         cy.window().then((win: any) => {
           expect(win.dbPassword).to.be.undefined;
           expect(win.dbHost).to.be.undefined;
@@ -40,7 +33,7 @@ describe('Credential Isolation (CA-CMD-01)', () => {
 
     it('cy.task("db:getConfig") is available as exclusive credential source', () => {
       cy.task('db:getConfig').then((config: any) => {
-        // Verify the task returns a valid config object
+        // Verifica que la tarea devuelva un objeto de config válido
         expect(config).to.be.an('object');
         expect(config).to.have.property('host');
         expect(config).to.have.property('port');
@@ -52,19 +45,19 @@ describe('Credential Isolation (CA-CMD-01)', () => {
 
     it('credentials from cy.task do not pollute Cypress.env', () => {
       cy.task('db:getConfig').then((_config: any) => {
-        // Verify that Cypress.env() does NOT contain DB credentials
-        // (Cypress.env gets populated from cypress.config.ts `env` section)
+        // Verifica que Cypress.env() NO contenga credenciales de DB
+        // (Cypress.env se puebla desde la sección `env` de cypress.config.ts)
         expect(Cypress.env('dbPassword')).to.be.undefined;
       });
     });
 
     it('codebase has no Cypress.expose fallback for dbPassword (compile-time assertion)', () => {
-      // This test verifies that the implementation removed the fallback.
-      // The actual verification is through code review, but we assert behavior:
-      // - If Cypress.expose('dbPassword') was called, it would be accessible
+      // Este test verifica que la implementación eliminó el fallback.
+      // La verificación real es mediante revisión de código, pero aseguramos el comportamiento:
+      // - Si se llamara a Cypress.expose('dbPassword'), sería accesible
       cy.window().then((win: any) => {
-        // Browser window must NOT have any DB credential properties
-        // These would only exist if Cypress.expose() set them on window
+        // La ventana del navegador NO debe tener ninguna propiedad de credenciales de DB
+        // Estas solo existirían si Cypress.expose() las definiera en window
         expect(win.dbPassword).to.be.undefined;
         expect(win.dbHost).to.be.undefined;
         expect(win.dbPort).to.be.undefined;

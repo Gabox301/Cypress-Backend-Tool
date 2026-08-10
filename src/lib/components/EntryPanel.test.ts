@@ -76,7 +76,7 @@ describe('EntryPanel — with ApiCall data', () => {
 
   it('renders request URL parts (origin + path)', () => {
     render(EntryPanel, { props: baseProps({ data: apiData }) });
-    // TitlePanel splits URL into origin and path spans
+    // TitlePanel divide la URL en spans de origin y path
     expect(screen.getByText('/api')).toBeInTheDocument();
     expect(screen.getByText('/login')).toBeInTheDocument();
   });
@@ -94,14 +94,14 @@ describe('EntryPanel — with ApiCall data', () => {
         hideCredentials: true,
       }),
     });
-    // With hideCredentials=true, the body should show in RequestPanel
-    // (auth is masked, but body tab is default — body data renders)
+    // Con hideCredentials=true, el body debería mostrarse en RequestPanel
+    // (auth está enmascarado, pero la pestaña body es la predeterminada — los datos del body se renderizan)
     expect(screen.getByText('POST')).toBeInTheDocument();
   });
 
   it('renders pair layout for ApiCall (request + response side by side)', () => {
     const { container } = render(EntryPanel, { props: baseProps({ data: apiData }) });
-    // The .pair div wraps RequestPanel + ResponsePanel
+    // El div .pair envuelve RequestPanel + ResponsePanel
     const pair = container.querySelector('.pair');
     expect(pair).not.toBeNull();
     expect(pair!.children.length).toBeGreaterThanOrEqual(2);

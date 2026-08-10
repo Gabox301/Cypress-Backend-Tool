@@ -3,9 +3,8 @@
 import pg from 'pg';
 
 // ============================================
-// Types
+// Tipos
 // ============================================
-
 export interface DbTaskConfig {
   host?: string;
   port?: number;
@@ -20,30 +19,29 @@ export interface DbTaskResult {
 }
 
 export interface DbTaskOptions {
-  /** Prefix for registered task names (default: '') */
+  /** Prefijo para los nombres de tareas registradas (valor por defecto: '') */
   defaultPrefix?: string;
-  /** Environment variable prefix (default: 'CYPRESS_DB_') */
+  /** Prefijo de variables de entorno (valor por defecto: 'CYPRESS_DB_') */
   envPrefix?: string;
-  /** Fallback values when env vars are not set */
+  /** Valores de respaldo cuando las variables de entorno no están definidas */
   defaults?: Partial<DbTaskConfig>;
 }
 
 // ============================================
 // setupDatabaseTasks
 // ============================================
-
 /**
- * Registers `{prefix}db:getConfig` and `{prefix}db:query` Cypress tasks
- * using a persistent `pg.Pool(max: 1)`.
+ * Registra las tareas de Cypress `{prefix}db:getConfig` y `{prefix}db:query`
+ * usando un `pg.Pool(max: 1)` persistente.
  *
- * Env var resolution (highest priority first):
- *   1. `{envPrefix}{KEY}` (default: `CYPRESS_DB_*`)
+ * Resolución de variables de entorno (mayor prioridad primero):
+ *   1. `{envPrefix}{KEY}` (valor por defecto: `CYPRESS_DB_*`)
  *   2. `DB_{KEY}`
  *   3. `options.defaults`
- *   4. Built-in fallbacks (localhost, 5432, test_db, postgres, '')
+ *   4. Valores de respaldo integrados (localhost, 5432, test_db, postgres, '')
  *
- * @param on - Cypress PluginEvents from setupNodeEvents
- * @param options - Optional configuration
+ * @param on - Cypress PluginEvents de setupNodeEvents
+ * @param options - Configuración opcional
  *
  * @example
  * ```ts
@@ -80,7 +78,6 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
     user: readEnv('USER'),
     password: readEnv('PASSWORD'),
   });
-
   on('task', {
     [`${prefix}db:getConfig`]: (): DbTaskConfig => ({
       host: readEnv('HOST'),
@@ -89,7 +86,6 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
       user: readEnv('USER'),
       password: readEnv('PASSWORD'),
     }),
-
     [`${prefix}db:query`]: async (args: {
       query: string;
       host: string;

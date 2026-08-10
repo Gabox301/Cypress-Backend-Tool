@@ -26,7 +26,7 @@ function loadEnvFile(): Record<string, string> {
       });
     }
   } catch {
-    // .env file is optional — silently ignore missing or malformed
+    // El archivo .env es opcional — ignora silenciosamente los que falten o estén mal formados
     void 0;
   }
   return env;

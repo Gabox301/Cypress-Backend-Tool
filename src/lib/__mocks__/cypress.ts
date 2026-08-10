@@ -2,15 +2,15 @@ import type { CypressApiPluginConfig } from '$lib/types';
 import { vi } from 'vitest';
 
 /**
- * Creates a mock Cypress global object for unit tests.
+ * Crea un objeto global mock de Cypress para pruebas unitarias.
  *
- * The mock provides `expose()` that returns values from an internal store,
- * `Commands.add()` as a spy, and a `_set()` helper for tests to mutate
- * the mock store between test cases.
+ * El mock provee `expose()` que devuelve valores desde un store interno,
+ * `Commands.add()` como spy, y un helper `_set()` para que los tests muten
+ * el store del mock entre casos de prueba.
  */
 export function createMockCypress(exposeValues: Partial<CypressApiPluginConfig> = {}) {
   const store = new Map<string, unknown>();
-  // Seed the store with initial values
+  // Puebla el store con valores iniciales
   for (const [key, value] of Object.entries(exposeValues)) {
     store.set(key, value);
   }

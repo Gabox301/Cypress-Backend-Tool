@@ -120,8 +120,8 @@ export default defineConfig({
 Las credenciales de base de datos se resuelven en este orden (mayor prioridad primero):
 
 | Prioridad | Prefijo         | Ejemplo                     |
-|-----------|-----------------|-----------------------------|
-| 1 (máx)  | `CYPRESS_DB_`   | `CYPRESS_DB_HOST=localhost` |
+| --------- | --------------- | --------------------------- |
+| 1 (máx)   | `CYPRESS_DB_`   | `CYPRESS_DB_HOST=localhost` |
 | 2         | `DB_`           | `DB_HOST=localhost`         |
 | 3         | defaults (code) | `host: 'localhost'`         |
 
@@ -160,8 +160,8 @@ export default defineConfig({
 import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
 
 setupDatabaseTasks(on, {
-  defaultPrefix: 'myapp_',   // tareas → myapp_db:getConfig, myapp_db:query
-  envPrefix: 'MY_DB_',       // lee MY_DB_HOST en vez de CYPRESS_DB_HOST
+  defaultPrefix: 'myapp_', // tareas → myapp_db:getConfig, myapp_db:query
+  envPrefix: 'MY_DB_', // lee MY_DB_HOST en vez de CYPRESS_DB_HOST
   defaults: {
     host: 'localhost',
     port: 5432,
@@ -172,11 +172,11 @@ setupDatabaseTasks(on, {
 });
 ```
 
-| Opción         | Tipo       | Default          | Descripción                                    |
-|----------------|------------|------------------|------------------------------------------------|
-| `defaultPrefix`| `string`   | `''`             | Prefijo para los nombres de tarea registrados |
-| `envPrefix`    | `string`   | `'CYPRESS_DB_'`  | Prefijo de variables de entorno a leer         |
-| `defaults`     | `object`   | —                | Valores fallback cuando no hay env vars        |
+| Opción          | Tipo     | Default         | Descripción                                   |
+| --------------- | -------- | --------------- | --------------------------------------------- |
+| `defaultPrefix` | `string` | `''`            | Prefijo para los nombres de tarea registrados |
+| `envPrefix`     | `string` | `'CYPRESS_DB_'` | Prefijo de variables de entorno a leer        |
+| `defaults`      | `object` | —               | Valores fallback cuando no hay env vars       |
 
 ## Uso
 
@@ -295,11 +295,11 @@ configure({
 
 ### Tabla de API pública
 
-| Export                        | Origen              | Descripción                                      |
-|-------------------------------|---------------------|--------------------------------------------------|
-| `import 'cypress-backend-tool'` | `index.js`        | Auto-init: registra `cy.http()` y `cy.query()`   |
-| `{ configure }`               | `index.js`         | Override programático de config del plugin       |
-| `{ setupDatabaseTasks }`      | `tasks.js`         | Helper para tareas DB con Pool persistente       |
+| Export                          | Origen     | Descripción                                    |
+| ------------------------------- | ---------- | ---------------------------------------------- |
+| `import 'cypress-backend-tool'` | `index.js` | Auto-init: registra `cy.http()` y `cy.query()` |
+| `{ configure }`                 | `index.js` | Override programático de config del plugin     |
+| `{ setupDatabaseTasks }`        | `tasks.js` | Helper para tareas DB con Pool persistente     |
 
 ## Persistencia de UI
 

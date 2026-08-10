@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest';
 import Icon from './Icon.svelte';
 
 // ---------------------------------------------------------------------------
-// Icon component — render every icon variant
+// Componente Icon — renderiza cada variante de icono
 // ---------------------------------------------------------------------------
-
 const allIcons = [
   'braces',
   'search',
@@ -28,7 +27,7 @@ describe('Icon — all variants', () => {
       const svg = container.querySelector('svg');
       expect(svg).not.toBeNull();
       expect(svg!.getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
-      // Every icon must have at least one path, circle, or ellipse element
+      // Cada icono debe tener al menos un elemento path, circle o ellipse
       const paths = svg!.querySelectorAll('path, circle, ellipse');
       expect(paths.length).toBeGreaterThan(0);
     });

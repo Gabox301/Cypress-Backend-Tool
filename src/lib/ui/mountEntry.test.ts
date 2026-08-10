@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-// Mock Svelte's mount/unmount so mountEntry doesn't need a real component tree
+// Mock de mount/unmount de Svelte para que mountEntry no necesite un árbol de componentes real
 vi.mock('svelte', () => ({
   mount: vi.fn(() => ({ __tag: 'mocked-component' })),
   unmount: vi.fn(),
@@ -14,7 +14,6 @@ import { mountEntry } from './index';
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-
 function apiCall(overrides: Partial<ApiCall> = {}): ApiCall {
   return {
     id: crypto.randomUUID(),
@@ -40,16 +39,14 @@ function dbQuery(overrides: Partial<DbQuery> = {}): DbQuery {
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
-
 beforeEach(() => {
   document.body.innerHTML = '';
-  // Create the container mountEntry expects to find
+  // Crea el contenedor que mountEntry espera encontrar
   const container = document.createElement('div');
   container.id = 'cypress-api-plugin-container';
   document.body.appendChild(container);
-
-  // Create the scroll-area inside the container (App.svelte would normally
-  // provide this when mounted, but these tests bypass Svelte rendering)
+  // Crea el scroll-area dentro del contenedor (App.svelte normalmente lo
+  // proveería al montarse, pero estos tests omiten el renderizado de Svelte)
   const scrollArea = document.createElement('div');
   scrollArea.id = 'cabt-scroll-area';
   scrollArea.className = 'scroll-area';
@@ -57,7 +54,6 @@ beforeEach(() => {
   anchor.className = 'bottom-anchor';
   scrollArea.appendChild(anchor);
   container.appendChild(scrollArea);
-
   EntryRegistry.clear();
   vi.clearAllMocks();
 });
@@ -68,9 +64,7 @@ beforeEach(() => {
 describe('mountEntry — ApiCall', () => {
   it('creates a div#cabt-entry-{id} in the container', () => {
     const call = apiCall({ id: 'abc-123' });
-
     const div = mountEntry(call);
-
     expect(div).toBeInstanceOf(HTMLElement);
     expect(div.id).toBe('cabt-entry-abc-123');
     expect(div.parentElement).toBe(document.getElementById('cabt-scroll-area'));
@@ -79,26 +73,22 @@ describe('mountEntry — ApiCall', () => {
 
   it('registers the entry in EntryRegistry with its data payload', () => {
     const call = apiCall({ id: 'reg-test' });
-
     mountEntry(call);
-
     const record = EntryRegistry.get('reg-test');
     expect(record).toBeDefined();
     expect(record!.element).toBe(document.getElementById('cabt-entry-reg-test'));
-    // The captured per-entry payload must be registered for fresh-container
-    // revival (UI-MOUNT-05) — register receives the same data as the props.
+    // El payload capturado por entrada debe registrarse para el revival en contenedor nuevo,
+    // register recibe los mismos datos que las props.
     expect(record!.data).toBe(call);
   });
 
   it('calls Svelte mount with EntryPanel and correct props', () => {
     const call = apiCall({ id: 'props-test' });
-
     mountEntry(call);
-
     expect(mount).toHaveBeenCalledTimes(1);
     const mountCall = (mount as Mock).mock.calls[0];
-    // First arg: Component (EntryPanel)
-    // Second arg: options with target and props
+    // Primer arg: Componente (EntryPanel)
+    // Segundo arg: options con target y props
     expect(mountCall[1]).toHaveProperty('target');
     expect(mountCall[1].target.id).toBe('cabt-entry-props-test');
     expect(mountCall[1]).toHaveProperty('props');
@@ -107,9 +97,7 @@ describe('mountEntry — ApiCall', () => {
 
   it('returns the created div element', () => {
     const call = apiCall({ id: 'return-div' });
-
     const div = mountEntry(call);
-
     expect(div).toBeInstanceOf(HTMLElement);
     expect(div.id).toBe('cabt-entry-return-div');
   });
@@ -121,18 +109,14 @@ describe('mountEntry — ApiCall', () => {
 describe('mountEntry — DbQuery', () => {
   it('creates a div#cabt-entry-{id} for DB queries', () => {
     const q = dbQuery({ id: 'db-001' });
-
     const div = mountEntry(q);
-
     expect(div.id).toBe('cabt-entry-db-001');
     expect(document.getElementById('cabt-entry-db-001')).toBe(div);
   });
 
   it('registers DB entries in EntryRegistry with their data payload', () => {
     const q = dbQuery({ id: 'db-reg' });
-
     mountEntry(q);
-
     const record = EntryRegistry.get('db-reg');
     expect(record).toBeDefined();
     expect(record!.data).toBe(q);
@@ -140,25 +124,21 @@ describe('mountEntry — DbQuery', () => {
 
   it('passes the DbQuery as data prop', () => {
     const q = dbQuery({ id: 'db-props' });
-
     mountEntry(q);
-
     const mountCall = (mount as Mock).mock.calls[0];
     expect(mountCall[1].props.data).toBe(q);
   });
 });
 
 // ===========================================================================
-// mountEntry — Multiple calls
+// mountEntry — Múltiples llamadas
 // ===========================================================================
 describe('mountEntry — multiple calls', () => {
   it('creates sibling divs for sequential calls', () => {
     const call1 = apiCall({ id: 'first' });
     const call2 = apiCall({ id: 'second' });
-
     const div1 = mountEntry(call1);
     const div2 = mountEntry(call2);
-
     expect(div1.nextElementSibling).toBe(div2);
     expect(document.querySelectorAll('#cabt-scroll-area > div:not(.bottom-anchor)')).toHaveLength(2);
     expect(EntryRegistry.size()).toBe(2);

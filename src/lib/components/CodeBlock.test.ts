@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import CodeBlock from './CodeBlock.svelte';
 
 // ---------------------------------------------------------------------------
-// 4.3 — JSON colorization
+// Coloreado de JSON
 // ---------------------------------------------------------------------------
 describe('CodeBlock — JSON colorization', () => {
   it('renders JSON keys with json-key class', () => {
     render(CodeBlock, { props: { data: { name: 'Alice', age: 30 }, format: 'json' } });
     const keySpan = document.querySelector('.json-key');
     expect(keySpan).not.toBeNull();
-    // The key text should appear somewhere in the document
+    // El texto de la clave debería aparecer en algún lugar del documento
     expect(screen.getByText(/"name"/)).toBeInTheDocument();
   });
 
@@ -45,7 +45,7 @@ describe('CodeBlock — JSON colorization', () => {
 
   it('renders nothing when data is null', () => {
     const { container } = render(CodeBlock, { props: { data: null, format: 'json' } });
-    // The code-block container should exist but be empty (no code-body rendered)
+    // El contenedor code-block debería existir pero estar vacío (sin code-body renderizado)
     const block = container.querySelector('[data-testid="code-block"]');
     expect(block).not.toBeNull();
     const codeBody = block!.querySelector('.code-body');
@@ -62,7 +62,7 @@ describe('CodeBlock — JSON colorization', () => {
     const obj: Record<string, unknown> = { name: 'test' };
     (obj as any).self = obj;
     render(CodeBlock, { props: { data: obj, format: 'json' } });
-    // Should render without throwing — catch block converts to String(obj)
+    // Debería renderizar sin lanzar errores — el bloque catch convierte a String(obj)
     const codeBlock = document.querySelector('[data-testid="code-block"]');
     expect(codeBlock).not.toBeNull();
   });
@@ -74,11 +74,9 @@ describe('CodeBlock — JSON colorization', () => {
       writable: true,
       configurable: true,
     });
-
     render(CodeBlock, { props: { data: { key: 'value' }, format: 'json' } });
     const copyBtn = screen.getByText('copy');
     await fireEvent.click(copyBtn);
-
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText).toHaveBeenCalledWith('{\n  "key": "value"\n}');
   });

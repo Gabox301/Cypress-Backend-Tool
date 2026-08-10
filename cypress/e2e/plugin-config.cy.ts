@@ -1,23 +1,20 @@
 /// <reference types="cypress" />
 
 /**
- * Plugin Configuration E2E Tests — GREEN (Strict TDD)
+ * Pruebas E2E de configuración del plugin
  *
- * Validates:
- *   PC-CONFIG-01: Static config from cypress.config.ts
- *   PC-CONFIG-02: Runtime override via Cypress.expose()
- *   PC-UI-02:    snapshotOnly collapsed CSS class
- *   PC-CONFIG-04: Debug logging toggle
- *
- * Implements tasks 4.1, validates tasks 1.1, 2.1, 2.3
+ * Valida:
+ *   Config estática desde cypress.config.ts
+ *   Override en tiempo de ejecución vía Cypress.expose()
+ *   Clase CSS collapsed de snapshotOnly
+ *   Alternador de log de depuración
  */
-
 describe('Plugin Configuration', () => {
   afterEach(() => {
     Cypress.expose({ snapshotOnly: false });
   });
 
-  describe('snapshotOnly Collapsed CSS (PC-UI-02)', () => {
+  describe('snapshotOnly Collapsed CSS', () => {
     it('container has cypress-plugin-collapsed class when snapshotOnly is true', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
@@ -44,8 +41,8 @@ describe('Plugin Configuration', () => {
       });
     });
 
-    it('snapshotOnly override does not leak to next test (PC-CONFIG-02)', () => {
-      // afterEach resets to false — verify clean state
+    it('snapshotOnly override does not leak to next test', () => {
+      // afterEach reinicia a false — verifica el estado limpio
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
         method: 'GET',
@@ -58,7 +55,7 @@ describe('Plugin Configuration', () => {
     });
   });
 
-  describe('Runtime Override via Cypress.expose() (PC-CONFIG-02)', () => {
+  describe('Runtime Override via Cypress.expose()', () => {
     it('overrides snapshotOnly at runtime', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
@@ -78,13 +75,13 @@ describe('Plugin Configuration', () => {
         url: 'https://jsonplaceholder.typicode.com/posts/1',
         method: 'GET',
       }).then((response: any) => {
-        // HTTP request still works — other config keys not affected
+        // La solicitud HTTP sigue funcionando — las demás claves de configuración no se ven afectadas
         expect(response.status).to.eq(200);
       });
     });
   });
 
-  describe('Debug Logging (PC-CONFIG-04)', () => {
+  describe('Debug Logging', () => {
     it('plugin works with debug enabled', () => {
       Cypress.expose({ CYPRESS_PLUGIN_DEBUG: true });
       cy.http({
@@ -106,7 +103,7 @@ describe('Plugin Configuration', () => {
     });
   });
 
-  describe('Config Merge (PC-CONFIG-01)', () => {
+  describe('Config Merge', () => {
     it('handles partial config overrides without clobbering other keys', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
