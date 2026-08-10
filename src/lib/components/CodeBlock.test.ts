@@ -14,6 +14,14 @@ describe('CodeBlock — JSON colorization', () => {
     expect(screen.getByText(/"name"/)).toBeInTheDocument();
   });
 
+  it('preserves the colon separator between key and value', () => {
+    render(CodeBlock, { props: { data: { title: 'Test Post', body: 'This is a test', userId: 1 }, format: 'json' } });
+    // El contenido completo debe incluir ": " después de cada clave
+    expect(document.querySelector('.code-content')!.textContent).toContain('"title": "Test Post"');
+    expect(document.querySelector('.code-content')!.textContent).toContain('"body": "This is a test"');
+    expect(document.querySelector('.code-content')!.textContent).toContain('"userId": 1');
+  });
+
   it('renders JSON string values with json-string class', () => {
     render(CodeBlock, { props: { data: { city: 'NYC' }, format: 'json' } });
     const stringSpan = document.querySelector('.json-string');

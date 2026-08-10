@@ -23,18 +23,24 @@
    *  Nunca genera HTML crudo — devuelve tokens estructurados en su lugar. */
   function tokenize(line: string): Token[] {
     const tokens: Token[] = [];
-    const re = /("[^"]+")(?=\s*:)|:\s*("[^"]*")|:\s*(\d+\.?\d*)|:\s*(true|false)|:\s*(null)/g;
+    // Clave JSON (con escapes válidos), separador ":" y opcionalmente un valor escalar.
+    // El separador se captura aparte (m[2]) y se emite como texto plano para no perderlo.
+    const re = /("(?:[^"\\]|\\.)*")(\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|"(?:[^"\\]|\\.)*"|true|false|null)?/g;
     let lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(line)) !== null) {
       if (m.index > lastIndex) {
         tokens.push({ text: line.slice(lastIndex, m.index) });
       }
-      if (m[1] !== undefined) tokens.push({ text: m[1], class: 'json-key' });
-      else if (m[2] !== undefined) tokens.push({ text: m[2], class: 'json-string' });
-      else if (m[3] !== undefined) tokens.push({ text: m[3], class: 'json-number' });
-      else if (m[4] !== undefined) tokens.push({ text: m[4], class: 'json-bool' });
-      else if (m[5] !== undefined) tokens.push({ text: m[5], class: 'json-null' });
+      tokens.push({ text: m[1], class: 'json-key' });
+      tokens.push({ text: m[2] });
+      if (m[3] !== undefined) {
+        const value = m[3];
+        if (value === 'true' || value === 'false') tokens.push({ text: value, class: 'json-bool' });
+        else if (value === 'null') tokens.push({ text: value, class: 'json-null' });
+        else if (value.startsWith('"')) tokens.push({ text: value, class: 'json-string' });
+        else tokens.push({ text: value, class: 'json-number' });
+      }
       lastIndex = re.lastIndex;
     }
     if (lastIndex < line.length) {
