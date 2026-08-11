@@ -22,6 +22,7 @@ Thumbs.db
 openspec
 sdd
 docs
+.codegraph
 
 # Logs
 *.log

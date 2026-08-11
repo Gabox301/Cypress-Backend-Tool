@@ -9,6 +9,7 @@
   }
   let { response = null, snapshotOnly: _snapshotOnly = false }: Props = $props();
   let selectedTab = $state<'body' | 'headers' | 'cookies'>('body');
+  let panelElement: HTMLDivElement;
   const statusConfig = $derived.by(() => {
     if (!response) return null;
     const s = response.status;
@@ -26,9 +27,10 @@
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   });
   onMount(() => {
+    const doc = panelElement.ownerDocument;
     const id = 'cypress-api-db-ui-overrides';
-    if (!document.getElementById(id)) {
-      const style = document.createElement('style');
+    if (!doc.getElementById(id)) {
+      const style = doc.createElement('style');
       style.id = id;
       style.textContent = `
         .cadb-pill {
@@ -70,12 +72,12 @@
           height: 100% !important;
         }
       `;
-      document.head.appendChild(style);
+      doc.head.appendChild(style);
     }
   });
 </script>
 
-<div class="panel">
+<div bind:this={panelElement} class="panel">
   <div class="response-header">
     <div class="status-group">
       {#if response && statusConfig}
