@@ -3,6 +3,7 @@ import type { ApiCall, DbQuery } from '$lib/types';
 import { mount, unmount } from 'svelte';
 import App from '../components/App.svelte';
 import EntryPanel from '../components/EntryPanel.svelte';
+import { ensureCopyDelegation } from './copy-delegation';
 import { EntryRegistry } from './entry-registry';
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -134,6 +135,10 @@ function reviveInFreshContainer(doc: Document): void {
  * de un test nuevo).
  */
 export function ensurePluginMounted(container: HTMLElement, doc: Document): void {
+  // La UI vive en el document del AUT. El listener delegado debe registrarse
+  // aquí, no desde CodeBlock, porque el bundle se ejecuta en el contexto del
+  // spec/runner y su document global puede ser otro documento.
+  ensureCopyDelegation(doc);
   // Contenedor eliminado del DOM (reproducción de snapshot de Cypress) — reset
   if (!container.isConnected || mountedDocument !== doc) {
     resetMountState();
@@ -182,7 +187,7 @@ export function mountEntry(data: ApiCall | DbQuery, doc: Document = document): H
   if (!scrollArea) {
     throw new Error('mountEntry: scroll-area not found — App may not be mounted');
   }
-  const div = document.createElement('div');
+  const div = doc.createElement('div');
   div.id = `cabt-entry-${id}`;
   // Inserta antes del bottom-anchor para que las entradas nuevas aparezcan al final
   const anchor = scrollArea.querySelector('.bottom-anchor');

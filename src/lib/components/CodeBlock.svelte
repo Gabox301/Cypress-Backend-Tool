@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { copyTextToClipboard, registerLiveCopyButton } from '../ui/copy-delegation';
   interface Props {
     data?: unknown;
     format?: string;
   }
   let { data = null, format = 'json' }: Props = $props();
   let copied = $state(false);
+  let copyFailed = $state(false);
   let formattedData = $derived.by(() => {
     if (!data) return '';
     if (typeof data === 'string') return data;
@@ -48,14 +50,18 @@
     }
     return tokens;
   }
-  async function copyToClipboard() {
-    try {
-      await navigator.clipboard.writeText(formattedData);
-    } catch {
-      // El portapapeles puede no estar disponible (runner de Cypress, headless, etc.)
-    }
-    copied = true;
-    setTimeout(() => (copied = false), 2000);
+  async function copyToClipboard(event: MouseEvent) {
+    // El DOM vivo usa el handler de Svelte. Detener la propagación evita que el
+    // listener delegado intente copiar el mismo bloque por segunda vez.
+    event.stopPropagation();
+    const button = event.currentTarget as HTMLButtonElement;
+    const success = await copyTextToClipboard(formattedData, button.ownerDocument);
+    copied = success;
+    copyFailed = !success;
+    setTimeout(() => {
+      copied = false;
+      copyFailed = false;
+    }, 2000);
   }
 </script>
 
@@ -64,8 +70,16 @@
     <div class="code-container">
       <div class="code-header">
         <span class="format-badge">{format}</span>
-        <button class="copy-btn" class:done={copied} onclick={copyToClipboard}>
-          {copied ? '✓ copied' : 'copy'}
+        <button
+          class="copy-btn"
+          data-copy
+          data-copy-text={formattedData}
+          class:done={copied}
+          class:failed={copyFailed}
+          use:registerLiveCopyButton
+          onclick={copyToClipboard}
+        >
+          {copied ? '✓ copied' : copyFailed ? 'copy failed' : 'copy'}
         </button>
       </div>
       <div class="code-body">
@@ -148,6 +162,11 @@
     color: #4ade80;
     border-color: rgba(74, 222, 128, 0.3);
     background: rgba(74, 222, 128, 0.06);
+  }
+  .copy-btn.failed {
+    color: #fb7185;
+    border-color: rgba(251, 113, 133, 0.3);
+    background: rgba(251, 113, 133, 0.06);
   }
   .code-body {
     flex: 1;

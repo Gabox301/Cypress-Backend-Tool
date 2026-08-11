@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
+import { ensureCopyDelegation } from '../ui/copy-delegation';
 import CodeBlock from './CodeBlock.svelte';
 
 // ---------------------------------------------------------------------------
@@ -87,5 +88,39 @@ describe('CodeBlock — JSON colorization', () => {
     await fireEvent.click(copyBtn);
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(writeText).toHaveBeenCalledWith('{\n  "key": "value"\n}');
+  });
+
+  it('copies from a DOM clone like a Cypress snapshot (no live listeners)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    });
+    render(CodeBlock, { props: { data: { key: 'value' }, format: 'json' } });
+    // Cypress restaura los snapshots clonando el HTML del AUT sin listeners,
+    // y el listener delegado vive en el document del AUT.
+    const autDoc = document.implementation.createHTMLDocument('aut');
+    const original = document.querySelector('.code-container');
+    expect(original).not.toBeNull();
+    const clone = original!.cloneNode(true) as HTMLElement;
+    autDoc.body.appendChild(clone);
+    ensureCopyDelegation(autDoc);
+    try {
+      const clonedBtn = clone.querySelector<HTMLButtonElement>('[data-copy]');
+      expect(clonedBtn).not.toBeNull();
+      // El clon no tiene handler propio; la delegación en el document del AUT
+      // (autDoc) debe capturarlo. Se usa dispatchEvent porque fireEvent de
+      // testing-library exige nodos del window del test (el clon vive en autDoc).
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+      clonedBtn!.dispatchEvent(click);
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText).toHaveBeenCalledWith('{\n  "key": "value"\n}');
+    } finally {
+      clone.remove();
+      // Restaurar el listener en el document de trabajo (los tests siguientes
+      // dependen del registro en el document global, no en el autDoc).
+      ensureCopyDelegation(document);
+    }
   });
 });

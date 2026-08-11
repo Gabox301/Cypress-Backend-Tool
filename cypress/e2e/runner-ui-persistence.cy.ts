@@ -57,4 +57,43 @@ describe('Runner UI Persistence — E2E', () => {
       },
     );
   });
+
+  it('copy works in the live AUT DOM and in a snapshot-like clone', () => {
+    let snapshotClone: HTMLElement | null = null;
+    let expectedClipboard = '';
+    cy.http({
+      url: 'https://jsonplaceholder.typicode.com/posts/1',
+      method: 'GET',
+    }).then((res: any) => {
+      expect(res.status).to.eq(200);
+    });
+    cy.document().then((doc) => {
+      const source = doc.querySelector<HTMLElement>('#cypress-api-plugin-container .code-container');
+      expect(source).not.to.be.null;
+      // Se prepara antes del click vivo, pero se inserta después para no cubrirlo.
+      snapshotClone = source!.cloneNode(true) as HTMLElement;
+      snapshotClone.dataset.copyRegressionClone = 'true';
+      expectedClipboard = source!.querySelector<HTMLButtonElement>('[data-copy]')?.dataset.copyText || '';
+    });
+    // Primero se valida el botón con el listener vivo de Svelte.
+    cy.get('#cypress-api-plugin-container .copy-btn').first().click();
+    cy.get('#cypress-api-plugin-container .copy-btn').first().should('contain.text', 'copied');
+    cy.window().then(async (win) => {
+      const actual = await win.navigator.clipboard.readText();
+      expect(actual.replace(/\r\n/g, '\n')).to.eq(expectedClipboard);
+    });
+    // Después se inserta un clon HTML sin listeners, como el DOM de un snapshot.
+    cy.document().then((doc) => {
+      doc.body.appendChild(snapshotClone!);
+      snapshotClone!.querySelector<HTMLButtonElement>('[data-copy]')!.click();
+    });
+    cy.get('[data-copy-regression-clone] .copy-btn').should('contain.text', 'copied');
+    cy.window().then(async (win) => {
+      const actual = await win.navigator.clipboard.readText();
+      expect(actual.replace(/\r\n/g, '\n')).to.eq(expectedClipboard);
+    });
+    cy.document().then((doc) => {
+      doc.querySelector('[data-copy-regression-clone]')?.remove();
+    });
+  });
 });
