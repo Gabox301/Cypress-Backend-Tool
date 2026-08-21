@@ -13,6 +13,12 @@ export interface EntryRecord {
   element: HTMLElement;
   /** El payload capturado por entrada (ApiCall o DbQuery), usado para el revival. */
   data: ApiCall | DbQuery;
+  /** Cypress.Log asociado a esta entrada — para re-snapshot con coloreo chai. */
+  log?: {
+    snapshot: (name?: string, options?: unknown) => unknown;
+    set?: (opts: unknown) => unknown;
+    get?: (key: string) => unknown;
+  };
 }
 
 // Map con ámbito de módulo — sin clase, sin instanciación, una instancia por realm de JS.
@@ -37,9 +43,28 @@ export const EntryRegistry = {
     _entries.set(id, { component, element, data });
   },
 
+  /** Asocia/asocia un Cypress.Log a una entrada para re-snapshot tras chai. */
+  setLog(id: string, log: EntryRecord['log']): void {
+    const entry = _entries.get(id);
+    if (!entry) return;
+    entry.log = log;
+  },
+
   /** Recupera una entrada registrada, o undefined si no se encuentra. */
   get(id: string): EntryRecord | undefined {
     return _entries.get(id);
+  },
+
+  /**
+   * Reemplaza la referencia de componente de una entrada ya registrada,
+   * conservando su elemento y sus datos. Usado por `refreshEntry` tras re-montar
+   * un EntryPanel nuevo en el mismo div#cabt-entry-{id}. Es un no-op para IDs
+   * desconocidos (consistente con `unmount`).
+   */
+  replace(id: string, component: object): void {
+    const entry = _entries.get(id);
+    if (!entry) return;
+    entry.component = component;
   },
 
   /**

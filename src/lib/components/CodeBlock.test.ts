@@ -123,4 +123,38 @@ describe('CodeBlock — JSON colorization', () => {
       ensureCopyDelegation(document);
     }
   });
+
+  it('highlights matched, mismatched and nullish lines when expected is provided', () => {
+    const data = {
+      name: 'Leanne Graham',
+      username: 'Bret',
+      email: null,
+      id: 1,
+    };
+    const expected = {
+      name: 'Leanne Graham',
+      username: 'WrongName',
+      email: 'test@example.com',
+    };
+
+    render(CodeBlock, { props: { data, expected, format: 'json' } });
+
+    const matchLines = document.querySelectorAll('.line-match');
+    const mismatchLines = document.querySelectorAll('.line-mismatch');
+    const nullishLines = document.querySelectorAll('.line-nullish');
+
+    expect(matchLines.length).toBe(1);
+    expect(matchLines[0].textContent).toContain('"name": "Leanne Graham"');
+
+    expect(mismatchLines.length).toBe(1);
+    expect(mismatchLines[0].textContent).toContain('"username": "Bret"');
+
+    expect(nullishLines.length).toBe(1);
+    expect(nullishLines[0].textContent).toContain('"email": null');
+
+    // Badges in header
+    expect(screen.getByText('✓ 1 match')).toBeInTheDocument();
+    expect(screen.getByText('✗ 1 mismatch')).toBeInTheDocument();
+    expect(screen.getByText('⚠ 1 null/undef')).toBeInTheDocument();
+  });
 });

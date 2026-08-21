@@ -25,7 +25,7 @@
   {@const api = data as ApiCall}
   <div class="pair">
     <RequestPanel request={api.request} {hideCredentials} {hideCredentialsOptions} />
-    <ResponsePanel response={api.response} {snapshotOnly} />
+    <ResponsePanel response={api.response} expect={api.request?.expect ?? api.expect} {snapshotOnly} />
   </div>
 {/if}
 

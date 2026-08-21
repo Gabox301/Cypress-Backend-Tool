@@ -14,5 +14,5 @@
     "types": ["cypress", "node", "vitest/globals"]
   },
   "include": ["cypress/**/*.ts", "src/**/*.ts", "src/**/*.svelte", "src/**/*.test.ts"],
-  "exclude": ["node_modules/.svelte2tsx-language-server-files/**"]
+  "exclude": ["dist", "node_modules", "**/*.d.ts", "node_modules/.svelte2tsx-language-server-files/**"]
 }

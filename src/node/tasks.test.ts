@@ -50,16 +50,13 @@ describe('setupDatabaseTasks', () => {
     const mod = await import('./tasks');
     setupDatabaseTasks = mod.setupDatabaseTasks as unknown as typeof setupDatabaseTasks;
   });
-
   beforeEach(() => {
     vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
-
   afterEach(() => {
     vi.unstubAllEnvs();
   });
-
   // -----------------------------------------------------------------------
   // Registro de tareas
   // -----------------------------------------------------------------------

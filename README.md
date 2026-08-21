@@ -21,6 +21,15 @@ Plugin de Cypress para testing de APIs HTTP y consultas a bases de datos Postgre
 - **Sanitización de credenciales**: Oculta datos sensibles (passwords, tokens, API keys) en la UI automáticamente.
 - **Aislamiento de credenciales DB**: Las credenciales de base de datos viven exclusivamente en el proceso Node de Cypress via `cy.task()`. Nunca entran al browser.
 - **API moderna**: Usa las APIs `Cypress.expose()` y `cy.env()` de Cypress 15.10.0+
+- **Coloreo automático por `expect()`**: Cada `expect()` sobre `response.status`, `response.body`, `response.headers` o campos anidados colorea el `ResponsePanel`/`CodeBlock` en verde (match), rojo (mismatch) o amarillo (nullish). Funciona con `eq`, `deep.eq`, `have.property` y `not` — sin configuración adicional.
+- **Snapshot con coloreo**: El `Cypress.log` de `cy.http()`/`cy.query()` guarda un segundo snapshot `'assertions'` tras el microtask de `expect()`, por lo que al hacer hover sobre el log en el Command Log ves el panel ya coloreado, no solo el DOM vivo.
+- **Amarillo preciso — solo si el valor _real_ es `null`/`undefined`**: `expect("hildegard.org").to.not.be.null` ahora es **verde** (no amarillo). Amarillo solo cuando `response.body.campo` es realmente `null`/`undefined` en la respuesta.
+
+## Stack
+
+- **Svelte 5.56.10** con runes (`$state`, `$derived.by`, `$effect`, `$props`) — 100% runes, `svelte.config.js: { runes: true }` y `vite.config.ts` alineado. Sin `onMount`, sin `$:` ni `svelte/store` legacy.
+- **Vite 8.2.2** + `@sveltejs/vite-plugin-svelte 7.3.0` y `vite-plugin-dts` para build de librería (`dist/index.js` + `dist/tasks.js`).
+- **TypeScript 6.0.3**, `svelte-check` (0 errores) y `eslint-plugin-svelte` para validación.
 
 ## Requisitos
 
@@ -206,6 +215,24 @@ cy.http({
 }).then((response) => {
   expect(response.body).to.have.property('id');
 });
+
+// Coloreo automático — cada expect colorea el panel y el snapshot
+cy.http('https://jsonplaceholder.typicode.com/users/1').then((r) => {
+  expect(r.status).to.eq(200); // → status verde + snapshot con verde
+  expect(r.body.name).to.eq('Leanne Graham'); // → línea verde en CodeBlock
+  expect(r.body.email).to.not.eq('otro@test.com'); // → línea roja
+  expect(r.body.website).to.not.be.null; // → verde (no amarillo, porque el real es string)
+});
+
+// Amarillo real — solo si el dato de la API es null/undefined (verificado sin mock)
+// jsonplaceholder no tiene null en GET, pero POST con title:null sí devuelve null real:
+cy.http({
+  url: 'https://jsonplaceholder.typicode.com/posts',
+  method: 'POST',
+  body: { title: null, body: 'test', userId: 1 },
+}).then((r) => {
+  expect(r.body.title).to.eq(null); // → línea amarilla (real es null)
+});
 ```
 
 ### cy.query() - Consultas PostgreSQL
@@ -301,7 +328,7 @@ configure({
 | `{ configure }`                 | `index.js` | Override programático de config del plugin     |
 | `{ setupDatabaseTasks }`        | `tasks.js` | Helper para tareas DB con Pool persistente     |
 
-## Persistencia de UI
+## Persistencia de UI y Snapshots con Coloreo
 
 A diferencia de otros plugins que re-crean el DOM en cada llamada, `cypress-backend-tool` monta la UI **una sola vez por documento** y cada `cy.http()`/`cy.query()` agrega su propia entrada permanente con un ID único.
 
@@ -310,6 +337,14 @@ Esto significa que:
 - Los snapshots de Cypress (`Cypress.log().snapshot()`) son estables entre `it()` blocks. Podés navegar al log de un comando anterior y ver exactamente su request/response, no el del último comando ejecutado.
 - No hay "paneles en blanco" al inspeccionar llamadas previas.
 - El DOM acumula todas las llamadas del test actual — cada una con su propia sección `<section id="cabt-entry-{id}">`.
+
+### Snapshot incluye el coloreo de `expect()`
+
+El log de `cy.http()` guarda un primer snapshot `'response'` tras el montaje y, tras el microtask donde se ejecutan todos los `expect()` del `then`, hace un segundo `log.snapshot('assertions')` en el **mismo** log con el DOM ya re-renderizado por `refreshEntry()` (re-monta `EntryPanel` en el mismo `div#cabt-entry-{id}`).
+
+- Al hacer hover sobre el comando en el Command Log ves el panel **ya coloreado** (verde/rojo/amarillo), no solo el DOM vivo.
+- Verificado con `window.__cbtLastSnapshotInfo` (`hasMatch`/`hasMismatch`/`hasNullish`) y con el E2E `snapshot-coloring-verification.cy.ts`.
+- Para depurar: `CYPRESS_PLUGIN_DEBUG=true` expone `window.__cbtDebug` con cada `assert` interceptado.
 
 ## Aislamiento de credenciales DB
 
@@ -342,18 +377,37 @@ it('test específico', () => {
 # Instalar dependencias
 npm install
 
-# Build del paquete
+# Build del paquete (check + lint + unit + vite build)
 npm run build
 
-# Todos los tests
+# Todos los tests (unit + E2E)
 npm test
 
-# Linter
+# Solo unit (vitest, 213 tests)
+npm run unit
+
+# Watch
+npm run watch
+
+# Coverage
+npm run coverage
+
+# Linter (eslint + eslint-plugin-svelte)
 npm run lint
 
-# Type check
+# Type check (tsc + svelte-check, 0 errores)
 npm run check
+
+# Abrir Cypress runner
+npm run ui
 ```
+
+### Stack de desarrollo
+
+- **Svelte 5 runes only:** No uses `onMount`, `$:` ni `let` reactivo sin `$state`. Usa `$derived.by()` para derivaciones complejas (ver `QueryPanel.svelte`).
+- **Coloreo:** `expect-matcher.ts` marca `nullish` (amarillo) **solo si el valor real es `null`/`undefined`**. `not.be.null` sobre string es verde.
+- **Snapshot:** Si tocas `chai-interceptor.ts` o `entry-refresh.ts`, verifica `cypress/e2e/snapshot-coloring-verification.cy.ts` — el segundo snapshot debe seguir incluyendo el coloreo.
+- **Amarillo real sin mock:** Usa `POST /posts` con `{ title: null }` en jsonplaceholder (devuelve `title: null` real). `GET /users` no tiene nulls.
 
 ## API de respuesta
 

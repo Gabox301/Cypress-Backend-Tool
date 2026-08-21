@@ -7,14 +7,14 @@
     error?: string;
   }
   let { query, rowCount, duration, rows, error }: Props = $props();
-  let tableRows = $derived(() => {
+  let tableRows = $derived.by(() => {
     if (rows.length === 0) return [];
     if (typeof rows[0] !== 'object' || rows[0] === null) {
       return rows.map((row) => ({ value: row }));
     }
     return rows as Record<string, unknown>[];
   });
-  let columns = $derived(() => {
+  let columns = $derived.by(() => {
     if (rows.length === 0) return [];
     if (typeof rows[0] !== 'object' || rows[0] === null) {
       return ['value'];
@@ -56,15 +56,15 @@
             <table class="results-table">
               <thead>
                 <tr>
-                  {#each columns() as col (col)}
+                  {#each columns as col (col)}
                     <th>{col}</th>
                   {/each}
                 </tr>
               </thead>
               <tbody>
-                {#each tableRows() as row, rowIdx (rowIdx)}
+                {#each tableRows as row, rowIdx (rowIdx)}
                   <tr>
-                    {#each columns() as col (col)}
+                    {#each columns as col (col)}
                       <td>{getCellValue(row, col)}</td>
                     {/each}
                   </tr>

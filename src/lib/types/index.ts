@@ -7,6 +7,7 @@ export interface ApiRequest {
   body?: unknown;
   qs?: Record<string, string>;
   auth?: { username: string; password: string };
+  expect?: unknown;
 }
 
 export interface ApiRequestOptions extends ApiRequest {
@@ -15,6 +16,7 @@ export interface ApiRequestOptions extends ApiRequest {
   gzip?: boolean;
   encoding?: string;
   timeout?: number;
+  expect?: unknown;
 }
 
 export interface ApiResponse {
@@ -67,6 +69,7 @@ export interface ApiCall {
   id: string;
   request: ApiRequest;
   response: ApiResponse | null;
+  expect?: unknown;
   timestamp: number;
   error?: string;
 }

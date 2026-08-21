@@ -80,6 +80,32 @@ describe('get — unknown ID', () => {
 });
 
 // ===========================================================================
+// replace — re-montaje en el mismo div
+// ===========================================================================
+describe('replace', () => {
+  it('swaps the component reference keeping element and data intact', () => {
+    const id = 'repl-1';
+    const comp1 = mockComponent();
+    const el = mockElement(id);
+    const data = mockData(id);
+    EntryRegistry.register(id, comp1, el, data);
+
+    const comp2 = mockComponent();
+    EntryRegistry.replace(id, comp2);
+
+    const record = EntryRegistry.get(id);
+    expect(record!.component).toBe(comp2); // ref intercambiada
+    expect(record!.element).toBe(el); // conservada
+    expect(record!.data).toBe(data); // conservada
+  });
+
+  it('is a no-op for an unknown ID (does not throw, no side effects)', () => {
+    const comp = mockComponent();
+    expect(() => EntryRegistry.replace('ghost', comp)).not.toThrow();
+  });
+});
+
+// ===========================================================================
 // unmount
 // ===========================================================================
 describe('unmount', () => {
@@ -155,6 +181,41 @@ describe('size', () => {
     expect(EntryRegistry.size()).toBe(2);
     EntryRegistry.unmount('x');
     expect(EntryRegistry.size()).toBe(1);
+  });
+});
+
+// ===========================================================================
+// setLog — asociación de Cypress.Log para re-snapshot con coloreo
+// ===========================================================================
+describe('setLog', () => {
+  it('asocia un log a una entrada existente y persiste tras replace', () => {
+    const id = 'log-a';
+    const comp = mockComponent();
+    const el = mockElement(id);
+    const data = mockData(id);
+    EntryRegistry.register(id, comp, el, data);
+    const mockLog = { snapshot: vi.fn() } as unknown as { snapshot: () => unknown };
+    EntryRegistry.setLog(id, mockLog);
+    expect(EntryRegistry.get(id)?.log).toBe(mockLog);
+    // replace no debe borrar el log
+    const comp2 = mockComponent();
+    EntryRegistry.replace(id, comp2);
+    expect(EntryRegistry.get(id)?.log).toBe(mockLog);
+  });
+
+  it('es no-op para id desconocido', () => {
+    const mockLog = { snapshot: vi.fn() } as unknown as { snapshot: () => unknown };
+    expect(() => EntryRegistry.setLog('ghost', mockLog)).not.toThrow();
+  });
+
+  it('clear elimina también los logs asociados', () => {
+    const comp = mockComponent();
+    const el = mockElement('log-clear');
+    const data = mockData('log-clear');
+    EntryRegistry.register('log-clear', comp, el, data);
+    EntryRegistry.setLog('log-clear', { snapshot: vi.fn() } as unknown as { snapshot: () => unknown });
+    EntryRegistry.clear();
+    expect(EntryRegistry.size()).toBe(0);
   });
 });
 

@@ -9,7 +9,11 @@ import { configure, getConfigOverrides, getPluginConfig, mergeConfig } from '$li
 import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries, pluginConfig } from '$lib/stores.svelte';
 import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
 import { ensurePluginMounted, mountEntry, teardownPluginUI } from '$lib/ui';
+import { setupChaiExpectInterceptor } from '$lib/ui/chai-interceptor';
 import { EntryRegistry } from '$lib/ui/entry-registry';
+
+// Auto-inicializar interceptor de aserciones Chai de Cypress
+setupChaiExpectInterceptor();
 
 // ============================================
 // Ampliaciones del namespace de Cypress
@@ -56,6 +60,7 @@ interface ApiRequestOptions {
   qs?: Record<string, string>;
   auth?: { username: string; password: string };
   failOnStatusCode?: boolean;
+  expect?: unknown;
 }
 
 /** Forma devuelta por cy.task('db:getConfig') */
@@ -185,6 +190,8 @@ function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
   // y tomamos un snapshot explícito para que la vista del AUT restaure la entrada
   // poblada al pasar el cursor sobre este log.
   mountEntry(call, doc);
+  // Guardar log en el registry para re-snapshot con coloreo chai tras refreshEntry
+  EntryRegistry.setLog(call.id, log as unknown as { snapshot: (name?: string) => unknown });
   const elementId = `cabt-entry-${call.id}`;
   scrollToEntry(doc, elementId);
   const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
@@ -202,6 +209,7 @@ function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
   // lógica que showApiUi. El log se creó al INICIO del comando cy.query(),
   // de modo que Cypress rastrea su ciclo de vida correctamente.
   mountEntry(query, doc);
+  EntryRegistry.setLog(query.id, log as unknown as { snapshot: (name?: string) => unknown });
   const elementId = `cabt-entry-${query.id}`;
   scrollToEntry(doc, elementId);
   const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
@@ -212,65 +220,64 @@ function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
 // ============================================
 // Registro de comandos — auto-inicialización al importar
 // ============================================
-Cypress.Commands.add(
-  'http',
-  (urlOrOptions: string | ApiRequestOptions, maybeOptions?: ApiRequestOptions) => {
-    const options: ApiRequestOptions =
-      typeof urlOrOptions === 'string'
-        ? { url: urlOrOptions, method: maybeOptions?.method || 'GET', ...maybeOptions }
-        : urlOrOptions;
-    const startTime = Date.now();
-    // log: false — suprime la entrada de log "request" INTERNA de Cypress. Ese
-    // log interno toma un snapshot automático del AUT en el momento de creación,
-    // que para specs solo-API es la página en blanco "Default blank page" de Cypress
-    // (aún sin contenedor del plugin).
-    return cy.request({ ...options, log: false } as unknown as Record<string, unknown>).then((cyResponse) => {
-      const response: ApiResponse = {
-        status: cyResponse.status,
-        statusText: cyResponse.statusText || '',
-        headers: (cyResponse.headers || {}) as Record<string, string>,
-        body: cyResponse.body,
-        duration: Date.now() - startTime,
-        size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
-        cookies: (cyResponse as { cookies?: ApiResponse['cookies'] }).cookies || [],
-      };
-      const call: ApiCall = {
-        id: crypto.randomUUID(),
-        request: {
-          url: options.url,
-          method: options.method,
-          headers: options.headers,
-          body: options.body,
-          qs: options.qs,
-          auth: options.auth,
-        },
-        response,
-        timestamp: Date.now(),
-      };
-      addApiCall(call);
-      getTestStore().apiCalls.push(call);
-      // Crea el log AQUÍ — DESPUÉS de que cy.request haya resuelto. Crear el log
-      // al INICIO del comando (antes de cy.request) permitía que la maquinaria interna
-      // de comandos de Cypress inyectara un snapshot SIN NOMBRE del AUT previo al
-      // montaje en nuestro log; al pasar el cursor sobre el Command Log se restauraba
-      // ese primer snapshot (vacío) y el viewport del runner quedaba en blanco. Desde
-      // el callback de .then ya no ocurre ningún pase de comando anidado, por lo que el
-      // ÚNICO snapshot es el explícito 'response' tomado después de montar la entrada
-      // (verificado interactivamente: snapshots === ['response'], sin entradas vacías).
-      // El log sigue apareciendo en el Command Log exactamente igual que el plugin de
-      // referencia (cypress-plugin-api). snapshot: false — tomamos el .snapshot('response')
-      // explícito nosotros mismos; autoEnd: false — llamamos .end() explícitamente después.
-      const log = Cypress.log({
-        name: options.method,
-        autoEnd: false,
-        message: `${options.method} ${options.url}`,
-        snapshot: false,
-        consoleProps: () => ({ request: options, response }),
-      } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
-      return showApiUi(call, log);
-    });
-  },
-);
+Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOptions?: ApiRequestOptions) => {
+  const options: ApiRequestOptions =
+    typeof urlOrOptions === 'string'
+      ? { url: urlOrOptions, method: maybeOptions?.method || 'GET', ...maybeOptions }
+      : urlOrOptions;
+  const startTime = Date.now();
+  // log: false — suprime la entrada de log "request" INTERNA de Cypress. Ese
+  // log interno toma un snapshot automático del AUT en el momento de creación,
+  // que para specs solo-API es la página en blanco "Default blank page" de Cypress
+  // (aún sin contenedor del plugin).
+  return cy.request({ ...options, log: false } as unknown as Record<string, unknown>).then((cyResponse) => {
+    const response: ApiResponse = {
+      status: cyResponse.status,
+      statusText: cyResponse.statusText || '',
+      headers: (cyResponse.headers || {}) as Record<string, string>,
+      body: cyResponse.body,
+      duration: Date.now() - startTime,
+      size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
+      cookies: (cyResponse as { cookies?: ApiResponse['cookies'] }).cookies || [],
+    };
+    const call: ApiCall = {
+      id: crypto.randomUUID(),
+      request: {
+        url: options.url,
+        method: options.method,
+        headers: options.headers,
+        body: options.body,
+        qs: options.qs,
+        auth: options.auth,
+        expect: options.expect,
+      },
+      expect: options.expect,
+      response,
+      timestamp: Date.now(),
+    };
+    addApiCall(call);
+    getTestStore().apiCalls.push(call);
+    // Crea el log AQUÍ — DESPUÉS de que cy.request haya resuelto. Crear el log
+    // al INICIO del comando (antes de cy.request) permitía que la maquinaria interna
+    // de comandos de Cypress inyectara un snapshot SIN NOMBRE del AUT previo al
+    // montaje en nuestro log; al pasar el cursor sobre el Command Log se restauraba
+    // ese primer snapshot (vacío) y el viewport del runner quedaba en blanco. Desde
+    // el callback de .then ya no ocurre ningún pase de comando anidado, por lo que el
+    // ÚNICO snapshot es el explícito 'response' tomado después de montar la entrada
+    // (verificado interactivamente: snapshots === ['response'], sin entradas vacías).
+    // El log sigue apareciendo en el Command Log exactamente igual que el plugin de
+    // referencia (cypress-plugin-api). snapshot: false — tomamos el .snapshot('response')
+    // explícito nosotros mismos; autoEnd: false — llamamos .end() explícitamente después.
+    const log = Cypress.log({
+      name: options.method,
+      autoEnd: false,
+      message: `${options.method} ${options.url}`,
+      snapshot: false,
+      consoleProps: () => ({ request: options, response }),
+    } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+    return showApiUi(call, log);
+  });
+});
 
 Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOptions) => {
   const startTime = Date.now();

@@ -153,3 +153,68 @@ describe('ResponsePanel — tab interaction', () => {
     expect(screen.getByText('Sin cookies')).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Soporte de expectativas (expect)
+// ---------------------------------------------------------------------------
+describe('ResponsePanel — expect support', () => {
+  it('renders status match indicator when status matches expected status', () => {
+    const response = makeResponse({ status: 200 });
+    render(ResponsePanel, { props: { response, expect: { status: 200 } } });
+    expect(screen.getByText('✓ status match')).toBeInTheDocument();
+  });
+
+  it('renders status mismatch indicator when status does not match expected status', () => {
+    const response = makeResponse({ status: 500 });
+    render(ResponsePanel, { props: { response, expect: { status: 200 } } });
+    expect(screen.getByText('✗ exp 200')).toBeInTheDocument();
+  });
+
+  it('passes expected body to CodeBlock and highlights matches', () => {
+    const response = makeResponse({
+      body: { name: 'Alice', role: 'admin' },
+    });
+    render(ResponsePanel, {
+      props: {
+        response,
+        expect: {
+          body: { name: 'Alice', role: 'guest' },
+        },
+      },
+    });
+
+    expect(document.querySelector('.line-match')).not.toBeNull();
+    expect(document.querySelector('.line-mismatch')).not.toBeNull();
+  });
+
+  it('highlights matched and mismatched headers when expected headers are passed', () => {
+    const response = makeResponse({
+      headers: {
+        'content-type': 'application/json',
+        'x-powered-by': 'Express',
+      },
+    });
+    render(ResponsePanel, {
+      props: {
+        response,
+        expect: {
+          headers: {
+            'content-type': 'application/json',
+            'x-powered-by': 'Fastify',
+          },
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByText('Headers'));
+
+    const matchHeader = document.querySelector('.header-match');
+    const mismatchHeader = document.querySelector('.header-mismatch');
+
+    expect(matchHeader).not.toBeNull();
+    expect(matchHeader?.textContent).toContain('content-type');
+
+    expect(mismatchHeader).not.toBeNull();
+    expect(mismatchHeader?.textContent).toContain('x-powered-by');
+  });
+});

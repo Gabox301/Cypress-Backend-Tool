@@ -1,15 +1,53 @@
 <script lang="ts">
   import type { ApiResponse } from '$lib/types';
-  import { onMount } from 'svelte';
   import CodeBlock from './CodeBlock.svelte';
   import Icon from './Icon.svelte';
+
   interface Props {
     response: ApiResponse | null;
+    expect?: unknown;
     snapshotOnly?: boolean;
   }
-  let { response = null, snapshotOnly: _snapshotOnly = false }: Props = $props();
+
+  let { response = null, expect = undefined, snapshotOnly: _snapshotOnly = false }: Props = $props();
   let selectedTab = $state<'body' | 'headers' | 'cookies'>('body');
   let panelElement: HTMLDivElement;
+
+  const expectedBody = $derived.by(() => {
+    if (expect === undefined || expect === null) return undefined;
+    if (typeof expect === 'object' && 'body' in (expect as Record<string, unknown>)) {
+      return (expect as { body: unknown }).body;
+    }
+    return expect;
+  });
+
+  const expectedStatus = $derived.by(() => {
+    if (expect === undefined || expect === null) return undefined;
+    if (typeof expect === 'object' && 'status' in (expect as Record<string, unknown>)) {
+      return (expect as { status: number }).status;
+    }
+    return undefined;
+  });
+
+  const expectedHeaders = $derived.by(() => {
+    if (expect === undefined || expect === null) return undefined;
+    if (typeof expect === 'object' && 'headers' in (expect as Record<string, unknown>)) {
+      return (expect as { headers: Record<string, string> }).headers;
+    }
+    return undefined;
+  });
+
+  const statusMatches = $derived(expectedStatus !== undefined && response ? response.status === expectedStatus : null);
+
+  function getHeaderStatus(key: string, value: unknown): 'match' | 'mismatch' | null {
+    if (!expectedHeaders) return null;
+    const lowerKey = key.toLowerCase();
+    const expKey = Object.keys(expectedHeaders).find((k) => k.toLowerCase() === lowerKey);
+    if (!expKey) return null;
+    const expVal = expectedHeaders[expKey];
+    return String(expVal) === String(value) ? 'match' : 'mismatch';
+  }
+
   const statusConfig = $derived.by(() => {
     if (!response) return null;
     const s = response.status;
@@ -19,6 +57,7 @@
     if (s >= 500) return { color: '#fb923c', glow: 'rgba(251,146,60,0.35)', label: 'SERVER' };
     return { color: '#94a3b8', glow: 'rgba(148,163,184,0.2)', label: 'INFO' };
   });
+
   let formattedSize = $derived.by(() => {
     if (!response) return '';
     const bytes = response.size;
@@ -26,13 +65,17 @@
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   });
-  onMount(() => {
-    const doc = panelElement.ownerDocument;
+
+  $effect(() => {
+    // Inyección de estilos globales del panel — reemplaza onMount legacy.
+    // Corre tras mount y trackea panelElement; cleanup no necesario (style persiste).
+    const doc = panelElement?.ownerDocument;
+    if (!doc) return;
     const id = 'cypress-api-db-ui-overrides';
-    if (!doc.getElementById(id)) {
-      const style = doc.createElement('style');
-      style.id = id;
-      style.textContent = `
+    if (doc.getElementById(id)) return;
+    const style = doc.createElement('style');
+    style.id = id;
+    style.textContent = `
         .cadb-pill {
           display: inline-flex !important;
           flex-direction: row !important;
@@ -72,12 +115,11 @@
           height: 100% !important;
         }
       `;
-      doc.head.appendChild(style);
-    }
+    doc.head.appendChild(style);
   });
 </script>
 
-<div bind:this={panelElement} class="panel">
+<div bind:this={panelElement} class="panel" data-testid="response-panel">
   <div class="response-header">
     <div class="status-group">
       {#if response && statusConfig}
@@ -89,6 +131,11 @@
         <span class="status-text" style="color:{statusConfig.color};">
           {response.statusText}
         </span>
+        {#if statusMatches === true}
+          <span class="status-match-pill match">✓ status match</span>
+        {:else if statusMatches === false}
+          <span class="status-match-pill mismatch">✗ exp {expectedStatus}</span>
+        {/if}
       {:else}
         <span style="font-size:12px; color:rgba(100,116,139,0.45);">Sin respuesta</span>
       {/if}
@@ -142,11 +189,16 @@
     </div>
     <div class="content-area">
       {#if selectedTab === 'body'}
-        <CodeBlock data={response.body} format="json" />
+        <CodeBlock data={response.body} expected={expectedBody} format="json" />
       {:else if selectedTab === 'headers'}
         <div class="headers-list">
           {#each Object.entries(response.headers) as [key, value] (key)}
-            <div class="header-row">
+            {@const headerStatus = getHeaderStatus(key, value)}
+            <div
+              class="header-row"
+              class:header-match={headerStatus === 'match'}
+              class:header-mismatch={headerStatus === 'mismatch'}
+            >
               <span class="header-key">{key}</span>
               <span class="header-val">{String(value)}</span>
             </div>
@@ -248,6 +300,28 @@
     opacity: 0.55;
     white-space: nowrap;
   }
+  .status-match-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 99px;
+    letter-spacing: 0.02em;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .status-match-pill.match {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.25);
+  }
+  .status-match-pill.mismatch {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
   .tabs-bar {
     display: flex;
     gap: 2px;
@@ -319,9 +393,30 @@
     padding: 6px 10px;
     border-radius: 5px;
     transition: background 0.15s;
+    border-left: 2px solid transparent;
   }
   .header-row:hover {
     background: rgba(255, 255, 255, 0.03);
+  }
+  .header-row.header-match {
+    background: rgba(74, 222, 128, 0.08);
+    border-left-color: #4ade80;
+  }
+  .header-row.header-match .header-key {
+    color: #4ade80;
+  }
+  .header-row.header-match .header-val {
+    color: #86efac;
+  }
+  .header-row.header-mismatch {
+    background: rgba(239, 68, 68, 0.1);
+    border-left-color: #ef4444;
+  }
+  .header-row.header-mismatch .header-key {
+    color: #f87171;
+  }
+  .header-row.header-mismatch .header-val {
+    color: #fca5a5;
   }
   .header-key {
     font-family: 'JetBrains Mono', monospace;
