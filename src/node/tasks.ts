@@ -1,6 +1,12 @@
 /// <reference types="cypress" />
 
+import dotenv from 'dotenv';
 import pg from 'pg';
+
+// No cargar .env durante tests (Vitest) y evitar doble carga si cypress.config.ts ya lo hizo
+if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST) {
+  dotenv.config();
+}
 
 // ============================================
 // Tipos
@@ -11,6 +17,12 @@ export interface DbTaskConfig {
   database?: string;
   user?: string;
   password?: string;
+  /** SSL config for pg: `true`, `false` or object like `{ rejectUnauthorized: false }`. */
+  ssl?: boolean | Record<string, unknown>;
+  /** pg Pool connection timeout in ms */
+  connectionTimeoutMillis?: number;
+  /** pg Pool idle timeout in ms */
+  idleTimeoutMillis?: number;
 }
 
 export interface DbTaskResult {
@@ -38,7 +50,13 @@ export interface DbTaskOptions {
  *   1. `{envPrefix}{KEY}` (valor por defecto: `CYPRESS_DB_*`)
  *   2. `DB_{KEY}`
  *   3. `options.defaults`
- *   4. Valores de respaldo integrados (localhost, 5432, test_db, postgres, '')
+ *   4. Sin valores hardcodeados — todo debe venir por variables de entorno o defaults explícitos
+ *
+ * Para SSL (genérico, configurable por el consumidor):
+ *   - `CYPRESS_DB_SSL` / `DB_SSL` como string `"true"` => `{ rejectUnauthorized: false }`
+ *     (`"false"` desactiva SSL, JSON como `'{"rejectUnauthorized":false}'` se parsea).
+ *   - O `options.defaults.ssl` como `boolean | object`.
+ *   No hay chequeos hardcodeados de `host.includes('neon.tech')` / `supabase`.
  *
  * @param on - Cypress PluginEvents de setupNodeEvents
  * @param options - Configuración opcional
@@ -52,6 +70,9 @@ export interface DbTaskOptions {
  *   e2e: {
  *     setupNodeEvents(on) {
  *       setupDatabaseTasks(on);
+ *       // Con SSL para Neon:
+ *       // setupDatabaseTasks(on, { defaults: { ssl: { rejectUnauthorized: false } } });
+ *       // O vía .env: CYPRESS_DB_SSL=true
  *     },
  *   },
  * });
@@ -66,17 +87,51 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
       process.env[envPrefix + key] ??
       process.env['DB_' + key] ??
       (fromDefaults != null ? String(fromDefaults) : undefined) ??
-      { host: 'localhost', port: '5432', name: 'test_db', user: 'postgres', password: '' }[key.toLowerCase()] ??
       ''
     );
   };
+
+  const readSslEnv = (): boolean | Record<string, unknown> | undefined => {
+    const raw = process.env[envPrefix + 'SSL'] ?? process.env['DB_SSL'];
+    if (raw !== undefined) {
+      const trimmed = raw.trim();
+      if (trimmed === '') return undefined;
+      const lower = trimmed.toLowerCase();
+      if (lower === 'true' || lower === '1' || lower === 'yes') {
+        return { rejectUnauthorized: false };
+      }
+      if (lower === 'false' || lower === '0' || lower === 'no' || lower === 'disable') {
+        return false;
+      }
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          return JSON.parse(trimmed) as Record<string, unknown>;
+        } catch {
+          // fall through to undefined if JSON invalid
+        }
+      }
+      // Valor no reconocido -> no configurar SSL (evita magic strings)
+      return undefined;
+    }
+    const fromDefaults = options?.defaults?.ssl;
+    if (fromDefaults !== undefined) {
+      return fromDefaults as boolean | Record<string, unknown>;
+    }
+    return undefined;
+  };
+
+  const defaultHost = readEnv('HOST');
+  const sslValue = readSslEnv();
   const pool = new pg.Pool({
     max: 1,
-    host: readEnv('HOST'),
+    host: defaultHost,
     port: parseInt(readEnv('PORT'), 10),
     database: readEnv('NAME'),
     user: readEnv('USER'),
     password: readEnv('PASSWORD'),
+    connectionTimeoutMillis: options?.defaults?.connectionTimeoutMillis ?? 2000,
+    idleTimeoutMillis: options?.defaults?.idleTimeoutMillis ?? 2000,
+    ...(sslValue !== undefined ? { ssl: sslValue } : {}),
   });
   on('task', {
     [`${prefix}db:getConfig`]: (): DbTaskConfig => ({
@@ -93,25 +148,47 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
       database: string;
       user: string;
       password: string;
+      ssl?: boolean | Record<string, unknown>;
+      connectionTimeoutMillis?: number;
     }): Promise<DbTaskResult> => {
-      const poolOpts = pool.options;
+      const poolOpts = pool.options as unknown as Record<string, unknown>;
+      const argsSsl = (args as { ssl?: boolean | Record<string, unknown> }).ssl;
+      const poolSsl = poolOpts['ssl'] as unknown;
+
+      // Comparar ssl vía JSON stringify para detectar diferencias de config (undefined vs false vs object)
+      const sslMismatch =
+        argsSsl !== undefined || poolSsl !== undefined
+          ? JSON.stringify(argsSsl) !== JSON.stringify(poolSsl)
+          : false;
+
       if (
         args.host !== poolOpts.host ||
         args.port !== poolOpts.port ||
         args.database !== poolOpts.database ||
         args.user !== poolOpts.user ||
-        args.password !== poolOpts.password
+        args.password !== poolOpts.password ||
+        sslMismatch
       ) {
+        const effectiveSsl = argsSsl ?? readSslEnv();
         const client = new pg.Client({
           host: args.host,
           port: args.port,
           database: args.database,
           user: args.user,
           password: args.password,
+          connectionTimeoutMillis:
+            (args as { connectionTimeoutMillis?: number }).connectionTimeoutMillis ??
+            options?.defaults?.connectionTimeoutMillis ??
+            2000,
+          ...(effectiveSsl !== undefined ? { ssl: effectiveSsl as never } : {}),
         });
         await client.connect();
         const result = await client.query(args.query);
-        await client.end();
+        try {
+          await client.end();
+        } catch (_e) {
+          void _e;
+        }
         return { rows: result.rows, rowCount: result.rowCount ?? 0 };
       }
       const result = await pool.query(args.query);

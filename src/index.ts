@@ -8,7 +8,7 @@
 import { configure, getConfigOverrides, getPluginConfig, mergeConfig } from '$lib/config';
 import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries, pluginConfig } from '$lib/stores.svelte';
 import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
-import { ensurePluginMounted, mountEntry, teardownPluginUI } from '$lib/ui';
+import { ensurePluginMounted, mountEntry, reserveEntry, teardownPluginUI } from '$lib/ui';
 import { setupChaiExpectInterceptor } from '$lib/ui/chai-interceptor';
 import { EntryRegistry } from '$lib/ui/entry-registry';
 
@@ -226,6 +226,24 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
       ? { url: urlOrOptions, method: maybeOptions?.method || 'GET', ...maybeOptions }
       : urlOrOptions;
   const startTime = Date.now();
+  const callId = crypto.randomUUID();
+  // Reserva placeholder EN ORDEN DE LLAMADA antes de cy.request para preservar
+  // orden visual = orden de llamada (no orden de finalización). Si query local
+  // (~50ms) termina antes que http remoto (~200ms), sin reserva query aparecería
+  // arriba de http; con placeholder el div vacío se inserta ya en posición correcta
+  // y mountEntry lo reutiliza al completar.
+  try {
+    const winEarly = cy.state('window') as Window | undefined;
+    const docEarly = winEarly?.document;
+    if (docEarly?.getElementById) {
+      const containerEarly = getOrCreateContainer(docEarly);
+      const cfgEarly = readPluginConfig();
+      applySnapshotOnly(containerEarly, cfgEarly);
+      reserveEntry(callId, docEarly);
+    }
+  } catch (e) {
+    logDebug('reserveEntry http early failed', e);
+  }
   // log: false — suprime la entrada de log "request" INTERNA de Cypress. Ese
   // log interno toma un snapshot automático del AUT en el momento de creación,
   // que para specs solo-API es la página en blanco "Default blank page" de Cypress
@@ -241,7 +259,7 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
       cookies: (cyResponse as { cookies?: ApiResponse['cookies'] }).cookies || [],
     };
     const call: ApiCall = {
-      id: crypto.randomUUID(),
+      id: callId,
       request: {
         url: options.url,
         method: options.method,
@@ -281,6 +299,20 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
 
 Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOptions) => {
   const startTime = Date.now();
+  const queryId = crypto.randomUUID();
+  // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
+  try {
+    const winEarly = cy.state('window') as Window | undefined;
+    const docEarly = winEarly?.document;
+    if (docEarly?.getElementById) {
+      const containerEarly = getOrCreateContainer(docEarly);
+      const cfgEarly = readPluginConfig();
+      applySnapshotOnly(containerEarly, cfgEarly);
+      reserveEntry(queryId, docEarly);
+    }
+  } catch (e) {
+    logDebug('reserveEntry query early failed', e);
+  }
   return cy.task<DbTaskConfig>('db:getConfig').then((defaultConfig) => {
     const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
     const port = connectionOptions?.port || defaultConfig?.port || 5432;
@@ -295,7 +327,7 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
         query,
       };
       const dbCall: DbQuery = {
-        id: crypto.randomUUID(),
+        id: queryId,
         connectionId: `${host}:${port}/${database}`,
         query,
         result: result.rows || [],

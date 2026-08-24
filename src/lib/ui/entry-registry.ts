@@ -79,6 +79,25 @@ export const EntryRegistry = {
     _entries.delete(id);
   },
 
+  /**
+   * Desmonta el componente sin eliminar el div del DOM. Usado por mountEntry
+   * al reusar un placeholder ya posicionado — preserva orden visual.
+   * Elimina el registro pero conserva el elemento en su posición actual.
+   * Es no-op para IDs desconocidos.
+   */
+  detach(id: string): void {
+    const entry = _entries.get(id);
+    if (!entry) return;
+    try {
+      unmount(entry.component);
+    } catch {
+      // ignore
+    }
+    // Vacía el contenido del div pero no lo elimina del DOM
+    entry.element.innerHTML = '';
+    _entries.delete(id);
+  },
+
   /** Desmonta y elimina cada entrada registrada. */
   clear(): void {
     // Itera sobre un snapshot de las claves porque unmount() muta el Map.

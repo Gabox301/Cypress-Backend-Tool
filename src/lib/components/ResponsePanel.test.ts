@@ -18,8 +18,8 @@ function makeResponse(overrides: Partial<ApiResponse> = {}): ApiResponse {
 // ---------------------------------------------------------------------------
 // Configuración de estado (colores, brillo y etiquetas)
 // ---------------------------------------------------------------------------
-describe('ResponsePanel — status config', () => {
-  it('renders 200 status with green color and OK label', () => {
+describe('ResponsePanel — configuración de estado', () => {
+  it('renderiza el estado 200 con color verde y etiqueta OK', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 200, statusText: 'OK' }) } });
     expect(screen.getByText('200')).toBeInTheDocument();
     expect(screen.getByText('OK')).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('ResponsePanel — status config', () => {
     expect(code.style.color).toBe('rgb(74, 222, 128)');
   });
 
-  it('renders 301 redirect with yellow color and REDIR semantics', () => {
+  it('renderiza la redirección 301 con color amarillo y semántica REDIR', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 301, statusText: 'Moved Permanently' }) } });
     expect(screen.getByText('301')).toBeInTheDocument();
     expect(screen.getByText('Moved Permanently')).toBeInTheDocument();
@@ -39,7 +39,7 @@ describe('ResponsePanel — status config', () => {
     expect(code.style.color).toBe('rgb(250, 204, 21)');
   });
 
-  it('renders 404 error with red color', () => {
+  it('renderiza el error 404 con color rojo', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 404, statusText: 'Not Found' }) } });
     expect(screen.getByText('404')).toBeInTheDocument();
     expect(screen.getByText('Not Found')).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('ResponsePanel — status config', () => {
     expect(code.style.color).toBe('rgb(239, 68, 68)');
   });
 
-  it('renders 500 server error with orange color', () => {
+  it('renderiza el error de servidor 500 con color naranja', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 500, statusText: 'Internal Server Error' }) } });
     expect(screen.getByText('500')).toBeInTheDocument();
     expect(screen.getByText('Internal Server Error')).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe('ResponsePanel — status config', () => {
     expect(code.style.color).toBe('rgb(251, 146, 60)');
   });
 
-  it('renders info-level status (1xx) with gray fallback color', () => {
+  it('renderiza el estado informativo (1xx) con color gris de respaldo', () => {
     render(ResponsePanel, { props: { response: makeResponse({ status: 100, statusText: 'Continue' }) } });
     expect(screen.getByText('100')).toBeInTheDocument();
     const dot = document.querySelector('.status-dot') as HTMLElement;
@@ -72,33 +72,33 @@ describe('ResponsePanel — status config', () => {
 // ---------------------------------------------------------------------------
 // Formateo de tamaño + respuesta null
 // ---------------------------------------------------------------------------
-describe('ResponsePanel — size formatting and empty state', () => {
-  it('formats 512 B correctly', () => {
+describe('ResponsePanel — formateo de tamaño y estado vacío', () => {
+  it('formatea 512 B correctamente', () => {
     render(ResponsePanel, { props: { response: makeResponse({ size: 512 }) } });
     expect(screen.getByText('512 B')).toBeInTheDocument();
   });
 
-  it('formats 2 KB boundary correctly', () => {
+  it('formatea el límite de 2 KB correctamente', () => {
     render(ResponsePanel, { props: { response: makeResponse({ size: 2048 }) } });
     expect(screen.getByText('2.0 KB')).toBeInTheDocument();
   });
 
-  it('formats 1 MB boundary correctly', () => {
+  it('formatea el límite de 1 MB correctamente', () => {
     render(ResponsePanel, { props: { response: makeResponse({ size: 1048576 }) } });
     expect(screen.getByText('1.00 MB')).toBeInTheDocument();
   });
 
-  it('formats small byte value correctly', () => {
+  it('formatea valores pequeños de bytes correctamente', () => {
     render(ResponsePanel, { props: { response: makeResponse({ size: 999 }) } });
     expect(screen.getByText('999 B')).toBeInTheDocument();
   });
 
-  it('shows empty state when response is null', () => {
+  it('muestra el estado vacío cuando la respuesta es nula', () => {
     render(ResponsePanel, { props: { response: null } });
     expect(screen.getByText('Sin respuesta')).toBeInTheDocument();
   });
 
-  it('renders duration pill with ms label', () => {
+  it('renderiza la píldora de duración con etiqueta ms', () => {
     render(ResponsePanel, { props: { response: makeResponse({ duration: 42 }) } });
     expect(screen.getByText('42ms')).toBeInTheDocument();
   });
@@ -107,8 +107,8 @@ describe('ResponsePanel — size formatting and empty state', () => {
 // ---------------------------------------------------------------------------
 // Interacción de pestañas (Headers, Cookies)
 // ---------------------------------------------------------------------------
-describe('ResponsePanel — tab interaction', () => {
-  it('shows headers when Headers tab is clicked', () => {
+describe('ResponsePanel — interacción de pestañas', () => {
+  it('muestra las cabeceras al hacer clic en la pestaña Headers', () => {
     const response = makeResponse({
       headers: { 'Content-Type': 'application/json', 'X-Custom': 'test-value' },
     });
@@ -120,7 +120,7 @@ describe('ResponsePanel — tab interaction', () => {
     expect(screen.getByText('test-value')).toBeInTheDocument();
   });
 
-  it('shows cookies table when Cookies tab is clicked and cookies exist', () => {
+  it('muestra la tabla de cookies al hacer clic en la pestaña Cookies cuando existen cookies', () => {
     const response = makeResponse({
       cookies: [
         { name: 'session', value: 'abc123', domain: 'example.com', path: '/' },
@@ -138,14 +138,14 @@ describe('ResponsePanel — tab interaction', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
-  it('shows empty cookies state when Cookies tab is clicked and no cookies exist', () => {
+  it('muestra el estado vacío de cookies al hacer clic en la pestaña Cookies cuando no hay cookies', () => {
     const response = makeResponse({ cookies: [] });
     render(ResponsePanel, { props: { response } });
     fireEvent.click(screen.getByText('Cookies'));
     expect(screen.getByText('Sin cookies')).toBeInTheDocument();
   });
 
-  it('shows empty cookies state when cookies are undefined', () => {
+  it('muestra el estado vacío de cookies cuando las cookies no están definidas', () => {
     const response = makeResponse();
     // cookies es undefined por defecto
     render(ResponsePanel, { props: { response } });
@@ -157,20 +157,20 @@ describe('ResponsePanel — tab interaction', () => {
 // ---------------------------------------------------------------------------
 // Soporte de expectativas (expect)
 // ---------------------------------------------------------------------------
-describe('ResponsePanel — expect support', () => {
-  it('renders status match indicator when status matches expected status', () => {
+describe('ResponsePanel — soporte de expectativas', () => {
+  it('renderiza el indicador de coincidencia de estado cuando el estado coincide con el esperado', () => {
     const response = makeResponse({ status: 200 });
     render(ResponsePanel, { props: { response, expect: { status: 200 } } });
     expect(screen.getByText('✓ status match')).toBeInTheDocument();
   });
 
-  it('renders status mismatch indicator when status does not match expected status', () => {
+  it('renderiza el indicador de discrepancia de estado cuando el estado no coincide con el esperado', () => {
     const response = makeResponse({ status: 500 });
     render(ResponsePanel, { props: { response, expect: { status: 200 } } });
     expect(screen.getByText('✗ exp 200')).toBeInTheDocument();
   });
 
-  it('passes expected body to CodeBlock and highlights matches', () => {
+  it('pasa el cuerpo esperado a CodeBlock y resalta las coincidencias', () => {
     const response = makeResponse({
       body: { name: 'Alice', role: 'admin' },
     });
@@ -187,7 +187,7 @@ describe('ResponsePanel — expect support', () => {
     expect(document.querySelector('.line-mismatch')).not.toBeNull();
   });
 
-  it('highlights matched and mismatched headers when expected headers are passed', () => {
+  it('resalta cabeceras coincidentes y no coincidentes cuando se pasan cabeceras esperadas', () => {
     const response = makeResponse({
       headers: {
         'content-type': 'application/json',

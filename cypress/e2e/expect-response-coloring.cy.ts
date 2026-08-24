@@ -6,7 +6,7 @@
  * - 🔴 Rojo (.line-mismatch): Mismatch cuando el valor esperado difiere
  * - 🟡 Amarillo (.line-nullish): Clave con valor null o undefined no comparable
  */
-describe('cypress-backend-tool — Response Panel Expect Colorization', () => {
+describe('cypress-backend-tool — Coloreado de Expect en el Panel de Respuesta', () => {
   it('1. Petición con Chai assertions coincidentes (Verde)', () => {
     cy.http('https://jsonplaceholder.typicode.com/users/1').then((response: any) => {
       // Las aserciones estándar de Chai colorean automáticamente la UI

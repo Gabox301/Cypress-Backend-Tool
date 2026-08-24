@@ -1,4 +1,4 @@
-describe('cypress-backend-tool - Smoke Test (cy.http)', () => {
+describe('cypress-backend-tool - Prueba de humo (cy.http)', () => {
   it('Petición GET con UI', () => {
     cy.http({
       url: 'https://jsonplaceholder.typicode.com/users/1',

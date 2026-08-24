@@ -74,7 +74,7 @@ afterEach(() => {
 // mountEntry — ApiCall
 // ===========================================================================
 describe('mountEntry — ApiCall', () => {
-  it('creates a div#cabt-entry-{id} in the container', () => {
+  it('crea un div#cabt-entry-{id} en el contenedor', () => {
     const call = apiCall({ id: 'abc-123' });
     const div = mountEntry(call);
     expect(div).toBeInstanceOf(HTMLElement);
@@ -83,7 +83,7 @@ describe('mountEntry — ApiCall', () => {
     expect(document.getElementById('cabt-entry-abc-123')).toBe(div);
   });
 
-  it('registers the entry in EntryRegistry with its data payload', () => {
+  it('registra la entrada en EntryRegistry con su carga de datos', () => {
     const call = apiCall({ id: 'reg-test' });
     mountEntry(call);
     const record = EntryRegistry.get('reg-test');
@@ -94,20 +94,20 @@ describe('mountEntry — ApiCall', () => {
     expect(record!.data).toBe(call);
   });
 
-  it('calls Svelte mount with EntryPanel and correct props', () => {
+  it('llama a mount de Svelte con EntryPanel y props correctas', () => {
     const call = apiCall({ id: 'props-test' });
     mountEntry(call);
     expect(mount).toHaveBeenCalledTimes(1);
     const mountCall = (mount as Mock).mock.calls[0];
-    // Primer arg: Componente (EntryPanel)
-    // Segundo arg: options con target y props
+    // Primer argumento: Componente (EntryPanel)
+    // Segundo argumento: opciones con target y props
     expect(mountCall[1]).toHaveProperty('target');
     expect(mountCall[1].target.id).toBe('cabt-entry-props-test');
     expect(mountCall[1]).toHaveProperty('props');
     expect(mountCall[1].props.data).toBe(call);
   });
 
-  it('returns the created div element', () => {
+  it('retorna el elemento div creado', () => {
     const call = apiCall({ id: 'return-div' });
     const div = mountEntry(call);
     expect(div).toBeInstanceOf(HTMLElement);
@@ -119,14 +119,14 @@ describe('mountEntry — ApiCall', () => {
 // mountEntry — DbQuery
 // ===========================================================================
 describe('mountEntry — DbQuery', () => {
-  it('creates a div#cabt-entry-{id} for DB queries', () => {
+  it('crea un div#cabt-entry-{id} para consultas de BD', () => {
     const q = dbQuery({ id: 'db-001' });
     const div = mountEntry(q);
     expect(div.id).toBe('cabt-entry-db-001');
     expect(document.getElementById('cabt-entry-db-001')).toBe(div);
   });
 
-  it('registers DB entries in EntryRegistry with their data payload', () => {
+  it('registra entradas de BD en EntryRegistry con su carga de datos', () => {
     const q = dbQuery({ id: 'db-reg' });
     mountEntry(q);
     const record = EntryRegistry.get('db-reg');
@@ -134,7 +134,7 @@ describe('mountEntry — DbQuery', () => {
     expect(record!.data).toBe(q);
   });
 
-  it('passes the DbQuery as data prop', () => {
+  it('pasa DbQuery como prop de datos', () => {
     const q = dbQuery({ id: 'db-props' });
     mountEntry(q);
     const mountCall = (mount as Mock).mock.calls[0];
@@ -145,8 +145,8 @@ describe('mountEntry — DbQuery', () => {
 // ===========================================================================
 // mountEntry — Múltiples llamadas
 // ===========================================================================
-describe('mountEntry — multiple calls', () => {
-  it('creates sibling divs for sequential calls', () => {
+describe('mountEntry — múltiples llamadas', () => {
+  it('crea divs hermanos para llamadas secuenciales', () => {
     const call1 = apiCall({ id: 'first' });
     const call2 = apiCall({ id: 'second' });
     const div1 = mountEntry(call1);
@@ -161,8 +161,8 @@ describe('mountEntry — multiple calls', () => {
 // El montaje persistente sobrevive a la limpieza de stores
 // (antes en entry-persistence.test.ts — Task 3.3)
 // ===========================================================================
-describe('persistent mount survives store clear (Task 3.3)', () => {
-  it('ApiCall mount persists after clearApiCalls removes it from the store', () => {
+describe('montaje persistente sobrevive al vaciado del store (Tarea 3.3)', () => {
+  it('el montaje de ApiCall persiste tras limpiar el store con clearApiCalls', () => {
     const call = apiCall('persist-api-1');
     // 1. Inserta en el store (simulando cy.http())
     addApiCall(call);
@@ -180,7 +180,7 @@ describe('persistent mount survives store clear (Task 3.3)', () => {
     expect(EntryRegistry.size()).toBe(1);
   });
 
-  it('DbQuery mount persists after clearDbQueries removes it from the store', () => {
+  it('el montaje de DbQuery persiste tras limpiar el store con clearDbQueries', () => {
     const q = dbQuery('persist-db-1');
     addDbQuery(q);
     expect(dbQueries).toHaveLength(1);
@@ -193,7 +193,7 @@ describe('persistent mount survives store clear (Task 3.3)', () => {
     expect(EntryRegistry.get('persist-db-1')).toBeDefined();
   });
 
-  it('multiple entries all persist after clearing both stores', () => {
+  it('múltiples entradas persisten tras limpiar ambos stores', () => {
     const call1 = apiCall('api-a');
     const call2 = apiCall('api-b');
     const q1 = dbQuery('db-a');
@@ -217,7 +217,7 @@ describe('persistent mount survives store clear (Task 3.3)', () => {
     expect(EntryRegistry.size()).toBe(3);
   });
 
-  it('mount persists even after repeated store clears', () => {
+  it('el montaje persiste incluso tras limpiezas repetidas del store', () => {
     const call = apiCall('tough');
     mountEntry(call);
     // Simula múltiples ejecuciones de tests
@@ -233,8 +233,8 @@ describe('persistent mount survives store clear (Task 3.3)', () => {
 // Cypress.$ puede encontrar la entrada persistente tras limpiar el store
 // (antes en entry-persistence.test.ts — Task 3.4)
 // ===========================================================================
-describe('DOM query resolves persistent entry after store clear (Task 3.4)', () => {
-  it('document.getElementById finds the persistent ApiCall entry after clear', () => {
+describe('consulta DOM resuelve la entrada persistente tras vaciar el store (Tarea 3.4)', () => {
+  it('document.getElementById encuentra la entrada persistente ApiCall tras la limpieza', () => {
     addApiCall(apiCall('cy-query-1'));
     mountEntry(apiCall('cy-query-1'));
     clearApiCalls();
@@ -244,7 +244,7 @@ describe('DOM query resolves persistent entry after store clear (Task 3.4)', () 
     expect(el!.id).toBe('cabt-entry-cy-query-1');
   });
 
-  it('document.getElementById finds the persistent DbQuery entry after clear', () => {
+  it('document.getElementById encuentra la entrada persistente DbQuery tras la limpieza', () => {
     addDbQuery(dbQuery('cy-db-1'));
     mountEntry(dbQuery('cy-db-1'));
     clearDbQueries();
@@ -253,7 +253,7 @@ describe('DOM query resolves persistent entry after store clear (Task 3.4)', () 
     expect(el!.tagName).toBe('DIV');
   });
 
-  it('querySelector with exact id selector works after store clear', () => {
+  it('querySelector con selector de id exacto funciona tras limpiar el store', () => {
     mountEntry(apiCall('sel-test'));
     clearApiCalls();
     // Cypress.$('#cabt-entry-sel-test') es equivalente a querySelector
@@ -262,7 +262,7 @@ describe('DOM query resolves persistent entry after store clear (Task 3.4)', () 
     expect(el!.id).toBe('cabt-entry-sel-test');
   });
 
-  it('persistent entry with snapshotOnly config stays in DOM after clear', () => {
+  it('la entrada persistente con configuración snapshotOnly permanece en el DOM tras la limpieza', () => {
     addApiCall(apiCall('snap-only'));
     mountEntry(apiCall('snap-only'));
     clearApiCalls();

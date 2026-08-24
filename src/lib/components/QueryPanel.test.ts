@@ -12,8 +12,8 @@ function makeProps(overrides = {}) {
   };
 }
 
-describe('QueryPanel — rendering', () => {
-  it('renders query text and metadata', () => {
+describe('QueryPanel — renderizado', () => {
+  it('renderiza el texto de la consulta y los metadatos', () => {
     render(QueryPanel, {
       props: makeProps({ query: 'SELECT 1', duration: 10, rowCount: 0 }),
     });
@@ -21,7 +21,7 @@ describe('QueryPanel — rendering', () => {
     expect(screen.getByText('10ms')).toBeInTheDocument();
   });
 
-  it('renders object rows as a table with columns', () => {
+  it('renderiza filas de objetos como tabla con columnas', () => {
     render(QueryPanel, {
       props: makeProps({
         query: 'SELECT id, name FROM users',
@@ -35,7 +35,7 @@ describe('QueryPanel — rendering', () => {
     expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 
-  it('renders non-object rows with value column', () => {
+  it('renderiza filas no objeto con columna de valor', () => {
     render(QueryPanel, {
       props: makeProps({
         query: 'SELECT 42',
@@ -48,19 +48,19 @@ describe('QueryPanel — rendering', () => {
     expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
-  it('shows empty result when rows is empty', () => {
+  it('muestra resultado vacío cuando no hay filas', () => {
     render(QueryPanel, { props: makeProps({ rows: [] }) });
     expect(screen.getByText('(no rows returned)')).toBeInTheDocument();
   });
 
-  it('shows error block when error is provided', () => {
+  it('muestra el bloque de error cuando se proporciona un error', () => {
     render(QueryPanel, {
       props: makeProps({ error: 'Connection refused', query: 'SELECT 1' }),
     });
     expect(screen.getByText('Connection refused')).toBeInTheDocument();
   });
 
-  it('renders rows with mixed types', () => {
+  it('renderiza filas con tipos mixtos', () => {
     render(QueryPanel, {
       props: makeProps({
         query: 'SELECT now()',

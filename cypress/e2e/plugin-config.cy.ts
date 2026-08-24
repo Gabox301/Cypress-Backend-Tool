@@ -9,13 +9,13 @@
  *   Clase CSS collapsed de snapshotOnly
  *   Alternador de log de depuración
  */
-describe('Plugin Configuration', () => {
+describe('Configuración del Plugin', () => {
   afterEach(() => {
     Cypress.expose({ snapshotOnly: false });
   });
 
-  describe('snapshotOnly Collapsed CSS', () => {
-    it('container has cypress-plugin-collapsed class when snapshotOnly is true', () => {
+  describe('snapshotOnly — CSS colapsado', () => {
+    it('el contenedor tiene la clase cypress-plugin-collapsed cuando snapshotOnly es verdadero', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -29,7 +29,7 @@ describe('Plugin Configuration', () => {
       });
     });
 
-    it('container does NOT have collapsed class when snapshotOnly is false', () => {
+    it('el contenedor NO tiene la clase colapsada cuando snapshotOnly es falso', () => {
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
         method: 'GET',
@@ -41,7 +41,7 @@ describe('Plugin Configuration', () => {
       });
     });
 
-    it('snapshotOnly override does not leak to next test', () => {
+    it('el override de snapshotOnly no se filtra al siguiente test', () => {
       // afterEach reinicia a false — verifica el estado limpio
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -55,8 +55,8 @@ describe('Plugin Configuration', () => {
     });
   });
 
-  describe('Runtime Override via Cypress.expose()', () => {
-    it('overrides snapshotOnly at runtime', () => {
+  describe('Override en tiempo de ejecución vía Cypress.expose()', () => {
+    it('sobrescribe snapshotOnly en tiempo de ejecución', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -69,7 +69,7 @@ describe('Plugin Configuration', () => {
       });
     });
 
-    it('partial override does not affect other keys', () => {
+    it('el override parcial no afecta otras claves', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -81,8 +81,8 @@ describe('Plugin Configuration', () => {
     });
   });
 
-  describe('Debug Logging', () => {
-    it('plugin works with debug enabled', () => {
+  describe('Log de depuración', () => {
+    it('el plugin funciona con depuración activada', () => {
       Cypress.expose({ CYPRESS_PLUGIN_DEBUG: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -92,7 +92,7 @@ describe('Plugin Configuration', () => {
       });
     });
 
-    it('plugin works with debug disabled', () => {
+    it('el plugin funciona con depuración desactivada', () => {
       Cypress.expose({ CYPRESS_PLUGIN_DEBUG: false });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -103,8 +103,8 @@ describe('Plugin Configuration', () => {
     });
   });
 
-  describe('Config Merge', () => {
-    it('handles partial config overrides without clobbering other keys', () => {
+  describe('Fusión de configuración', () => {
+    it('maneja overrides parciales de configuración sin sobrescribir otras claves', () => {
       Cypress.expose({ snapshotOnly: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts/1',

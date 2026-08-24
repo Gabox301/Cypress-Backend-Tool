@@ -61,14 +61,14 @@ function resetStores(): void {
 describe('addApiCall', () => {
   beforeEach(() => resetStores());
 
-  it('appends a call to an empty array', () => {
+  it('agrega una llamada a un arreglo vacío', () => {
     const call = makeApiCall();
     addApiCall(call);
     expect(apiCalls).toHaveLength(1);
     expect(apiCalls[0].id).toBe('call-1');
   });
 
-  it('maintains insertion order with multiple calls', () => {
+  it('mantiene el orden de inserción con múltiples llamadas', () => {
     const call1 = makeApiCall({ id: 'first', timestamp: 100 });
     const call2 = makeApiCall({ id: 'second', timestamp: 200 });
     const call3 = makeApiCall({ id: 'third', timestamp: 300 });
@@ -81,7 +81,7 @@ describe('addApiCall', () => {
     expect(apiCalls[2].id).toBe('third');
   });
 
-  it('stores the complete ApiCall object', () => {
+  it('almacena el objeto ApiCall completo', () => {
     const call = makeApiCall({
       id: 'full-call',
       request: { url: '/api/users', method: 'POST' } as ApiRequest,
@@ -105,14 +105,14 @@ describe('addApiCall', () => {
 describe('addDbQuery', () => {
   beforeEach(() => resetStores());
 
-  it('appends a query to an empty array', () => {
+  it('agrega una consulta a un arreglo vacío', () => {
     const query = makeDbQuery();
     addDbQuery(query);
     expect(dbQueries).toHaveLength(1);
     expect(dbQueries[0].id).toBe('q-1');
   });
 
-  it('stores all DbQuery fields correctly', () => {
+  it('almacena correctamente todos los campos de DbQuery', () => {
     const query = makeDbQuery({
       id: 'sql-42',
       connectionId: 'pg-main',
@@ -131,7 +131,7 @@ describe('addDbQuery', () => {
     expect(dbQueries[0].duration).toBe(23);
   });
 
-  it('maintains order with multiple inserts', () => {
+  it('mantiene el orden con múltiples inserciones', () => {
     addDbQuery(makeDbQuery({ id: 'a', timestamp: 1 }));
     addDbQuery(makeDbQuery({ id: 'b', timestamp: 2 }));
     expect(dbQueries[0].id).toBe('a');
@@ -142,7 +142,7 @@ describe('addDbQuery', () => {
 describe('removeDbConnection', () => {
   beforeEach(() => resetStores());
 
-  it('removes an existing connection by id', () => {
+  it('elimina una conexión existente por id', () => {
     const conn = makeDbConnection({ id: 'to-remove' });
     addDbConnection(conn);
     expect(dbConnectionsGlobal).toHaveLength(1);
@@ -150,7 +150,7 @@ describe('removeDbConnection', () => {
     expect(dbConnectionsGlobal).toHaveLength(0);
   });
 
-  it('is a no-op when the id does not exist', () => {
+  it('es un no-op cuando el id no existe', () => {
     const conn = makeDbConnection({ id: 'keep' });
     addDbConnection(conn);
     expect(dbConnectionsGlobal).toHaveLength(1);
@@ -159,7 +159,7 @@ describe('removeDbConnection', () => {
     expect(dbConnectionsGlobal[0].id).toBe('keep');
   });
 
-  it('removes correct connection when multiple exist', () => {
+  it('elimina la conexión correcta cuando existen varias', () => {
     addDbConnection(makeDbConnection({ id: 'a' }));
     addDbConnection(makeDbConnection({ id: 'b' }));
     addDbConnection(makeDbConnection({ id: 'c' }));
@@ -173,7 +173,7 @@ describe('removeDbConnection', () => {
 describe('updateDbConnection', () => {
   beforeEach(() => resetStores());
 
-  it('partially merges fields on an existing connection', () => {
+  it('fusiona parcialmente campos en una conexión existente', () => {
     const conn = makeDbConnection({ id: 'upd', name: 'Old Name', host: 'old-host' });
     addDbConnection(conn);
     updateDbConnection('upd', { name: 'New Name', port: 9999 });
@@ -184,7 +184,7 @@ describe('updateDbConnection', () => {
     expect(dbConnectionsGlobal[0].database).toBe('test_db');
   });
 
-  it('is a no-op when the id does not exist', () => {
+  it('es un no-op cuando el id no existe', () => {
     const conn = makeDbConnection({ id: 'keep-me' });
     addDbConnection(conn);
     updateDbConnection('ghost', { name: 'Ghost' });
@@ -193,20 +193,20 @@ describe('updateDbConnection', () => {
   });
 });
 
-describe('state isolation', () => {
+describe('aislamiento de estado', () => {
   beforeEach(() => resetStores());
 
-  it('apiCalls starts empty before each test', () => {
+  it('apiCalls comienza vacío antes de cada test', () => {
     expect(apiCalls).toHaveLength(0);
   });
 
-  it('does not leak state across tests — adding in one scenario', () => {
+  it('no filtra estado entre tests — agregando en un escenario', () => {
     addApiCall(makeApiCall({ id: 'iso-test' }));
     expect(apiCalls).toHaveLength(1);
     // El siguiente test corre con su propio reset de beforeEach, probando el aislamiento
   });
 
-  it('confirming isolation — apiCalls is empty again after reset', () => {
+  it('confirmando aislamiento — apiCalls está vacío nuevamente tras el reinicio', () => {
     // Este par de tests prueba que el beforeEach del siguiente test
     // reinició exitosamente el estado del test anterior
     expect(apiCalls).toHaveLength(0);
@@ -220,14 +220,14 @@ describe('state isolation', () => {
 describe('clearApiCalls', () => {
   beforeEach(() => resetStores());
 
-  it('empties apiCalls after one add', () => {
+  it('vacía apiCalls tras agregar uno', () => {
     addApiCall(makeApiCall({ id: 'to-clear' }));
     expect(apiCalls).toHaveLength(1);
     clearApiCalls();
     expect(apiCalls).toHaveLength(0);
   });
 
-  it('is idempotent on already-empty array', () => {
+  it('es idempotente en un arreglo ya vacío', () => {
     expect(apiCalls).toHaveLength(0);
     clearApiCalls();
     expect(apiCalls).toHaveLength(0);
@@ -240,7 +240,7 @@ describe('clearApiCalls', () => {
 describe('clearDbQueries', () => {
   beforeEach(() => resetStores());
 
-  it('empties dbQueries after one add', () => {
+  it('vacía dbQueries tras agregar uno', () => {
     addDbQuery(makeDbQuery({ id: 'to-clear-db' }));
     expect(dbQueries).toHaveLength(1);
     clearDbQueries();
@@ -248,10 +248,10 @@ describe('clearDbQueries', () => {
   });
 });
 
-describe('clear both — independent arrays', () => {
+describe('limpieza de ambos — arreglos independientes', () => {
   beforeEach(() => resetStores());
 
-  it('both clears run in sequence, arrays stay independent', () => {
+  it('ambas limpiezas se ejecutan en secuencia, los arreglos permanecen independientes', () => {
     addApiCall(makeApiCall({ id: 'api-1' }));
     addDbQuery(makeDbQuery({ id: 'db-1' }));
     clearApiCalls();

@@ -10,11 +10,11 @@ function mockReader(values: Record<string, unknown> = {}) {
   return (key: string) => values[key];
 }
 
-describe('getPluginConfig — config resolution logic', () => {
+describe('getPluginConfig — lógica de resolución de configuración', () => {
   // -----------------------------------------------------------------------
   // Valores por defecto — cuando no hay valores configurados
   // -----------------------------------------------------------------------
-  it('returns safe defaults when no values are configured', () => {
+  it('retorna valores seguros por defecto cuando no hay valores configurados', () => {
     const config = getPluginConfig(mockReader());
     expect(config.snapshotOnly).toBe(false);
     expect(config.hideCredentials).toBe(false);
@@ -31,7 +31,7 @@ describe('getPluginConfig — config resolution logic', () => {
   // -----------------------------------------------------------------------
   // Valores configurados
   // -----------------------------------------------------------------------
-  it('honours configured boolean values', () => {
+  it('respeta valores booleanos configurados', () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: true,
@@ -44,7 +44,7 @@ describe('getPluginConfig — config resolution logic', () => {
     expect(config.CYPRESS_PLUGIN_DEBUG).toBe(true);
   });
 
-  it('honours configured requestMode', () => {
+  it('respeta el requestMode configurado', () => {
     const config = getPluginConfig(
       mockReader({
         requestMode: 'manual',
@@ -56,7 +56,7 @@ describe('getPluginConfig — config resolution logic', () => {
   // -----------------------------------------------------------------------
   // Overrides parciales — algunas claves definidas, otras con el valor por defecto
   // -----------------------------------------------------------------------
-  it('merges partial config with defaults', () => {
+  it('fusiona configuración parcial con valores por defecto', () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: true,
@@ -71,7 +71,7 @@ describe('getPluginConfig — config resolution logic', () => {
   // -----------------------------------------------------------------------
   // hideCredentialsOptions
   // -----------------------------------------------------------------------
-  it('honours custom hideCredentialsOptions', () => {
+  it('respeta hideCredentialsOptions personalizado', () => {
     const config = getPluginConfig(
       mockReader({
         hideCredentialsOptions: {
@@ -90,7 +90,7 @@ describe('getPluginConfig — config resolution logic', () => {
     });
   });
 
-  it('defaults hideCredentialsOptions when not set', () => {
+  it('usa valores por defecto para hideCredentialsOptions cuando no está definido', () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: true,
@@ -107,7 +107,7 @@ describe('getPluginConfig — config resolution logic', () => {
   // -----------------------------------------------------------------------
   // Casos límite
   // -----------------------------------------------------------------------
-  it('treats falsy-but-defined values correctly (false ≠ undefined)', () => {
+  it('trata correctamente valores falsy pero definidos (false ≠ undefined)', () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: false,
@@ -121,7 +121,7 @@ describe('getPluginConfig — config resolution logic', () => {
     expect(config.CYPRESS_PLUGIN_DEBUG).toBe(false);
   });
 
-  it('handles null/undefined values as defaults', () => {
+  it('maneja valores nulos/indefinidos como valores por defecto', () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: null,
@@ -136,7 +136,7 @@ describe('getPluginConfig — config resolution logic', () => {
 // ---------------------------------------------------------------------------
 // configure() / mergeConfig — capa de overrides sobre getPluginConfig
 // ---------------------------------------------------------------------------
-describe('configure() — config override layer', () => {
+describe('configure() — capa de overrides de configuración', () => {
   let _configure: (overrides: Record<string, unknown>) => void;
   let mergeConfig: (base: Record<string, unknown>, overrides: Record<string, unknown>) => Record<string, unknown>;
   let resetConfig: () => void;
@@ -163,7 +163,7 @@ describe('configure() — config override layer', () => {
   // -----------------------------------------------------------------------
   // Pruebas de la función pura mergeConfig
   // -----------------------------------------------------------------------
-  it('mergeConfig shallow-merges top-level scalars', () => {
+  it('mergeConfig fusiona superficialmente escalares de nivel superior', () => {
     const base = {
       snapshotOnly: false,
       hideCredentials: false,
@@ -177,7 +177,7 @@ describe('configure() — config override layer', () => {
     expect(result.requestMode).toBe('auto'); // sin cambios
   });
 
-  it('mergeConfig deep-merges hideCredentialsOptions', () => {
+  it('mergeConfig fusiona profundamente hideCredentialsOptions', () => {
     const base = {
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
     };
@@ -196,7 +196,7 @@ describe('configure() — config override layer', () => {
   // -----------------------------------------------------------------------
   // Integración de configure() — retrocompatibilidad (sin llamada a configure)
   // -----------------------------------------------------------------------
-  it('backward compat: exposes-only returns values from expose unchanged', () => {
+  it('retrocompatibilidad: solo expose retorna valores de expose sin cambios', () => {
     // En el uso real, readPluginConfig() llama a getPluginConfig con Cypress.expose
     // y luego lo mezcla con configOverrides. Cuando configure() nunca se llama,
     // configOverrides está vacío, por lo que los valores de expose pasan sin cambios.
@@ -219,7 +219,7 @@ describe('configure() — config override layer', () => {
   // -----------------------------------------------------------------------
   // Reglas de fusión de configure()
   // -----------------------------------------------------------------------
-  it('configure overrides expose value when both are set', () => {
+  it('configure sobrescribe el valor de expose cuando ambos están definidos', () => {
     const exposeValues = { snapshotOnly: false };
     const configureValues = { snapshotOnly: true };
     const base = { ...exposeValues };
@@ -227,7 +227,7 @@ describe('configure() — config override layer', () => {
     expect(result.snapshotOnly).toBe(true); // configure gana sobre expose
   });
 
-  it('configure does not affect unset fields', () => {
+  it('configure no afecta campos no definidos', () => {
     const exposeValues = {
       snapshotOnly: false,
       hideCredentials: false,
@@ -241,7 +241,7 @@ describe('configure() — config override layer', () => {
     expect(result.requestMode).toBe('auto'); // sin cambios
   });
 
-  it('configure partial hideCredentialsOptions — deep merge with expose values', () => {
+  it('configure parcial hideCredentialsOptions — fusión profunda con valores de expose', () => {
     const exposeValues = {
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
     };
@@ -261,7 +261,7 @@ describe('configure() — config override layer', () => {
   // -----------------------------------------------------------------------
   // Casos límite
   // -----------------------------------------------------------------------
-  it('configure with empty overrides is a no-op', () => {
+  it('configure con overrides vacíos es un no-op', () => {
     const exposeValues = {
       snapshotOnly: true,
       hideCredentials: false,
@@ -273,7 +273,7 @@ describe('configure() — config override layer', () => {
     expect(result).toEqual(exposeValues);
   });
 
-  it('configure handles hideCredentialsOptions not present in overrides', () => {
+  it('configure maneja hideCredentialsOptions no presente en los overrides', () => {
     const exposeValues = {
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
     };

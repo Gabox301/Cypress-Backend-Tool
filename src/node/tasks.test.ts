@@ -60,7 +60,7 @@ describe('setupDatabaseTasks', () => {
   // -----------------------------------------------------------------------
   // Registro de tareas
   // -----------------------------------------------------------------------
-  it('registers db:getConfig and db:query tasks with default prefix', () => {
+  it('registra las tareas db:getConfig y db:query con prefijo por defecto', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     expect(on).toHaveBeenCalledWith('task', expect.any(Object));
@@ -69,7 +69,7 @@ describe('setupDatabaseTasks', () => {
     expect(tasks).toHaveProperty('db:query');
   });
 
-  it('registers tasks with custom prefix when defaultPrefix is provided', () => {
+  it('registra las tareas con prefijo personalizado cuando se proporciona defaultPrefix', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>, { defaultPrefix: 'myapp_' });
     const tasks = getTasks(on);
@@ -81,7 +81,7 @@ describe('setupDatabaseTasks', () => {
   // -----------------------------------------------------------------------
   // db:getConfig — parsing de env, CYPRESS_DB_* > DB_*
   // -----------------------------------------------------------------------
-  it('db:getConfig reads CYPRESS_DB_* env vars', () => {
+  it('db:getConfig lee variables CYPRESS_DB_*', () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'cypress-db.example.com');
     vi.stubEnv('CYPRESS_DB_PORT', '7777');
     vi.stubEnv('CYPRESS_DB_NAME', 'cypress_test');
@@ -97,7 +97,7 @@ describe('setupDatabaseTasks', () => {
     expect(config.password).toBe('cypress_secret');
   });
 
-  it('db:getConfig falls back to DB_* when CYPRESS_DB_* is not set', () => {
+  it('db:getConfig usa DB_* como respaldo cuando CYPRESS_DB_* no está definido', () => {
     vi.stubEnv('DB_HOST', 'db.example.com');
     vi.stubEnv('DB_PORT', '5432');
     vi.stubEnv('DB_NAME', 'test_db');
@@ -113,7 +113,7 @@ describe('setupDatabaseTasks', () => {
     expect(config.password).toBe('db_secret');
   });
 
-  it('db:getConfig prefers CYPRESS_DB_* over DB_* when both are set', () => {
+  it('db:getConfig prioriza CYPRESS_DB_* sobre DB_* cuando ambos están definidos', () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'preferred.example.com');
     vi.stubEnv('DB_HOST', 'fallback.example.com');
     const on = vi.fn();
@@ -122,21 +122,21 @@ describe('setupDatabaseTasks', () => {
     expect(config.host).toBe('preferred.example.com');
   });
 
-  it('db:getConfig falls back to built-in defaults when no env vars are set', () => {
+  it('db:getConfig retorna vacío cuando no hay variables de entorno ni valores por defecto (sin respaldo hardcodeado)', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
-    expect(config.host).toBe('localhost');
-    expect(config.port).toBe(5432);
-    expect(config.database).toBe('test_db');
-    expect(config.user).toBe('postgres');
+    expect(config.host).toBe('');
+    expect(config.port).toBeNaN();
+    expect(config.database).toBe('');
+    expect(config.user).toBe('');
     expect(config.password).toBe('');
   });
 
   // -----------------------------------------------------------------------
   // Reutilización del Pool persistente
   // -----------------------------------------------------------------------
-  it('creates a pg.Pool with connection config from env vars', async () => {
+  it('crea un pg.Pool con la configuración de conexión de las variables de entorno', async () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'mydb.example.com');
     vi.stubEnv('CYPRESS_DB_PORT', '5555');
     vi.stubEnv('CYPRESS_DB_NAME', 'myapp');
@@ -144,35 +144,44 @@ describe('setupDatabaseTasks', () => {
     vi.stubEnv('CYPRESS_DB_PASSWORD', 's3cret');
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-    expect(mockPoolCtor).toHaveBeenCalledWith({
-      max: 1,
-      host: 'mydb.example.com',
-      port: 5555,
-      database: 'myapp',
-      user: 'app_user',
-      password: 's3cret',
-    });
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        max: 1,
+        host: 'mydb.example.com',
+        port: 5555,
+        database: 'myapp',
+        user: 'app_user',
+        password: 's3cret',
+      }),
+    );
   });
 
-  it('pool uses built-in defaults when no env vars are set', () => {
+  it('el pool se crea con configuración vacía cuando no hay variables de entorno ni valores por defecto (sin respaldo hardcodeado)', () => {
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
-    expect(mockPoolCtor).toHaveBeenCalledWith({
-      max: 1,
-      host: 'localhost',
-      port: 5432,
-      database: 'test_db',
-      user: 'postgres',
-      password: '',
-    });
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        max: 1,
+        host: '',
+        port: NaN,
+        database: '',
+        user: '',
+        password: '',
+      }),
+    );
   });
 
-  it('reuses the same pool across multiple task handler invocations', async () => {
+  it('reutiliza el mismo pool en múltiples invocaciones del manejador', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
+    vi.stubEnv('CYPRESS_DB_PORT', '5432');
+    vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
+    vi.stubEnv('CYPRESS_DB_USER', 'postgres');
+    vi.stubEnv('CYPRESS_DB_PASSWORD', '');
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     mockPoolQuery.mockResolvedValue({ rows: [{ col: 1 }], rowCount: 1 });
     const queryHandler = getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>;
-    // los args coinciden con los valores por defecto del pool (test_db), por lo que se usa pool.query
+    // los args coinciden con el pool (via env), por lo que se usa pool.query
     await queryHandler({
       query: 'SELECT 1',
       host: 'localhost',
@@ -195,7 +204,12 @@ describe('setupDatabaseTasks', () => {
   // -----------------------------------------------------------------------
   // db:query — delega en pool.query
   // -----------------------------------------------------------------------
-  it('db:query calls pool.query with the given SQL when args match pool config', async () => {
+  it('db:query llama a pool.query con el SQL dado cuando los argumentos coinciden con la configuración del pool', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
+    vi.stubEnv('CYPRESS_DB_PORT', '5432');
+    vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
+    vi.stubEnv('CYPRESS_DB_USER', 'postgres');
+    vi.stubEnv('CYPRESS_DB_PASSWORD', '');
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     mockPoolQuery.mockResolvedValue({ rows: [{ result: 1 }], rowCount: 1 });
@@ -211,7 +225,7 @@ describe('setupDatabaseTasks', () => {
     expect(result).toEqual({ rows: [{ result: 1 }], rowCount: 1 });
   });
 
-  it('uses a one-off pg.Client when db:query args differ from pool config', async () => {
+  it('usa un pg.Client temporal cuando los argumentos de db:query difieren de la configuración del pool', async () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'pool-host');
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
@@ -235,7 +249,7 @@ describe('setupDatabaseTasks', () => {
   // -----------------------------------------------------------------------
   // Options con valores por defecto
   // -----------------------------------------------------------------------
-  it('accepts custom envPrefix option', () => {
+  it('acepta la opción personalizada envPrefix', () => {
     vi.stubEnv('MYAPP_DB_HOST', 'custom-prefix.example.com');
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>, { envPrefix: 'MYAPP_DB_' });
@@ -243,7 +257,7 @@ describe('setupDatabaseTasks', () => {
     expect(config.host).toBe('custom-prefix.example.com');
   });
 
-  it('applies fallback defaults when provided via options.defaults', () => {
+  it('aplica valores por defecto de respaldo cuando se proporcionan vía options.defaults', () => {
     const on = vi.fn();
     setupDatabaseTasks(
       on as unknown as Record<string, unknown>,
@@ -254,19 +268,19 @@ describe('setupDatabaseTasks', () => {
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
     expect(config.host).toBe('default-host');
     expect(config.port).toBe(9999);
-    expect(config.database).toBe('test_db');
+    expect(config.database).toBe('');
   });
 
   // -----------------------------------------------------------------------
   // Casos límite
   // -----------------------------------------------------------------------
-  it('handles missing port env var by using default', () => {
+  it('maneja la variable de puerto faltante como NaN cuando no hay valor por defecto (sin respaldo hardcodeado)', () => {
     vi.stubEnv('CYPRESS_DB_HOST', 'srv.example.com');
-    // Puerto intencionalmente no definido
+    // Puerto intencionalmente no definido y sin defaults
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
     const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
     expect(config.host).toBe('srv.example.com');
-    expect(config.port).toBe(5432);
+    expect(Number.isNaN(config.port as number)).toBe(true);
   });
 });

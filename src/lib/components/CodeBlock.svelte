@@ -157,9 +157,10 @@
   .wrapper {
     display: flex;
     flex-direction: column;
-    height: 100%;
-    flex: 1;
+    flex: 0 1 auto;
+    height: auto;
     min-height: 0;
+    min-width: 0;
   }
   .code-container {
     background: #060a10;
@@ -170,10 +171,15 @@
     font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, Monaco, monospace;
     font-size: 12.5px;
     line-height: 1.7;
-    flex: 1;
+    flex: 0 1 auto;
+    height: auto;
+    max-height: min(50dvh, 500px);
     min-height: 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
   }
   .code-header {
     display: flex;
@@ -258,10 +264,30 @@
     background: rgba(251, 113, 133, 0.06);
   }
   .code-body {
-    flex: 1;
+    flex: 0 1 auto;
+    min-height: 120px;
+    min-width: 0;
+    max-height: min(45dvh, 400px);
     overflow: auto;
-    min-height: 0;
     display: flex;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.35) transparent;
+  }
+  .code-body::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .code-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+  }
+  .code-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.35);
+    border-radius: 3px;
+  }
+  .code-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.6);
   }
   .gutter {
     display: flex;

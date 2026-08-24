@@ -27,7 +27,7 @@
   }
 </script>
 
-<div class="panel">
+<div class="panel" data-testid="query-panel">
   <div class="query-header">
     <div class="db-badge">
       <span>Database Query</span>
@@ -84,12 +84,26 @@
   .panel {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    min-height: 0;
+    flex: 0 0 auto;
+    align-self: stretch;
+    min-height: clamp(240px, 40vh, 400px);
+    min-height: clamp(240px, 40dvh, 400px);
+    height: auto;
+    max-height: min(65vh, 580px);
+    max-height: min(65dvh, 580px);
+    min-width: 0;
+    width: 100%;
     background: #080c14;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     overflow: hidden;
+    box-sizing: border-box;
+    isolation: isolate;
+    position: relative;
+    contain: none;
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(255, 255, 255, 0.04);
     font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, Monaco, monospace;
   }
   .query-header {
@@ -126,13 +140,15 @@
     border: 1px solid rgba(34, 211, 238, 0.15);
   }
   .content-area {
-    flex: 1;
+    flex: 0 1 auto;
     min-height: 0;
-    overflow: hidden;
+    min-width: 0;
+    overflow: visible;
     padding: 14px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    box-sizing: border-box;
   }
   .section {
     display: flex;
@@ -140,9 +156,13 @@
     gap: 8px;
   }
   .results-section {
-    flex: 1;
+    flex: 0 1 auto;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   .section-label {
     font-size: 10px;
@@ -156,7 +176,30 @@
     border: 1px solid rgba(0, 212, 255, 0.08);
     border-radius: 6px;
     padding: 10px 12px;
-    overflow-x: auto;
+    overflow: auto;
+    height: auto;
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(36vh, 320px);
+    max-height: min(36dvh, 320px);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.35) transparent;
+    overscroll-behavior: contain;
+  }
+  .code-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .code-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+  }
+  .code-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.35);
+    border-radius: 3px;
+  }
+  .code-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.6);
   }
   .query-text {
     margin: 0;
@@ -166,11 +209,34 @@
     word-break: break-all;
   }
   .table-wrapper {
-    flex: 1;
+    flex: 0 1 auto;
+    min-height: 0;
+    min-width: 0;
+    max-height: min(36vh, 300px);
+    max-height: min(36dvh, 300px);
     overflow: auto;
     background: #060a10;
     border: 1px solid rgba(0, 212, 255, 0.08);
     border-radius: 6px;
+    box-sizing: border-box;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.35) transparent;
+  }
+  .table-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .table-wrapper::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+  }
+  .table-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.35);
+    border-radius: 3px;
+  }
+  .table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.6);
   }
   .results-table {
     width: 100%;

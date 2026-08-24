@@ -143,12 +143,22 @@
   .panel {
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 1 1 0;
     min-height: 0;
+    min-width: 0;
+    height: 100%;
+    max-height: 100%;
     background: #080c14;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     overflow: hidden;
+    box-sizing: border-box;
+    isolation: isolate;
+    position: relative;
+    contain: none;
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(255, 255, 255, 0.04);
     font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, Monaco, monospace;
   }
   .tabs-bar {
@@ -202,12 +212,15 @@
     box-shadow: 0 0 8px #00d4ff;
   }
   .content-area {
-    flex: 1;
+    flex: 0 1 auto;
+    height: auto;
     min-height: 0;
-    overflow: hidden;
+    min-width: 0;
+    overflow: visible;
     padding: 14px;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
   }
   .empty-state {
     flex: 1;

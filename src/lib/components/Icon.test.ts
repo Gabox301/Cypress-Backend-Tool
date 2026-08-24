@@ -20,9 +20,9 @@ const allIcons = [
   'database',
 ] as const;
 
-describe('Icon — all variants', () => {
+describe('Icon — todas las variantes', () => {
   for (const name of allIcons) {
-    it(`renders "${name}" icon without errors`, () => {
+    it(`renderiza el icono "${name}" sin errores`, () => {
       const { container } = render(Icon, { props: { name } });
       const svg = container.querySelector('svg');
       expect(svg).not.toBeNull();
@@ -33,20 +33,20 @@ describe('Icon — all variants', () => {
     });
   }
 
-  it('renders with custom size', () => {
+  it('renderiza con tamaño personalizado', () => {
     const { container } = render(Icon, { props: { name: 'zap', size: 48 } });
     const svg = container.querySelector('svg');
     expect(svg!.getAttribute('width')).toBe('48');
     expect(svg!.getAttribute('height')).toBe('48');
   });
 
-  it('renders with custom color', () => {
+  it('renderiza con color personalizado', () => {
     const { container } = render(Icon, { props: { name: 'search', color: '#ff0000' } });
     const svg = container.querySelector('svg');
     expect(svg!.getAttribute('stroke')).toBe('#ff0000');
   });
 
-  it('renders default size 24 when size not provided', () => {
+  it('renderiza el tamaño por defecto 24 cuando no se proporciona tamaño', () => {
     const { container } = render(Icon, { props: { name: 'clock' } });
     const svg = container.querySelector('svg');
     expect(svg!.getAttribute('width')).toBe('24');

@@ -6,8 +6,8 @@ import CodeBlock from './CodeBlock.svelte';
 // ---------------------------------------------------------------------------
 // Coloreado de JSON
 // ---------------------------------------------------------------------------
-describe('CodeBlock — JSON colorization', () => {
-  it('renders JSON keys with json-key class', () => {
+describe('CodeBlock — coloreado JSON', () => {
+  it('renderiza claves JSON con la clase json-key', () => {
     render(CodeBlock, { props: { data: { name: 'Alice', age: 30 }, format: 'json' } });
     const keySpan = document.querySelector('.json-key');
     expect(keySpan).not.toBeNull();
@@ -15,7 +15,7 @@ describe('CodeBlock — JSON colorization', () => {
     expect(screen.getByText(/"name"/)).toBeInTheDocument();
   });
 
-  it('preserves the colon separator between key and value', () => {
+  it('preserva el separador de dos puntos entre clave y valor', () => {
     render(CodeBlock, { props: { data: { title: 'Test Post', body: 'This is a test', userId: 1 }, format: 'json' } });
     // El contenido completo debe incluir ": " después de cada clave
     expect(document.querySelector('.code-content')!.textContent).toContain('"title": "Test Post"');
@@ -23,36 +23,36 @@ describe('CodeBlock — JSON colorization', () => {
     expect(document.querySelector('.code-content')!.textContent).toContain('"userId": 1');
   });
 
-  it('renders JSON string values with json-string class', () => {
+  it('renderiza valores de cadena JSON con la clase json-string', () => {
     render(CodeBlock, { props: { data: { city: 'NYC' }, format: 'json' } });
     const stringSpan = document.querySelector('.json-string');
     expect(stringSpan).not.toBeNull();
   });
 
-  it('renders JSON number values with json-number class', () => {
+  it('renderiza valores numéricos JSON con la clase json-number', () => {
     render(CodeBlock, { props: { data: { count: 42 }, format: 'json' } });
     const numberSpan = document.querySelector('.json-number');
     expect(numberSpan).not.toBeNull();
   });
 
-  it('renders JSON boolean values with json-bool class', () => {
+  it('renderiza valores booleanos JSON con la clase json-bool', () => {
     render(CodeBlock, { props: { data: { active: true, disabled: false }, format: 'json' } });
     const boolSpan = document.querySelector('.json-bool');
     expect(boolSpan).not.toBeNull();
   });
 
-  it('renders JSON null values with json-null class', () => {
+  it('renderiza valores nulos JSON con la clase json-null', () => {
     render(CodeBlock, { props: { data: { deleted: null }, format: 'json' } });
     const nullSpan = document.querySelector('.json-null');
     expect(nullSpan).not.toBeNull();
   });
 
-  it('displays plain string data as-is', () => {
+  it('muestra datos de texto plano tal cual', () => {
     render(CodeBlock, { props: { data: 'Hello, World!', format: 'text' } });
     expect(screen.getByText('Hello, World!')).toBeInTheDocument();
   });
 
-  it('renders nothing when data is null', () => {
+  it('no renderiza nada cuando los datos son nulos', () => {
     const { container } = render(CodeBlock, { props: { data: null, format: 'json' } });
     // El contenedor code-block debería existir pero estar vacío (sin code-body renderizado)
     const block = container.querySelector('[data-testid="code-block"]');
@@ -61,13 +61,13 @@ describe('CodeBlock — JSON colorization', () => {
     expect(codeBody).toBeNull();
   });
 
-  it('renders multiline JSON with correct line numbers', () => {
+  it('renderiza JSON multilínea con números de línea correctos', () => {
     render(CodeBlock, { props: { data: { a: 1, b: 2 }, format: 'json' } });
     const lineNums = document.querySelectorAll('.line-num');
     expect(lineNums.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('handles circular reference by falling back to String()', () => {
+  it('maneja referencias circulares usando String() como respaldo', () => {
     const obj: Record<string, unknown> = { name: 'test' };
     (obj as any).self = obj;
     render(CodeBlock, { props: { data: obj, format: 'json' } });
@@ -76,7 +76,7 @@ describe('CodeBlock — JSON colorization', () => {
     expect(codeBlock).not.toBeNull();
   });
 
-  it('copies formatted data to clipboard on button click', async () => {
+  it('copia los datos formateados al portapapeles al hacer clic en el botón', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
@@ -90,7 +90,7 @@ describe('CodeBlock — JSON colorization', () => {
     expect(writeText).toHaveBeenCalledWith('{\n  "key": "value"\n}');
   });
 
-  it('copies from a DOM clone like a Cypress snapshot (no live listeners)', async () => {
+  it('copia desde un clon del DOM como un snapshot de Cypress (sin listeners activos)', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
@@ -124,7 +124,7 @@ describe('CodeBlock — JSON colorization', () => {
     }
   });
 
-  it('highlights matched, mismatched and nullish lines when expected is provided', () => {
+  it('resalta líneas coincidentes, no coincidentes y nulas cuando se proporciona expected', () => {
     const data = {
       name: 'Leanne Graham',
       username: 'Bret',
@@ -152,7 +152,7 @@ describe('CodeBlock — JSON colorization', () => {
     expect(nullishLines.length).toBe(1);
     expect(nullishLines[0].textContent).toContain('"email": null');
 
-    // Badges in header
+    // Insignias en la cabecera
     expect(screen.getByText('✓ 1 match')).toBeInTheDocument();
     expect(screen.getByText('✗ 1 mismatch')).toBeInTheDocument();
     expect(screen.getByText('⚠ 1 null/undef')).toBeInTheDocument();

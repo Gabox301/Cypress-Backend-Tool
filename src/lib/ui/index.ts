@@ -3,8 +3,8 @@ import { mount, unmount } from 'svelte';
 import App from '../components/App.svelte';
 import { ensureCopyDelegation } from './copy-delegation';
 import { EntryRegistry } from './entry-registry';
-import { mountEntry } from './mountEntry';
-export { mountEntry };
+import { mountEntry, reserveEntry } from './mountEntry';
+export { mountEntry, reserveEntry };
 
 // ──────────────────────────────────────────────────────────────────────────
 // La UI del plugin se monta UNA VEZ por documento AUT activo y permanece montada.

@@ -3,7 +3,7 @@
 /**
  * Pruebas E2E de aislamiento de credenciales
  */
-describe('Credential Isolation', () => {
+describe('Aislamiento de Credenciales', () => {
   afterEach(() => {
     // Limpia cualquier valor expuesto entre tests
     cy.document().then((doc) => {
@@ -12,8 +12,8 @@ describe('Credential Isolation', () => {
     });
   });
 
-  describe('DB credentials NEVER enter browser context', () => {
-    it('dbPassword is not exposed on window after cy.query()', () => {
+  describe('las credenciales de BD NUNCA entran al contexto del navegador', () => {
+    it('dbPassword no está expuesto en window tras cy.query()', () => {
       // cy.task('db:getConfig') devuelve las credenciales desde el proceso de Node.js
       // El fallback de Cypress.expose('dbPassword') NO DEBE existir tras la corrección
       cy.task('db:getConfig').then((config: any) => {
@@ -31,7 +31,7 @@ describe('Credential Isolation', () => {
       });
     });
 
-    it('cy.task("db:getConfig") is available as exclusive credential source', () => {
+    it('cy.task("db:getConfig") está disponible como fuente exclusiva de credenciales', () => {
       cy.task('db:getConfig').then((config: any) => {
         // Verifica que la tarea devuelva un objeto de config válido
         expect(config).to.be.an('object');
@@ -43,15 +43,15 @@ describe('Credential Isolation', () => {
       });
     });
 
-    it('credentials from cy.task do not pollute Cypress.env', () => {
+    it('las credenciales de cy.task no contaminan Cypress.env', () => {
       cy.task('db:getConfig').then((_config: any) => {
-        // Verifica que Cypress.env() NO contenga credenciales de DB
+        // Verifica que Cypress.env() NO contenga credenciales de BD
         // (Cypress.env se puebla desde la sección `env` de cypress.config.ts)
         expect(Cypress.env('dbPassword')).to.be.undefined;
       });
     });
 
-    it('codebase has no Cypress.expose fallback for dbPassword (compile-time assertion)', () => {
+    it('el código no tiene fallback Cypress.expose para dbPassword (aserción en tiempo de compilación)', () => {
       // Este test verifica que la implementación eliminó el fallback.
       // La verificación real es mediante revisión de código, pero aseguramos el comportamiento:
       // - Si se llamara a Cypress.expose('dbPassword'), sería accesible

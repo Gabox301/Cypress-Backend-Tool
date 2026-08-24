@@ -15,7 +15,7 @@ function mockClipboard(writeText: (text: string) => void | Promise<void>): void 
 // copyTextToClipboard
 // ---------------------------------------------------------------------------
 describe('copyTextToClipboard', () => {
-  it('writes text via navigator.clipboard when available', async () => {
+  it('escribe texto vía navigator.clipboard cuando está disponible', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     mockClipboard(writeText);
     const ok = await copyTextToClipboard('hello', document);
@@ -23,7 +23,7 @@ describe('copyTextToClipboard', () => {
     expect(writeText).toHaveBeenCalledWith('hello');
   });
 
-  it('returns false when navigator.clipboard is unavailable', async () => {
+  it('retorna falso cuando navigator.clipboard no está disponible', async () => {
     Object.defineProperty(document.defaultView!.navigator, 'clipboard', {
       value: undefined,
       configurable: true,
@@ -32,7 +32,7 @@ describe('copyTextToClipboard', () => {
     expect(ok).toBe(false);
   });
 
-  it('returns false when clipboard.writeText rejects', async () => {
+  it('retorna falso cuando clipboard.writeText es rechazado', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('blocked'));
     mockClipboard(writeText);
     const ok = await copyTextToClipboard('hello', document);
@@ -44,7 +44,7 @@ describe('copyTextToClipboard', () => {
 // registerLiveCopyButton
 // ---------------------------------------------------------------------------
 describe('registerLiveCopyButton', () => {
-  it('returns a destroy handle that is safe to call repeatedly', () => {
+  it('retorna un manejador destroy que puede llamarse repetidamente de forma segura', () => {
     const btn = document.createElement('button') as HTMLButtonElement;
     const handle = registerLiveCopyButton(btn);
     expect(typeof handle.destroy).toBe('function');
@@ -62,7 +62,7 @@ describe('ensureCopyDelegation', () => {
     ensureCopyDelegation(document);
   });
 
-  it('copies dataset.copyText and marks the button on click', async () => {
+  it('copia dataset.copyText y marca el botón al hacer clic', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     mockClipboard(writeText);
     const btn = document.createElement('button');
@@ -77,7 +77,7 @@ describe('ensureCopyDelegation', () => {
     expect(btn.textContent).toBe('✓ copied');
   });
 
-  it('skips a live Svelte button registered via registerLiveCopyButton', async () => {
+  it('omite un botón Svelte activo registrado vía registerLiveCopyButton', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     mockClipboard(writeText);
     const btn = document.createElement('button') as HTMLButtonElement;
@@ -93,7 +93,7 @@ describe('ensureCopyDelegation', () => {
     expect(btn.textContent).not.toBe('✓ copied');
   });
 
-  it('reconstructs text from .code-line pre when no dataset.copyText', async () => {
+  it('reconstruye el texto desde .code-line pre cuando no hay dataset.copyText', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     mockClipboard(writeText);
     const container = document.createElement('div');

@@ -62,13 +62,16 @@ La forma más simple de configurar las tareas de base de datos es con `setupData
 ```typescript
 // cypress.config.ts
 import { defineConfig } from 'cypress';
+import dotenv from 'dotenv';
 import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
+
+dotenv.config(); // carga .env automáticamente
 
 export default defineConfig({
   e2e: {
     setupNodeEvents(on) {
       setupDatabaseTasks(on);
-      // No necesitás return config a menos que modifiques config
+      // No necesitas return config a menos que modifiques config
     },
     expose: {
       snapshotOnly: false,
@@ -128,11 +131,14 @@ export default defineConfig({
 
 Las credenciales de base de datos se resuelven en este orden (mayor prioridad primero):
 
-| Prioridad | Prefijo         | Ejemplo                     |
-| --------- | --------------- | --------------------------- |
-| 1 (máx)   | `CYPRESS_DB_`   | `CYPRESS_DB_HOST=localhost` |
-| 2         | `DB_`           | `DB_HOST=localhost`         |
-| 3         | defaults (code) | `host: 'localhost'`         |
+| Prioridad | Prefijo                     | Ejemplo                                                 |
+| --------- | --------------------------- | ------------------------------------------------------- |
+| 1 (máx)   | `CYPRESS_DB_`               | `CYPRESS_DB_HOST=localhost`                             |
+| 2         | `DB_`                       | `DB_HOST=localhost`                                     |
+| 3         | defaults (code)             | `host: 'localhost'`                                     |
+| —         | `CYPRESS_DB_SSL` / `DB_SSL` | `CYPRESS_DB_SSL=true` → `{ rejectUnauthorized: false }` |
+
+> La resolución de `SSL` sigue la misma prioridad: `CYPRESS_DB_SSL` → `DB_SSL` → `defaults.ssl`.
 
 ```env
 # Prefijo recomendado (menos propenso a colisiones)
@@ -141,11 +147,26 @@ CYPRESS_DB_PORT=5432
 CYPRESS_DB_NAME=mi_base
 CYPRESS_DB_USER=postgres
 CYPRESS_DB_PASSWORD=secreto
+CYPRESS_DB_SSL=true           # true => {rejectUnauthorized:false} para Neon/Supabase, false para desactivar, o JSON: {"rejectUnauthorized":false,"ca":"..."}
+# Opcional timeouts vía defaults (no por env, ver abajo)
 
 # Fallback — solo si CYPRESS_DB_* no está definido
 DB_HOST=localhost
 DB_PORT=5432
 ```
+
+Crea un `.env` en la raíz — `cypress.config.ts` y `src/node/tasks.ts` lo cargan automáticamente vía `dotenv` (no necesitas `fs` manual). Ejemplo `.env` para Neon:
+
+```env
+CYPRESS_DB_HOST=ep-xxx.neon.tech
+CYPRESS_DB_PORT=5432
+CYPRESS_DB_NAME=neondb
+CYPRESS_DB_USER=neondb_owner
+CYPRESS_DB_PASSWORD=npg_...
+CYPRESS_DB_SSL=true
+```
+
+> Para Postgres local sin SSL, omite `CYPRESS_DB_SSL` o establece `CYPRESS_DB_SSL=false`.
 
 También podés usar `cy.env()` desde `cypress.config.ts`:
 
@@ -177,15 +198,54 @@ setupDatabaseTasks(on, {
     database: 'test_db',
     user: 'postgres',
     password: '',
+    ssl: { rejectUnauthorized: false }, // o true, o false, o {ca: '...'}
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 10000,
   },
 });
 ```
 
-| Opción          | Tipo     | Default         | Descripción                                   |
-| --------------- | -------- | --------------- | --------------------------------------------- |
-| `defaultPrefix` | `string` | `''`            | Prefijo para los nombres de tarea registrados |
-| `envPrefix`     | `string` | `'CYPRESS_DB_'` | Prefijo de variables de entorno a leer        |
-| `defaults`      | `object` | —               | Valores fallback cuando no hay env vars       |
+| Opción                             | Tipo                | Default         | Descripción                                                              |
+| ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------------------ |
+| `defaultPrefix`                    | `string`            | `''`            | Prefijo para los nombres de tarea registrados                            |
+| `envPrefix`                        | `string`            | `'CYPRESS_DB_'` | Prefijo de variables de entorno a leer                                   |
+| `defaults`                         | `object`            | —               | Valores fallback cuando no hay env vars                                  |
+| `defaults.host`                    | `string`            | `'localhost'`   | Host de la base de datos                                                 |
+| `defaults.port`                    | `number`            | `5432`          | Puerto de la base de datos                                               |
+| `defaults.database`                | `string`            | `'test_db'`     | Nombre de la base de datos                                               |
+| `defaults.user`                    | `string`            | `'postgres'`    | Usuario de la base de datos                                              |
+| `defaults.password`                | `string`            | `''`            | Contraseña de la base de datos                                           |
+| `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→{rejectUnauthorized:false}, `false`→sin SSL, objeto pasado a `pg` |
+| `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Timeout de conexión del Pool/Client                                      |
+| `defaults.idleTimeoutMillis`       | `number`            | `2000`          | Timeout idle del Pool                                                    |
+
+> `CYPRESS_DB_SSL` / `DB_SSL` tienen prioridad sobre `defaults.ssl`. Valores por env: `"true"`/`"1"`/`"yes"` → `{ rejectUnauthorized: false }`, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) se parsea como objeto.
+
+#### SSL para Neon / Supabase / RDS
+
+- **Neon** (pooler) requiere `CYPRESS_DB_SSL=true` (o `ssl: { rejectUnauthorized: false }` en `defaults`) y, si usas `DATABASE_URL`, añade `?sslmode=require` a la URL.
+- **Supabase** similar: `CYPRESS_DB_SSL=true` o `ssl: { rejectUnauthorized: false }`.
+- **Postgres local sin SSL**: omite la variable o usa `CYPRESS_DB_SSL=false` / `defaults.ssl: false`.
+
+Ambas vías son equivalentes:
+
+```env
+# vía .env (recomendado para Neon)
+CYPRESS_DB_SSL=true
+# o JSON avanzado
+CYPRESS_DB_SSL={"rejectUnauthorized":false,"ca":"..."}
+```
+
+```typescript
+// vía defaults
+setupDatabaseTasks(on, {
+  defaults: {
+    ssl: { rejectUnauthorized: false },
+    // o ssl: true  → { rejectUnauthorized: false }
+    // o ssl: false → sin SSL
+  },
+});
+```
 
 ## Uso
 

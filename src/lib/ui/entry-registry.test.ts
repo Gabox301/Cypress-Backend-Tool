@@ -42,7 +42,7 @@ beforeEach(() => {
 // register + get
 // ===========================================================================
 describe('register + get', () => {
-  it('stores and retrieves an entry by ID', () => {
+  it('almacena y recupera una entrada por ID', () => {
     const id = 'entry-1';
     const comp = mockComponent();
     const el = mockElement(id);
@@ -55,7 +55,7 @@ describe('register + get', () => {
     expect(record!.data).toBe(data);
   });
 
-  it('rejects duplicate IDs with a throw and does NOT overwrite', () => {
+  it('rechaza IDs duplicados lanzando error y NO sobrescribe', () => {
     const id = 'dup';
     const comp1 = mockComponent();
     const el1 = mockElement('dup-1');
@@ -73,8 +73,8 @@ describe('register + get', () => {
 // ===========================================================================
 // get — ID desconocido
 // ===========================================================================
-describe('get — unknown ID', () => {
-  it('returns undefined when the ID was never registered', () => {
+describe('get — ID desconocido', () => {
+  it('retorna undefined cuando el ID nunca fue registrado', () => {
     expect(EntryRegistry.get('does-not-exist')).toBeUndefined();
   });
 });
@@ -83,7 +83,7 @@ describe('get — unknown ID', () => {
 // replace — re-montaje en el mismo div
 // ===========================================================================
 describe('replace', () => {
-  it('swaps the component reference keeping element and data intact', () => {
+  it('intercambia la referencia del componente manteniendo el elemento y los datos intactos', () => {
     const id = 'repl-1';
     const comp1 = mockComponent();
     const el = mockElement(id);
@@ -99,7 +99,7 @@ describe('replace', () => {
     expect(record!.data).toBe(data); // conservada
   });
 
-  it('is a no-op for an unknown ID (does not throw, no side effects)', () => {
+  it('es un no-op para un ID desconocido (no lanza error, sin efectos secundarios)', () => {
     const comp = mockComponent();
     expect(() => EntryRegistry.replace('ghost', comp)).not.toThrow();
   });
@@ -109,7 +109,7 @@ describe('replace', () => {
 // unmount
 // ===========================================================================
 describe('unmount', () => {
-  it('removes an existing entry and its element from the DOM', () => {
+  it('elimina una entrada existente y su elemento del DOM', () => {
     const id = 'remove-me';
     const comp = mockComponent();
     const el = mockElement(id);
@@ -121,7 +121,7 @@ describe('unmount', () => {
     expect(document.getElementById(id)).toBeNull();
   });
 
-  it('calls Svelte unmount on the component', () => {
+  it('llama a unmount de Svelte en el componente', () => {
     const id = 'call-unmount';
     const comp = mockComponent();
     const el = mockElement(id);
@@ -130,7 +130,7 @@ describe('unmount', () => {
     expect(unmount).toHaveBeenCalledWith(comp);
   });
 
-  it('is a no-op for an unknown ID (does not throw)', () => {
+  it('es un no-op para un ID desconocido (no lanza error)', () => {
     expect(() => EntryRegistry.unmount('ghost')).not.toThrow();
   });
 });
@@ -139,7 +139,7 @@ describe('unmount', () => {
 // clear
 // ===========================================================================
 describe('clear', () => {
-  it('empties the registry of all entries', () => {
+  it('vacía el registro de todas las entradas', () => {
     EntryRegistry.register('a', mockComponent(), mockElement('a'), mockData('a'));
     EntryRegistry.register('b', mockComponent(), mockElement('b'), mockData('b'));
     EntryRegistry.register('c', mockComponent(), mockElement('c'), mockData('c'));
@@ -154,7 +154,7 @@ describe('clear', () => {
     expect(document.getElementById('c')).toBeNull();
   });
 
-  it('calls Svelte unmount for every registered entry', () => {
+  it('llama a unmount de Svelte para cada entrada registrada', () => {
     const compA = mockComponent();
     const compB = mockComponent();
     EntryRegistry.register('a', compA, mockElement('a'), mockData('a'));
@@ -170,11 +170,11 @@ describe('clear', () => {
 // size
 // ===========================================================================
 describe('size', () => {
-  it('returns 0 for an empty registry', () => {
+  it('retorna 0 para un registro vacío', () => {
     expect(EntryRegistry.size()).toBe(0);
   });
 
-  it('reflects the number of registered entries', () => {
+  it('refleja el número de entradas registradas', () => {
     EntryRegistry.register('x', mockComponent(), mockElement('x'), mockData('x'));
     expect(EntryRegistry.size()).toBe(1);
     EntryRegistry.register('y', mockComponent(), mockElement('y'), mockData('y'));
@@ -223,7 +223,7 @@ describe('setLog', () => {
 // snapshot — payloads {id, data} para el revival en contenedor nuevo
 // ===========================================================================
 describe('snapshot', () => {
-  it('returns {id, data} in insertion order with no element/component refs', () => {
+  it('retorna {id, data} en orden de inserción sin referencias a element/component', () => {
     const dataA = mockData('snap-a');
     const dataB = mockData('snap-b');
     const dataC = mockData('snap-c');
@@ -244,11 +244,11 @@ describe('snapshot', () => {
     expect('component' in snap[0]).toBe(false);
   });
 
-  it('returns an empty array when nothing is registered', () => {
+  it('retorna un arreglo vacío cuando nada está registrado', () => {
     expect(EntryRegistry.snapshot()).toEqual([]);
   });
 
-  it('is an independent copy — survives later registry mutation', () => {
+  it('es una copia independiente — sobrevive a mutaciones posteriores del registro', () => {
     const dataA = mockData('snap-independent');
     EntryRegistry.register('snap-independent', mockComponent(), mockElement('snap-independent'), dataA);
     const snap = EntryRegistry.snapshot();

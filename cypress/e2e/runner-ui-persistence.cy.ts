@@ -4,8 +4,8 @@
  * Valida que múltiples llamadas cy.http() / cy.query() en el mismo test
  * se acumulan correctamente y que el panel de la UI muestra los datos por comando.
  */
-describe('Runner UI Persistence — E2E', () => {
-  it('two cy.http() calls accumulate independently, second call has correct status', () => {
+describe('Persistencia de UI del Runner — E2E', () => {
+  it('dos llamadas cy.http() se acumulan de forma independiente, la segunda tiene el estado correcto', () => {
     // Primera llamada — GET de users
     cy.http({
       url: 'https://jsonplaceholder.typicode.com/users/1',
@@ -26,7 +26,7 @@ describe('Runner UI Persistence — E2E', () => {
     });
   });
 
-  it('cy.http() + cy.query() in same test — query data is independent', () => {
+  it('cy.http() + cy.query() en el mismo test — los datos de la consulta son independientes', () => {
     // Llamada a la API
     cy.http({
       url: 'https://jsonplaceholder.typicode.com/posts/1',
@@ -58,7 +58,7 @@ describe('Runner UI Persistence — E2E', () => {
     );
   });
 
-  it('copy works in the live AUT DOM and in a snapshot-like clone', () => {
+  it('la copia funciona en el DOM vivo del AUT y en un clon tipo snapshot', () => {
     let snapshotClone: HTMLElement | null = null;
     let expectedClipboard = '';
     cy.http({

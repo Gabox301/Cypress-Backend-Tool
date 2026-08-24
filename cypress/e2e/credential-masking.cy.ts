@@ -11,7 +11,7 @@
  */
 const RP = '[data-testid="request-panel"]';
 
-describe('Credential Masking', () => {
+describe('Enmascaramiento de Credenciales', () => {
   const BASE_URL = 'https://jsonplaceholder.typicode.com/posts/1';
 
   afterEach(() => {
@@ -25,8 +25,8 @@ describe('Credential Masking', () => {
     });
   });
 
-  describe('Basic Masking', () => {
-    it('masks Authorization header value when hideCredentials is true', () => {
+  describe('Enmascaramiento básico', () => {
+    it('enmascara el valor del encabezado Authorization cuando hideCredentials es verdadero', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: BASE_URL,
@@ -44,7 +44,7 @@ describe('Credential Masking', () => {
       });
     });
 
-    it('masks auth credentials when hideCredentials is true', () => {
+    it('enmascara credenciales de autenticación cuando hideCredentials es verdadero', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: BASE_URL,
@@ -59,7 +59,7 @@ describe('Credential Masking', () => {
       });
     });
 
-    it('masks body fields when hideCredentials is true', () => {
+    it('enmascara campos del cuerpo cuando hideCredentials es verdadero', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts',
@@ -82,7 +82,7 @@ describe('Credential Masking', () => {
       });
     });
 
-    it('masks query params when hideCredentials is true', () => {
+    it('enmascara parámetros de consulta cuando hideCredentials es verdadero', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: BASE_URL,
@@ -97,7 +97,7 @@ describe('Credential Masking', () => {
       });
     });
 
-    it('shows ALL values unmasked when hideCredentials is false', () => {
+    it('muestra TODOS los valores sin enmascarar cuando hideCredentials es falso', () => {
       Cypress.expose({ hideCredentials: false });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts',
@@ -122,8 +122,8 @@ describe('Credential Masking', () => {
     });
   });
 
-  describe('Granular Masking via hideCredentialsOptions', () => {
-    it('body-only masking: body masked, headers visible', () => {
+  describe('Enmascaramiento granular vía hideCredentialsOptions', () => {
+    it('enmascaramiento solo del cuerpo: cuerpo enmascarado, cabeceras visibles', () => {
       Cypress.expose({
         hideCredentials: true,
         hideCredentialsOptions: { headers: false, auth: false, body: true, query: false },
@@ -154,7 +154,7 @@ describe('Credential Masking', () => {
       cy.get(RP).contains('auth-visible').should('exist');
     });
 
-    it('headers-disabled: headers visible, other tabs masked', () => {
+    it('cabeceras desactivadas: cabeceras visibles, otras pestañas enmascaradas', () => {
       Cypress.expose({
         hideCredentials: true,
         hideCredentialsOptions: { headers: false, auth: true, body: true, query: true },
@@ -185,7 +185,7 @@ describe('Credential Masking', () => {
       cy.get(RP).contains('auth-masked').should('not.exist');
     });
 
-    it('default options mask all tabs when hideCredentialsOptions is absent', () => {
+    it('las opciones por defecto enmascaran todas las pestañas cuando hideCredentialsOptions está ausente', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: 'https://jsonplaceholder.typicode.com/posts',
@@ -206,7 +206,7 @@ describe('Credential Masking', () => {
       });
     });
 
-    it('masking toggle does not affect response panel', () => {
+    it('el alternador de enmascaramiento no afecta el panel de respuesta', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: BASE_URL,
@@ -218,8 +218,8 @@ describe('Credential Masking', () => {
     });
   });
 
-  describe('Edge Cases', () => {
-    it('handles request with empty body/headers/auth gracefully', () => {
+  describe('Casos límite', () => {
+    it('maneja con gracia una solicitud con cuerpo/cabeceras/autenticación vacíos', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: BASE_URL,
@@ -228,7 +228,7 @@ describe('Credential Masking', () => {
       cy.get('#cypress-api-plugin-container').should('exist');
     });
 
-    it('cURL tab — values NOT masked (curl is for copy-paste)', () => {
+    it('pestaña cURL — valores NO enmascarados (curl es para copiar y pegar)', () => {
       Cypress.expose({ hideCredentials: true });
       cy.http({
         url: BASE_URL,

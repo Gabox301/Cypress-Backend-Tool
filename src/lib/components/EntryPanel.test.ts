@@ -12,7 +12,7 @@ function baseProps<T extends Record<string, unknown>>(overrides: T = {} as T) {
   };
 }
 
-describe('EntryPanel — with DbQuery data', () => {
+describe('EntryPanel — con datos DbQuery', () => {
   const dbData: DbQuery = {
     id: 'abc-123',
     connectionId: 'local:5432/test',
@@ -22,18 +22,18 @@ describe('EntryPanel — with DbQuery data', () => {
     timestamp: Date.now(),
   };
 
-  it('renders query text when data is a DbQuery', () => {
+  it('renderiza el texto de la consulta cuando los datos son DbQuery', () => {
     render(EntryPanel, { props: baseProps({ data: dbData }) });
     expect(screen.getByText('SELECT * FROM users')).toBeInTheDocument();
   });
 
-  it('renders row count and duration metadata', () => {
+  it('renderiza el conteo de filas y la duración', () => {
     render(EntryPanel, { props: baseProps({ data: dbData }) });
     expect(screen.getByText('1 rows')).toBeInTheDocument();
     expect(screen.getByText('5ms')).toBeInTheDocument();
   });
 
-  it('renders table data from DbQuery result', () => {
+  it('renderiza los datos de la tabla del resultado DbQuery', () => {
     render(EntryPanel, { props: baseProps({ data: dbData }) });
     expect(screen.getByText('id')).toBeInTheDocument();
     expect(screen.getByText('name')).toBeInTheDocument();
@@ -41,7 +41,7 @@ describe('EntryPanel — with DbQuery data', () => {
     expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 
-  it('shows error block when DbQuery has an error', () => {
+  it('muestra el bloque de error cuando DbQuery tiene un error', () => {
     render(EntryPanel, {
       props: baseProps({
         data: { ...dbData, error: 'Connection timeout', result: null },
@@ -50,7 +50,7 @@ describe('EntryPanel — with DbQuery data', () => {
     expect(screen.getByText('Connection timeout')).toBeInTheDocument();
   });
 
-  it('shows empty row message when result is null', () => {
+  it('muestra el mensaje de filas vacías cuando el resultado es nulo', () => {
     render(EntryPanel, {
       props: baseProps({
         data: { ...dbData, result: null },
@@ -60,7 +60,7 @@ describe('EntryPanel — with DbQuery data', () => {
   });
 });
 
-describe('EntryPanel — with ApiCall data', () => {
+describe('EntryPanel — con datos ApiCall', () => {
   const apiData: ApiCall = {
     id: 'def-456',
     request: { url: '/api/login', method: 'POST', headers: { 'Content-Type': 'application/json' } },
@@ -68,26 +68,26 @@ describe('EntryPanel — with ApiCall data', () => {
     timestamp: Date.now(),
   };
 
-  it('renders HTTP method and status from ApiCall data', () => {
+  it('renderiza el método HTTP y el estado de los datos ApiCall', () => {
     render(EntryPanel, { props: baseProps({ data: apiData }) });
     expect(screen.getByText('POST')).toBeInTheDocument();
     expect(screen.getByText('200')).toBeInTheDocument();
   });
 
-  it('renders request URL parts (origin + path)', () => {
+  it('renderiza las partes de la URL de la solicitud (origen + ruta)', () => {
     render(EntryPanel, { props: baseProps({ data: apiData }) });
     // TitlePanel divide la URL en spans de origin y path
     expect(screen.getByText('/api')).toBeInTheDocument();
     expect(screen.getByText('/login')).toBeInTheDocument();
   });
 
-  it('renders response duration and size', () => {
+  it('renderiza la duración y el tamaño de la respuesta', () => {
     render(EntryPanel, { props: baseProps({ data: apiData }) });
     expect(screen.getByText('10ms')).toBeInTheDocument();
     expect(screen.getByText('50 B')).toBeInTheDocument();
   });
 
-  it('passes hideCredentials to child components', () => {
+  it('propaga hideCredentials a los componentes hijos', () => {
     render(EntryPanel, {
       props: baseProps({
         data: { ...apiData, request: { ...apiData.request, auth: { username: 'admin', password: 's3cret' } } },
@@ -99,7 +99,7 @@ describe('EntryPanel — with ApiCall data', () => {
     expect(screen.getByText('POST')).toBeInTheDocument();
   });
 
-  it('renders pair layout for ApiCall (request + response side by side)', () => {
+  it('renderiza el diseño en pareja para ApiCall (solicitud + respuesta lado a lado)', () => {
     const { container } = render(EntryPanel, { props: baseProps({ data: apiData }) });
     // El div .pair envuelve RequestPanel + ResponsePanel
     const pair = container.querySelector('.pair');

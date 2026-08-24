@@ -206,21 +206,23 @@
         </div>
       {:else if selectedTab === 'cookies'}
         {#if response.cookies?.length}
-          <table class="cookies-table">
-            <thead>
-              <tr><th>Nombre</th><th>Valor</th><th>Dominio</th><th>Path</th></tr>
-            </thead>
-            <tbody>
-              {#each response.cookies as c (c.name)}
-                <tr>
-                  <td class="cookie-name">{c.name}</td>
-                  <td class="cookie-val">{c.value}</td>
-                  <td class="cookie-meta">{c.domain || '—'}</td>
-                  <td class="cookie-meta">{c.path || '—'}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
+          <div class="cookies-wrapper">
+            <table class="cookies-table">
+              <thead>
+                <tr><th>Nombre</th><th>Valor</th><th>Dominio</th><th>Path</th></tr>
+              </thead>
+              <tbody>
+                {#each response.cookies as c (c.name)}
+                  <tr>
+                    <td class="cookie-name">{c.name}</td>
+                    <td class="cookie-val">{c.value}</td>
+                    <td class="cookie-meta">{c.domain || '—'}</td>
+                    <td class="cookie-meta">{c.path || '—'}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
         {:else}
           <div class="empty-state"><span class="empty-text">Sin cookies</span></div>
         {/if}
@@ -238,12 +240,22 @@
   .panel {
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 1 1 0;
     min-height: 0;
+    min-width: 0;
+    height: 100%;
+    max-height: 100%;
     background: #080c14;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     overflow: hidden;
+    box-sizing: border-box;
+    isolation: isolate;
+    position: relative;
+    contain: none;
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(255, 255, 255, 0.04);
     font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, Monaco, monospace;
   }
   .response-header {
@@ -373,18 +385,43 @@
     box-shadow: 0 0 8px #00d4ff;
   }
   .content-area {
-    flex: 1;
+    flex: 0 1 auto;
+    height: auto;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
     padding: 14px;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
   }
   .headers-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
     overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    max-height: min(45dvh, 400px);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.35) transparent;
+    overscroll-behavior: contain;
+  }
+  .headers-list::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .headers-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+  }
+  .headers-list::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.35);
+    border-radius: 3px;
+  }
+  .headers-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.6);
   }
   .header-row {
     display: grid;
@@ -432,6 +469,31 @@
     color: #94a3b8;
     font-size: 11.5px;
     word-break: break-all;
+  }
+  .cookies-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    max-height: min(45dvh, 400px);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.35) transparent;
+    overscroll-behavior: contain;
+  }
+  .cookies-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .cookies-wrapper::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+  }
+  .cookies-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.35);
+    border-radius: 3px;
+  }
+  .cookies-wrapper::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.6);
   }
   .cookies-table {
     width: 100%;

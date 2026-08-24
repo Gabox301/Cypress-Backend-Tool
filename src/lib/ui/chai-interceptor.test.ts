@@ -10,8 +10,8 @@ const entryRefreshMocks = vi.hoisted(() => ({
 
 vi.mock('./entry-refresh', () => entryRefreshMocks);
 
-describe('chai-interceptor — findPathInObject & setDeepValue', () => {
-  it('findPathInObject finds flat and nested keys', () => {
+describe('chai-interceptor — findPathInObject y setDeepValue', () => {
+  it('findPathInObject encuentra claves planas y anidadas', () => {
     const obj = {
       name: 'John',
       address: { city: 'New York', zip: 10001 },
@@ -25,7 +25,7 @@ describe('chai-interceptor — findPathInObject & setDeepValue', () => {
     vitestExpect(findPathInObject(obj, 'notfound')).toBeNull();
   });
 
-  it('setDeepValue creates nested structure correctly', () => {
+  it('setDeepValue crea correctamente la estructura anidada', () => {
     const target: Record<string, unknown> = {};
     setDeepValue(target, ['user', 'profile', 'name'], 'Alice');
     vitestExpect(target).toEqual({
@@ -43,7 +43,7 @@ describe('chai-interceptor — recordAssertionOnApiCall', () => {
     clearApiCalls();
   });
 
-  it('records status assertion on last ApiCall', () => {
+  it('registra la aserción de estado en la última ApiCall', () => {
     const call: ApiCall = {
       id: '1',
       request: { url: 'https://example.com', method: 'GET' },
@@ -64,7 +64,7 @@ describe('chai-interceptor — recordAssertionOnApiCall', () => {
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.status).toBe(200);
   });
 
-  it('records property assertions on response.body', () => {
+  it('registra aserciones de propiedades en response.body', () => {
     const call: ApiCall = {
       id: '1',
       request: { url: 'https://example.com', method: 'GET' },

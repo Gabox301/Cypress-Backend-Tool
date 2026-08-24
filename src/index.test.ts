@@ -97,7 +97,7 @@ afterEach(() => {
 // ===========================================================================
 // Pruebas unitarias de reutilización de contenedor
 // ===========================================================================
-describe('createFreshContainer', () => {
+describe('createFreshContainer — reutilización de contenedor', () => {
   let createFreshContainer: (doc?: Document) => HTMLElement;
 
   beforeAll(async () => {
@@ -105,21 +105,21 @@ describe('createFreshContainer', () => {
     createFreshContainer = (doc?: Document) => mod.createFreshContainer(doc || document);
   });
 
-  it('creates container when none exists in the DOM', () => {
+  it('crea el contenedor cuando no existe en el DOM', () => {
     const container = createFreshContainer(document);
     expect(container).toBeInstanceOf(HTMLElement);
     expect(container.id).toBe('cypress-api-plugin-container');
     expect(document.getElementById('cypress-api-plugin-container')).toBe(container);
   });
 
-  it('reuses the same container — content accumulates, not cleared', () => {
+  it('reutiliza el mismo contenedor — el contenido se acumula, no se limpia', () => {
     const first = createFreshContainer(document);
     const second = createFreshContainer(document);
-    expect(second).toBe(first); // Same DOM element reused
+    expect(second).toBe(first); // Mismo elemento del DOM reutilizado
     expect(document.querySelectorAll('#cypress-api-plugin-container').length).toBe(1);
   });
 
-  it('always has exactly one container after any number of calls', () => {
+  it('siempre tiene exactamente un contenedor tras cualquier número de llamadas', () => {
     let last: HTMLElement | null = null;
     for (let i = 0; i < 10; i++) {
       last = createFreshContainer(document);
@@ -133,7 +133,7 @@ describe('createFreshContainer', () => {
 // ===========================================================================
 // Pruebas de integración de conexión de stores
 // ===========================================================================
-describe('store wiring', () => {
+describe('conexión de stores', () => {
   let addApiCall: (...args: any[]) => void;
   let addDbQuery: (...args: any[]) => void;
   let clearApiCalls: () => void;
@@ -205,7 +205,7 @@ describe('store wiring', () => {
     return call;
   }
 
-  it('after one cy.http() simulation, apiCalls contains one entry with correct data', () => {
+  it('tras una simulación de cy.http(), apiCalls contiene una entrada con datos correctos', () => {
     const call = mockHttpHandler('https://api.example.com/users', 'GET');
     expect(apiCalls).toHaveLength(1);
     const stored = apiCalls[0] as Record<string, unknown>;
@@ -215,7 +215,7 @@ describe('store wiring', () => {
     expect((stored.response as Record<string, unknown>).status).toBe(200);
   });
 
-  it('after one cy.query() simulation, dbQueries contains one entry with correct data', () => {
+  it('tras una simulación de cy.query(), dbQueries contiene una entrada con datos correctos', () => {
     const queryCall = {
       id: crypto.randomUUID(),
       connectionId: 'conn-default',
@@ -232,7 +232,7 @@ describe('store wiring', () => {
     expect(stored.result as unknown[]).toHaveLength(1);
   });
 
-  it('two sequential cy.http() calls preserve insertion order', () => {
+  it('dos llamadas secuenciales cy.http() preservan el orden de inserción', () => {
     const call1 = mockHttpHandler('https://api.example.com/first', 'GET');
     const call2 = mockHttpHandler('https://api.example.com/second', 'POST');
     expect(apiCalls).toHaveLength(2);
@@ -246,7 +246,7 @@ describe('store wiring', () => {
     );
   });
 
-  it('beforeEach clear empties both arrays between simulated tests', () => {
+  it('la limpieza de beforeEach vacía ambos arreglos entre tests simulados', () => {
     // Simula la ejecución del test A
     mockHttpHandler('https://api.example.com/a', 'GET');
     const queryCall = {
@@ -275,7 +275,7 @@ describe('store wiring', () => {
 // ===========================================================================
 // Resiliencia de reintentos del MutationObserver
 // ===========================================================================
-describe('MutationObserver resilience', () => {
+describe('resiliencia de MutationObserver', () => {
   let createFreshContainer: (doc?: Document) => HTMLElement;
 
   beforeAll(async () => {
@@ -283,7 +283,7 @@ describe('MutationObserver resilience', () => {
     createFreshContainer = (doc?: Document) => mod.createFreshContainer(doc || document);
   });
 
-  it('removing container from DOM — next call creates fresh one', () => {
+  it('al eliminar el contenedor del DOM — la siguiente llamada crea uno nuevo', () => {
     const container = createFreshContainer(document);
     expect(container.isConnected).toBe(true);
     // Simula la reproducción de snapshot de Cypress eliminándolo
@@ -296,7 +296,7 @@ describe('MutationObserver resilience', () => {
     expect(document.querySelectorAll('#cypress-api-plugin-container').length).toBe(1);
   });
 
-  it('after container removal, next mount creates fresh element', () => {
+  it('tras eliminar el contenedor, el siguiente montaje crea un elemento nuevo', () => {
     const container1 = createFreshContainer(document);
     expect(document.body.contains(container1)).toBe(true);
     // Lo elimina (reproducción de snapshot)
@@ -308,7 +308,7 @@ describe('MutationObserver resilience', () => {
     expect(document.body.contains(container1)).toBe(false); // el anterior ya no está
   });
 
-  it('every call produces exactly one container in the DOM', () => {
+  it('cada llamada produce exactamente un contenedor en el DOM', () => {
     createFreshContainer(document);
     createFreshContainer(document);
     createFreshContainer(document);
@@ -323,13 +323,13 @@ describe('MutationObserver resilience', () => {
 // ===========================================================================
 // Corrección del bug de cuerpo de respuesta vacío
 // ===========================================================================
-describe('empty response body handling', () => {
+describe('manejo de cuerpo de respuesta vacío', () => {
   beforeAll(async () => {
     // Asegura que el módulo esté cargado para que los comandos se capturen
     await import('./index');
   });
 
-  it('RED: returns size: 0 when cy.request returns body: undefined (204 No Content)', async () => {
+  it('retorna size: 0 cuando cy.request devuelve body: undefined (204 No Content)', async () => {
     // Arrange: mockea cy.request para devolver un 204 con body undefined
     const mockRequest = vi.fn().mockResolvedValue({
       status: 204,
@@ -346,7 +346,7 @@ describe('empty response body handling', () => {
     expect(result.size).toBe(0);
   });
 
-  it('still computes size correctly when body is present', async () => {
+  it('sigue calculando el tamaño correctamente cuando el cuerpo está presente', async () => {
     // Arrange: mockea cy.request con una respuesta normal
     const mockRequest = vi.fn().mockResolvedValue({
       status: 200,

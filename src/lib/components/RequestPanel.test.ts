@@ -24,8 +24,8 @@ const ALL_MASKED = { headers: true, auth: true, body: true, query: true };
 // ---------------------------------------------------------------------------
 // Renderizado básico
 // ---------------------------------------------------------------------------
-describe('RequestPanel — basic render', () => {
-  it('renders method and URL', () => {
+describe('RequestPanel — renderizado básico', () => {
+  it('renderiza el método y la URL', () => {
     render(RequestPanel, {
       props: { request: makeRequest({ method: 'PUT', url: '/api/data' }), hideCredentials: false },
     });
@@ -35,7 +35,7 @@ describe('RequestPanel — basic render', () => {
     expect(screen.getByText('/data')).toBeInTheDocument();
   });
 
-  it('renders tab bar with 5 tabs', () => {
+  it('renderiza la barra de pestañas con 5 pestañas', () => {
     render(RequestPanel, { props: { request: makeRequest(), hideCredentials: false } });
     expect(screen.getByText('Body')).toBeInTheDocument();
     expect(screen.getByText('Query')).toBeInTheDocument();
@@ -44,7 +44,7 @@ describe('RequestPanel — basic render', () => {
     expect(screen.getByText('cURL')).toBeInTheDocument();
   });
 
-  it('displays GET method as default when none provided', () => {
+  it('muestra el método GET por defecto cuando no se proporciona ninguno', () => {
     const req = makeRequest({ method: undefined as unknown as ApiRequest['method'] });
     render(RequestPanel, { props: { request: req, hideCredentials: false } });
     expect(screen.getByText('GET')).toBeInTheDocument();
@@ -54,8 +54,8 @@ describe('RequestPanel — basic render', () => {
 // ---------------------------------------------------------------------------
 // Enmascarado con hideCredentials activado
 // ---------------------------------------------------------------------------
-describe('RequestPanel — masking enabled', () => {
-  it('headers tab shows masked values when hideCredentials is true', async () => {
+describe('RequestPanel — enmascaramiento activado', () => {
+  it('la pestaña de cabeceras muestra valores enmascarados cuando hideCredentials es verdadero', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -71,7 +71,7 @@ describe('RequestPanel — masking enabled', () => {
     // La clave debería seguir siendo visible (es la clave JSON, no el valor)
   });
 
-  it('auth tab shows masked password when hideCredentials is true', async () => {
+  it('la pestaña de autenticación muestra la contraseña enmascarada cuando hideCredentials es verdadero', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -86,7 +86,7 @@ describe('RequestPanel — masking enabled', () => {
     // La clave 'username' debería seguir siendo visible
   });
 
-  it('query tab shows masked query params when hideCredentials is true', async () => {
+  it('la pestaña de consulta muestra parámetros enmascarados cuando hideCredentials es verdadero', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -104,8 +104,8 @@ describe('RequestPanel — masking enabled', () => {
 // ---------------------------------------------------------------------------
 // Enmascarado deshabilitado + opciones por pestaña
 // ---------------------------------------------------------------------------
-describe('RequestPanel — masking disabled / selective', () => {
-  it('shows unmasked values when hideCredentials is false', async () => {
+describe('RequestPanel — enmascaramiento desactivado / selectivo', () => {
+  it('muestra valores sin enmascarar cuando hideCredentials es falso', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -119,7 +119,7 @@ describe('RequestPanel — masking disabled / selective', () => {
     expect(screen.getByText('"visible-key"')).toBeInTheDocument();
   });
 
-  it('masks body but not headers when only body option is enabled', async () => {
+  it('enmascara el cuerpo pero no las cabeceras cuando solo la opción de cuerpo está activada', async () => {
     const user = userEvent.setup();
     const selectiveOptions = { headers: false, auth: true, body: true, query: true };
     render(RequestPanel, {
@@ -145,8 +145,8 @@ describe('RequestPanel — masking disabled / selective', () => {
 // ---------------------------------------------------------------------------
 // deepMask de objetos anidados + estado vacío
 // ---------------------------------------------------------------------------
-describe('RequestPanel — deepMask and empty state', () => {
-  it('fully masks nested object values with deepMask', async () => {
+describe('RequestPanel — deepMask y estado vacío', () => {
+  it('enmascara completamente los valores de objetos anidados con deepMask', async () => {
     const user = userEvent.setup();
     const nestedBody = { user: { password: 'deep-secret', token: 'abc123' }, public: 'visible' };
     render(RequestPanel, {
@@ -162,7 +162,7 @@ describe('RequestPanel — deepMask and empty state', () => {
     expect(screen.queryByText('abc123')).not.toBeInTheDocument();
   });
 
-  it('shows empty state message when request is null', () => {
+  it('muestra el mensaje de estado vacío cuando la solicitud es nula', () => {
     render(RequestPanel, {
       props: {
         request: null,
@@ -172,7 +172,7 @@ describe('RequestPanel — deepMask and empty state', () => {
     expect(screen.getByText('Selecciona una solicitud')).toBeInTheDocument();
   });
 
-  it('does not render tab bar when request is null', () => {
+  it('no renderiza la barra de pestañas cuando la solicitud es nula', () => {
     render(RequestPanel, {
       props: {
         request: null,
@@ -187,8 +187,8 @@ describe('RequestPanel — deepMask and empty state', () => {
 // ---------------------------------------------------------------------------
 // Estados vacíos y pestaña cURL
 // ---------------------------------------------------------------------------
-describe('RequestPanel — empty tabs and cURL', () => {
-  it('shows empty headers message when request has no headers', async () => {
+describe('RequestPanel — pestañas vacías y cURL', () => {
+  it('muestra el mensaje de cabeceras vacías cuando la solicitud no tiene cabeceras', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -200,7 +200,7 @@ describe('RequestPanel — empty tabs and cURL', () => {
     expect(screen.getByText('Sin headers')).toBeInTheDocument();
   });
 
-  it('shows empty auth message when request has no auth', async () => {
+  it('muestra el mensaje de autenticación vacía cuando la solicitud no tiene autenticación', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -212,7 +212,7 @@ describe('RequestPanel — empty tabs and cURL', () => {
     expect(screen.getByText('Sin auth')).toBeInTheDocument();
   });
 
-  it('renders cURL command in bash format', async () => {
+  it('renderiza el comando cURL en formato bash', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -227,7 +227,7 @@ describe('RequestPanel — empty tabs and cURL', () => {
     expect(bashBadge!.textContent).toBe('bash');
   });
 
-  it('shows empty query params message when request has no qs', async () => {
+  it('muestra el mensaje de parámetros de consulta vacíos cuando la solicitud no tiene qs', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -239,7 +239,7 @@ describe('RequestPanel — empty tabs and cURL', () => {
     expect(screen.getByText('Sin query params')).toBeInTheDocument();
   });
 
-  it('shows unmasked auth when hideCredentials is false', async () => {
+  it('muestra la autenticación sin enmascarar cuando hideCredentials es falso', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
@@ -251,7 +251,7 @@ describe('RequestPanel — empty tabs and cURL', () => {
     expect(screen.getByText('"visible"')).toBeInTheDocument();
   });
 
-  it('shows unmasked query params when hideCredentials is false', async () => {
+  it('muestra parámetros de consulta sin enmascarar cuando hideCredentials es falso', async () => {
     const user = userEvent.setup();
     render(RequestPanel, {
       props: {
