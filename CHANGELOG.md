@@ -5,6 +5,31 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.1.3] - 2026-08-24
+
+### Added
+
+- **ScrollArea personalizado:** Nuevo componente `src/lib/components/ScrollArea.svelte` que reemplaza el scroll nativo del runner (capa outer). Scroll global del documento con CSS custom para tarjetas internas (`scrollbar-width: thin`, `6px`, color `#00d4ff` / `rgba(0,212,255,0.35)`). Thumb visible solo on-hover, track transparente. Sincronización por `ResizeObserver` + `MutationObserver`. Evita doble `contain` y colapso de layout.
+- **Paneles responsivos:** Sistema `dvh` + `clamp()` + `auto-fit` + container queries. `min-height: clamp(240px, 40dvh, 400px)` y `max-height: min(65dvh, 580px)`. Single-entry `fill` con `gap: 12px`, N-card `hug` (`flex: 0 0 auto`). Breakpoints fluidos sin media queries fijas. Soporta viewport dinámico móvil (barra de navegación).
+- **Badges Database / Table en QueryPanel:** Header de `QueryPanel.svelte` ahora muestra `Database: <name>` (siempre, `—` si no resuelto) y `Table: <name>` / `Tables: a, b +N` con `title` tooltip completo. Util `src/lib/utils/sql-table-parser.ts` (regex MVP, **+0 KB**): `parseDatabase()` (resuelve `connectionId` contra `dbConnectionsGlobal`), `extractTables()` (FROM/JOIN/INTO/UPDATE, elimina `/* */`, `--`, `'...'`, CTE `WITH`, normaliza identificadores con esquema/comillas), `extractQueryType()`. Props `database?: string` y `tables?: string[]` extendidas en `DbQuery` y cableadas vía `EntryPanel`.
+- **Badge max-width 240px:** `badge-db` / `badge-table` con `max-width: 240px` (antes `120px`), `flex: 0 1 auto`, `ellipsis`, `white-space: nowrap`, `flex: 1 1 0` en `badge-cluster` + `flex-wrap: wrap` para JOINS con múltiples tablas. Sin overflow en `680px`.
+- **`.env.example` genérico:** Plantilla para cualquier Postgres (local, Neon, Supabase, RDS) con placeholders `<tu-host>` y documentación de `CYPRESS_DB_*` / `DB_*` + `SSL`.
+- **Mejoras en `svelte.config.js`:** `vitePreprocess()` para TS/PostCSS, `vitePlugin.dynamicCompileOptions` (activa `runes: true` solo fuera de `node_modules` — evita `runes:true` global según docs Svelte), `inspector: true` para DX en dev, filtro de warnings `a11y_click_events_have_key_events`.
+- **Tests ampliados (total 263):** `ScrollArea` 17 tests (viewport, thumb, scroll, ResizeObserver, hover), `sql-table-parser` 15 tests (stripCommentsAndStrings, removeCTE, normalizeIdentifier, extractTables, extractQueryType), `QueryPanel` badges 18 tests (Database/Table, +N, tooltip, 240px), `query.cy.ts` y `mixed-http-query.cy.ts` con aserciones de badge + wrap `680px`, E2E con DB real poblada. Nombres y comentarios 100% en español, con IDs SDD para suites spec-driven.
+
+### Changed
+
+- **Campo query de altura adaptativa:** `QueryPanel` `.code-container` ahora `height: auto; flex: 0 1 auto; max-height: min(36dvh, 320px)` (antes `flex fill`). Comportamiento hug hasta `320px`, luego scroll interno. Evita bloque de query gigante que empujaba la tabla de resultados.
+- **Badge max-width 120 → 240px con flex:** `badge-cluster` con `flex: 1 1 0` + `flex-wrap: wrap` y badges con `flex: 0 1 auto; max-width: 240px`. Soporta `JOIN` con múltiples tablas (`Tables: users, posts +1`) sin truncar prematuramente.
+- **Manejo de runes en `svelte.config.js`:** Migración de `{ runes: true }` global a `dynamicCompileOptions(({ filename }) => !filename.includes('node_modules') ? { runes: true } : undefined)` para compatibilidad con librerías que aún no usan runes.
+
+### Fixed
+
+- **Truncamiento JSON en CodeBlock a 16 líneas:** Colapso por `flex + double contain` (`contain: layout` en panel + scroll). Corregido eliminando `contain` en `App.svelte` entry wrapper y usando `flex: 0 1 auto` + `min-height: 0` + `overflow: visible` donde corresponde.
+- **Scroll con poca altura en campo query:** Antes el campo query tenía altura fija pequeña con scroll prematuro. Ahora hug adaptativo y `overscroll-behavior: contain`.
+- **Doble `contain` colapsa layout cuando el outer scroll es visible:** Eliminado `contain: layout paint` duplicado entre outer `ScrollArea` y cards internas; `isolation: isolate` preservado para stacking sin colapso.
+- **Visibilidad `mixed-http-query` (`scrollIntoView`) y `http.cy.ts` detached DOM:** `mixed-http-query.cy.ts` fuerza `scrollIntoView` antes de asertar panels superpuestos; `http.cy.ts` corrige selector detached tras re-render.
+
 ## [1.1.2] - 2026-08-21
 
 ### Added

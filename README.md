@@ -1,3 +1,5 @@
+> [English](./README.en.md) | **Español**
+
 # cypress-backend-tool
 
 <p align="center">
@@ -443,7 +445,7 @@ npm run build
 # Todos los tests (unit + E2E)
 npm test
 
-# Solo unit (vitest, 213 tests)
+# Solo unit (vitest, 263 tests)
 npm run unit
 
 # Watch
