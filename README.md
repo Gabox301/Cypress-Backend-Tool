@@ -95,7 +95,7 @@ Las credenciales se configuran via variables de entorno (ver [Variables de entor
 
 ### 2b. Configuración manual (alternativa)
 
-Si preferís manejar las tareas manualmente:
+Si prefieres manejar las tasks manualmente:
 
 ```typescript
 // cypress.config.ts
@@ -414,7 +414,7 @@ Las credenciales de base de datos (`dbPassword`, `dbUser`, etc.) **nunca entran 
 2. Solo los resultados (rows) vuelven al browser para mostrarse en la UI
 3. Las credenciales se configuran via `cy.task('db:getConfig')` o `.env`, nunca via `Cypress.expose()`
 
-Esto está verificado por tests de isolación (CA-CMD-01) que comprueban que `dbPassword` no existe en `window` ni en `Cypress.env()`.
+Esto está verificado por tests de isolación que comprueban que `dbPassword` no existe en `window` ni en `Cypress.env()`.
 
 ### Runtime overrides
 

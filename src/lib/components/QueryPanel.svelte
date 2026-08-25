@@ -5,8 +5,23 @@
     duration: number;
     rows: unknown[];
     error?: string;
+    database?: string;
+    tables?: string[];
   }
-  let { query, rowCount, duration, rows, error }: Props = $props();
+  let { query, rowCount, duration, rows, error, database = '—', tables = [] }: Props = $props();
+
+  let databaseLabel = $derived(`Database: ${database || '—'}`);
+  let tableLabel = $derived.by(() => {
+    if (!tables || tables.length === 0) return null;
+    if (tables.length === 1) return `Table: ${tables[0]}`;
+    if (tables.length === 2) return `Tables: ${tables[0]}, ${tables[1]}`;
+    return `Tables: ${tables[0]}, ${tables[1]} +${tables.length - 2}`;
+  });
+  let tableTitle = $derived.by(() => {
+    if (!tables || tables.length === 0) return '';
+    if (tables.length <= 2) return tableLabel ?? '';
+    return `Tables: ${tables.join(', ')}`;
+  });
   let tableRows = $derived.by(() => {
     if (rows.length === 0) return [];
     if (typeof rows[0] !== 'object' || rows[0] === null) {
@@ -29,8 +44,11 @@
 
 <div class="panel" data-testid="query-panel">
   <div class="query-header">
-    <div class="db-badge">
-      <span>Database Query</span>
+    <div class="badge-cluster">
+      <span class="badge-db" title={databaseLabel}>{databaseLabel}</span>
+      {#if tableLabel}
+        <span class="badge-table" title={tableTitle}>{tableLabel}</span>
+      {/if}
     </div>
     <div class="query-meta">
       <span class="meta-pill">{rowCount} rows</span>
@@ -110,18 +128,47 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
     padding: 0 16px;
     min-height: 48px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     background: rgba(0, 0, 0, 0.2);
     flex-shrink: 0;
   }
-  .db-badge {
+  .badge-cluster {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 0;
+  }
+  .badge-db,
+  .badge-table {
     display: inline-flex;
     align-items: center;
-    color: #22d3ee;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12px;
     font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid;
+  }
+  .badge-db {
+    color: #a5f3fc;
+    background: rgba(165, 243, 252, 0.08);
+    border-color: rgba(165, 243, 252, 0.15);
+  }
+  .badge-table {
+    color: #7dd3fc;
+    background: rgba(125, 211, 252, 0.08);
+    border-color: rgba(125, 211, 252, 0.15);
   }
   .query-meta {
     display: flex;

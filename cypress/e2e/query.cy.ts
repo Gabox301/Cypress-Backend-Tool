@@ -107,4 +107,68 @@ describe('cypress-backend-tool - Prueba de humo (cy.query)', () => {
       expect(result.duration).to.be.a('number').and.be.greaterThan(0);
     });
   });
+
+  it('UI-RENDER-05 & UI-RENDER-06: muestra badges Database y Table en QueryPanel — single table (Table: users)', () => {
+    cy.viewport(1280, 800);
+    cy.query('SELECT * FROM users ORDER BY id LIMIT 1').then(() => {
+      cy.get('[data-testid="query-panel"]')
+        .last()
+        .within(() => {
+          cy.get('.badge-db').should('contain.text', 'Database:');
+          cy.get('.badge-db').should('have.attr', 'title');
+          cy.get('.badge-db').should('have.css', 'max-width', '240px');
+          cy.get('.badge-table').should('contain.text', 'Table: users');
+          cy.get('.badge-table').should('have.attr', 'title', 'Table: users');
+          cy.contains('Database Query').should('not.exist');
+        });
+    });
+  });
+
+  it('UI-RENDER-06: muestra badges Tables plural y +N overflow (Tables: users, posts)', () => {
+    cy.viewport(1280, 800);
+    cy.query('SELECT p.title, u.name FROM posts p JOIN users u ON p.user_id = u.id ORDER BY p.id LIMIT 3').then(() => {
+      cy.get('[data-testid="query-panel"]')
+        .last()
+        .within(() => {
+          cy.get('.badge-db').should('contain.text', 'Database:');
+          cy.get('.badge-table').should('contain.text', 'Tables:');
+          cy.get('.badge-table')
+            .invoke('text')
+            .should('match', /Tables: (posts|users), (posts|users)/);
+        });
+    });
+  });
+
+  it('UI-RENDER-06: oculta Table badge cuando no hay tablas extraíbles (SELECT 1)', () => {
+    cy.viewport(1280, 800);
+    cy.query('SELECT 1 as value').then(() => {
+      cy.get('[data-testid="query-panel"]')
+        .last()
+        .within(() => {
+          cy.get('.badge-db').should('contain.text', 'Database:');
+          cy.get('.badge-table').should('not.exist');
+          cy.contains('Database Query').should('not.exist');
+        });
+    });
+  });
+
+  it('UI-RENDER-07: wrap sin overflow ≤680px — header flex-wrap con badges y pills', () => {
+    cy.viewport(680, 800);
+    cy.query('SELECT * FROM users JOIN posts ON posts.user_id = users.id LIMIT 1').then(() => {
+      cy.get('[data-testid="query-panel"]')
+        .last()
+        .within(() => {
+          cy.get('.query-header').should('have.css', 'flex-wrap', 'wrap');
+          cy.get('.badge-cluster').should('exist');
+          cy.get('.query-meta').should('exist');
+          // Badges remain visible and not clipped
+          cy.get('.badge-db').should('be.visible');
+          // No horizontal scroll on header
+          cy.get('.query-header').then(($el) => {
+            const el = $el[0] as HTMLElement;
+            expect(el.scrollWidth).to.be.lte(el.clientWidth + 1);
+          });
+        });
+    });
+  });
 });

@@ -2,12 +2,14 @@ import { render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import QueryPanel from './QueryPanel.svelte';
 
-function makeProps(overrides = {}) {
+function makeProps(overrides: Record<string, unknown> = {}) {
   return {
     query: 'SELECT * FROM users',
     rowCount: 0,
     duration: 5,
     rows: [] as unknown[],
+    database: 'neondb',
+    tables: [] as string[],
     ...overrides,
   };
 }
@@ -72,5 +74,104 @@ describe('QueryPanel — renderizado', () => {
     expect(screen.getByText('true')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('null')).toBeInTheDocument();
+  });
+});
+
+describe('QueryPanel — badges UI-RENDER-05/06/07', () => {
+  it('UI-RENDER-05: base de datos conocida muestra Database: neondb', () => {
+    render(QueryPanel, { props: makeProps({ database: 'neondb', tables: [] }) });
+    expect(screen.getByText('Database: neondb')).toBeInTheDocument();
+  });
+
+  it('UI-RENDER-05: placeholder desconocido muestra Database: —', () => {
+    render(QueryPanel, { props: makeProps({ database: '—', tables: [] }) });
+    expect(screen.getByText('Database: —')).toBeInTheDocument();
+  });
+
+  it('UI-RENDER-05: base de datos vacía retorna Database: —', () => {
+    render(QueryPanel, { props: makeProps({ database: '', tables: [] }) });
+    expect(screen.getByText('Database: —')).toBeInTheDocument();
+  });
+
+  it('UI-RENDER-05: badge de base de datos tiene tooltip y estilo truncado', () => {
+    const longName = 'a'.repeat(30);
+    const { container } = render(QueryPanel, {
+      props: makeProps({ database: longName, tables: [] }),
+    });
+    const badge = container.querySelector('.badge-db') as HTMLElement;
+    expect(badge).not.toBeNull();
+    expect(badge.title).toBe(`Database: ${longName}`);
+    expect(badge.textContent).toBe(`Database: ${longName}`);
+  });
+
+  it('UI-RENDER-06: tabla única muestra Table: users', () => {
+    render(QueryPanel, { props: makeProps({ database: 'neondb', tables: ['users'] }) });
+    expect(screen.getByText('Table: users')).toBeInTheDocument();
+    expect(screen.queryByText(/Tables:/)).not.toBeInTheDocument();
+  });
+
+  it('UI-RENDER-06: dos tablas muestra Tables: users, posts sin +N', () => {
+    render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: ['users', 'posts'] }),
+    });
+    expect(screen.getByText('Tables: users, posts')).toBeInTheDocument();
+  });
+
+  it('UI-RENDER-06: tres tablas muestra Tables: users, posts +1 con título completo', () => {
+    const { container } = render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: ['users', 'posts', 'orders'] }),
+    });
+    expect(screen.getByText('Tables: users, posts +1')).toBeInTheDocument();
+    const badge = container.querySelector('.badge-table') as HTMLElement;
+    expect(badge.title).toBe('Tables: users, posts, orders');
+  });
+
+  it('UI-RENDER-06: cuatro tablas muestra +2 overflow', () => {
+    render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: ['a', 'b', 'c', 'd'] }),
+    });
+    expect(screen.getByText('Tables: a, b +2')).toBeInTheDocument();
+  });
+
+  it('UI-RENDER-06: sin tablas oculta el badge de tabla', () => {
+    const { container } = render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: [] }),
+    });
+    expect(container.querySelector('.badge-table')).toBeNull();
+    expect(screen.queryByText(/Table:/)).not.toBeInTheDocument();
+  });
+
+  it('UI-RENDER-07: etiqueta genérica Database Query eliminada', () => {
+    const { container } = render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: ['users'] }),
+    });
+    // Old generic label must not appear
+    expect(screen.queryByText('Database Query')).not.toBeInTheDocument();
+    // Badges must be present instead
+    expect(container.querySelector('.badge-db')).not.toBeNull();
+    expect(container.querySelector('.badge-cluster')).not.toBeNull();
+  });
+
+  it('UI-RENDER-07: header con badges inline y flex-wrap sin overflow', () => {
+    const { container } = render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: ['users', 'posts'] }),
+    });
+    const header = container.querySelector('.query-header') as HTMLElement;
+    const cluster = container.querySelector('.badge-cluster') as HTMLElement;
+    const meta = container.querySelector('.query-meta') as HTMLElement;
+    expect(header).not.toBeNull();
+    expect(cluster).not.toBeNull();
+    expect(meta).not.toBeNull();
+    // Check that header contains both cluster and meta
+    expect(header.contains(cluster)).toBe(true);
+    expect(header.contains(meta)).toBe(true);
+  });
+
+  it('UI-RENDER-06: badge de tabla tiene tooltip con lista completa', () => {
+    const { container } = render(QueryPanel, {
+      props: makeProps({ database: 'neondb', tables: ['users'] }),
+    });
+    const badge = container.querySelector('.badge-table') as HTMLElement;
+    expect(badge.title).toBe('Table: users');
   });
 });

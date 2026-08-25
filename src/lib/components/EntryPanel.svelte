@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { dbConnectionsGlobal } from '$lib/stores.svelte';
   import type { ApiCall, DbQuery } from '$lib/types';
+  import { extractTables, parseDatabase } from '$lib/utils/sql-table-parser';
   import QueryPanel from './QueryPanel.svelte';
   import RequestPanel from './RequestPanel.svelte';
   import ResponsePanel from './ResponsePanel.svelte';
@@ -10,6 +12,24 @@
     snapshotOnly: boolean;
   }
   let { data, hideCredentials, hideCredentialsOptions, snapshotOnly }: Props = $props();
+
+  let database = $derived.by(() => {
+    // Referencia dbConnectionsGlobal para que el derivado reaccione a cambios de conexión
+    void dbConnectionsGlobal.length;
+    if ('query' in data) {
+      const db = data as DbQuery;
+      if (db.database) return db.database;
+      return parseDatabase(db.connectionId);
+    }
+    return '—';
+  });
+
+  let tables = $derived.by(() => {
+    if ('query' in data) {
+      return extractTables((data as DbQuery).query);
+    }
+    return [] as string[];
+  });
 </script>
 
 {#if 'query' in data}
@@ -21,6 +41,8 @@
       duration={db.duration}
       rows={(db.result as unknown[]) ?? []}
       error={db.error}
+      {database}
+      {tables}
     />
   </div>
 {:else}

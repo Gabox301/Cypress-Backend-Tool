@@ -54,8 +54,8 @@
     position: relative;
     contain: none;
   }
-  /* Hybrid: 1 entry fills runner (height 100% with 12px padding = 12px gap on 4 borders), N entries compact hug */
-  /* :only-child never matches when .bottom-anchor is present → also match :first-child:nth-last-child(2) (1 entry + anchor = 2 children) */
+  /* Híbrido: 1 entrada ocupa todo el runner (altura 100% con padding de 12px = separación de 12px en los 4 bordes), N entradas en modo compacto ajustado */
+  /* :only-child nunca coincide cuando existe .bottom-anchor → también considerar :first-child:nth-last-child(2) (1 entrada + ancla = 2 hijos) */
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:only-child) > [id^='cabt-entry-']),
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:first-child:nth-last-child(2)) > [id^='cabt-entry-']) {
     flex: 1 1 0 !important;
@@ -80,7 +80,7 @@
     max-height: none !important;
     height: 100% !important;
   }
-  /* Single-entry fill: content-area and scrollable bodies fill, but query field hugs */
+  /* Relleno en modo de entrada única: content-area y cuerpos desplazables ocupan el espacio disponible, pero el campo de consulta se mantiene ajustado */
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:only-child) .content-area),
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:first-child:nth-last-child(2)) .content-area) {
     flex: 1 1 0 !important;
@@ -101,7 +101,7 @@
     max-height: none !important;
     height: auto !important;
   }
-  /* Query field (QueryPanel): keep hugging, not filling — even in single-entry mode */
+  /* Campo de consulta (QueryPanel): se mantiene ajustado, sin ocupar todo el espacio — incluso en modo de entrada única */
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:only-child) .section .code-container),
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:first-child:nth-last-child(2)) .section .code-container) {
     flex: 0 1 auto !important;
@@ -110,7 +110,7 @@
     max-height: min(32dvh, 280px) !important;
     height: auto !important;
   }
-  /* CodeBlock (inside .wrapper): must fill in single-entry mode */
+  /* CodeBlock (dentro de .wrapper): debe ocupar todo el espacio en modo de entrada única */
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:only-child) .wrapper .code-container),
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:first-child:nth-last-child(2)) .wrapper .code-container) {
     flex: 1 1 0 !important;
@@ -130,7 +130,7 @@
     overflow: auto !important;
     max-height: none !important;
   }
-  /* Hide anchor spacing when single entry otherwise gap+1px creates idle between entry and bottom padding */
+  /* Oculta el espaciado del ancla en entrada única; de lo contrario gap+1px deja un espacio vacío entre la entrada y el padding inferior */
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:only-child) .bottom-anchor),
   :global(#cabt-scroll-area:has(> [id^='cabt-entry-']:first-child:nth-last-child(2)) .bottom-anchor) {
     height: 0 !important;
@@ -141,8 +141,8 @@
     flex-shrink: 0;
   }
 
-  /* Global custom scrollbar styling for all native scrollable elements (inner cards).
-     Outer ScrollArea viewport keeps scrollbar-width:none which overrides this via higher specificity. */
+  /* Estilo global de barra de desplazamiento personalizada para todos los elementos desplazables nativos (tarjetas internas).
+     El viewport exterior de ScrollArea mantiene scrollbar-width:none, lo cual prevalece por mayor especificidad. */
   :global(*) {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 212, 255, 0.35) transparent;

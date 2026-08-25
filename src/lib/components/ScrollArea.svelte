@@ -137,13 +137,7 @@
   onmouseenter={() => (isHovering = true)}
   onmouseleave={() => (isHovering = false)}
 >
-  <div
-    bind:this={viewport}
-    {id}
-    class="viewport"
-    data-testid="scroll-area-viewport"
-    onscroll={handleScroll}
-  >
+  <div bind:this={viewport} {id} class="viewport" data-testid="scroll-area-viewport" onscroll={handleScroll}>
     {@render children()}
   </div>
   <!-- svelte-ignore a11y_no_static_element_interactions -->

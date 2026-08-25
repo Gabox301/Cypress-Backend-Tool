@@ -388,25 +388,25 @@ describe('ScrollArea — clic en la pista', () => {
 // ---------------------------------------------------------------------------
 // Hybrid C — geometría exterior (UI-RENDER-05 / UI-MOUNT-11)
 // ---------------------------------------------------------------------------
-describe('ScrollArea — geometría exterior Hybrid C', () => {
+describe('ScrollArea — geometría exterior Hybrid C UI-RENDER-05 / UI-MOUNT-11', () => {
   const src = readFileSync(resolve('src/lib/components/ScrollArea.svelte'), 'utf8');
   const appSrc = readFileSync(resolve('src/lib/components/App.svelte'), 'utf8');
 
-  it('scroll-root tiene overflow:visible y no hidden', () => {
+  it('UI-RENDER-05: scroll-root tiene overflow:visible y no hidden', () => {
     // el bloque scroll-root debe contener visible y NO debe contener hidden
     const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? '';
     expect(rootBlock).toContain('overflow: visible');
     expect(rootBlock).not.toContain('overflow: hidden');
   });
 
-  it('scroll-root no establece height:100%', () => {
+  it('UI-RENDER-05: scroll-root no establece height:100% y preserva flex/min-height', () => {
     const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? '';
     expect(rootBlock).not.toContain('height: 100%');
     expect(rootBlock).toContain('flex: 1');
     expect(rootBlock).toContain('min-height: 0');
   });
 
-  it('viewport es flex:1 1 0 con min-height:0, overscroll-behavior y container query (sin doble contain)', () => {
+  it('UI-MOUNT-11 / UI-RENDER-05: viewport es flex:1 1 0 con min-height:0, overscroll-behavior y container query sin doble contain', () => {
     const vpBlock = src.match(/\.viewport\s*\{[^}]*\}/s)?.[0] ?? '';
     const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? '';
     expect(vpBlock).toContain('flex: 1 1 0');
@@ -421,14 +421,14 @@ describe('ScrollArea — geometría exterior Hybrid C', () => {
     expect(rootBlock).toContain('container-name: cabt-scroll');
   });
 
-  it('viewport es el objetivo de montaje con id en el elemento viewport', () => {
+  it('UI-MOUNT-11: viewport es el objetivo de montaje con id en el elemento viewport', () => {
     // En la plantilla Svelte el viewport debe tener bind + {id} + clase viewport
     expect(src).toContain('class="viewport"');
     expect(src).toContain('{id}');
     expect(src).toContain('data-testid="scroll-area-viewport"');
   });
 
-  it('App.svelte conserva :has nth-last-child(2) para el relleno de entrada única', () => {
+  it('UI-MOUNT-11 / UI-RENDER-05: App.svelte conserva :has nth-last-child(2) para relleno de entrada única', () => {
     expect(appSrc).toContain(":has(> [id^='cabt-entry-']:first-child:nth-last-child(2))");
     expect(appSrc).not.toMatch(/:only-child[^)]*\)\s*>\s*\[id\^='cabt-entry-'\]\s*\)\s*\{[^}]*flex: 1 1 0/);
     // Asegurar que bottom-anchor permanezca con 1px y flex-shrink:0
@@ -436,7 +436,7 @@ describe('ScrollArea — geometría exterior Hybrid C', () => {
     expect(appSrc).toContain('flex-shrink: 0');
   });
 
-  it('updateThumb está limitado mediante requestAnimationFrame', () => {
+  it('UI-RENDER-05: updateThumb está limitado mediante requestAnimationFrame', () => {
     expect(src).toContain('requestAnimationFrame');
   });
 });

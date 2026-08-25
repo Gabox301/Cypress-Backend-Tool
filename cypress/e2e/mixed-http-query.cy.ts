@@ -23,7 +23,7 @@
  */
 
 describe('cypress-backend-tool - Diseño mixto cy.http + cy.query', () => {
-  it('renderiza paneles http y query sin solapamiento y de forma responsive', () => {
+  it('UI-RENDER-05 & UI-RENDER-06 & UI-RENDER-07 / UI-MOUNT-11: renderiza paneles http y query sin solapamiento y de forma responsive con badges', () => {
     // 1) HTTP — endpoint público (siempre funciona)
     cy.http({
       url: 'https://jsonplaceholder.typicode.com/users/1',
@@ -115,7 +115,14 @@ describe('cypress-backend-tool - Diseño mixto cy.http + cy.query', () => {
     cy.get('#cabt-scroll-area').find('.pair').should('have.length', 2);
 
     // El contenido de QueryPanel existe (puede estar fuera de vista tras el auto-scroll a la última entrada)
-    cy.get('#cabt-scroll-area').contains('Database Query').scrollIntoView().should('be.visible');
+    cy.get('#cabt-scroll-area').contains('Database:').scrollIntoView().should('be.visible');
+    cy.get('#cabt-scroll-area').find('.badge-db').should('exist');
+    cy.get('#cabt-scroll-area')
+      .find('[data-testid="query-panel"]')
+      .within(() => {
+        cy.get('.badge-table').should('exist');
+        cy.contains('Database Query').should('not.exist');
+      });
     cy.get('#cabt-scroll-area').contains('Results').scrollIntoView().should('be.visible');
     // Ya no verifica Hello World (mock); verifica que se renderizan datos reales de usuario
     cy.get('#cabt-scroll-area').find('[data-testid="query-panel"]').scrollIntoView().should('contain.text', '@');

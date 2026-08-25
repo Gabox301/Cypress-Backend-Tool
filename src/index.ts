@@ -333,6 +333,7 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
         result: result.rows || [],
         duration: Date.now() - startTime,
         timestamp: Date.now(),
+        database,
       };
       addDbQuery(dbCall);
       getTestStore().dbQueries.push(dbCall);

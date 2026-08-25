@@ -17,11 +17,11 @@ export interface DbTaskConfig {
   database?: string;
   user?: string;
   password?: string;
-  /** SSL config for pg: `true`, `false` or object like `{ rejectUnauthorized: false }`. */
+  /** Configuración SSL para pg: `true`, `false` u objeto como `{ rejectUnauthorized: false }`. */
   ssl?: boolean | Record<string, unknown>;
-  /** pg Pool connection timeout in ms */
+  /** Tiempo de espera de conexión del Pool de pg en milisegundos */
   connectionTimeoutMillis?: number;
-  /** pg Pool idle timeout in ms */
+  /** Tiempo de espera en reposo del Pool de pg en milisegundos */
   idleTimeoutMillis?: number;
 }
 
@@ -107,7 +107,7 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
         try {
           return JSON.parse(trimmed) as Record<string, unknown>;
         } catch {
-          // fall through to undefined if JSON invalid
+          // continúa sin definir si el JSON no es válido
         }
       }
       // Valor no reconocido -> no configurar SSL (evita magic strings)
@@ -157,9 +157,7 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
 
       // Comparar ssl vía JSON stringify para detectar diferencias de config (undefined vs false vs object)
       const sslMismatch =
-        argsSsl !== undefined || poolSsl !== undefined
-          ? JSON.stringify(argsSsl) !== JSON.stringify(poolSsl)
-          : false;
+        argsSsl !== undefined || poolSsl !== undefined ? JSON.stringify(argsSsl) !== JSON.stringify(poolSsl) : false;
 
       if (
         args.host !== poolOpts.host ||

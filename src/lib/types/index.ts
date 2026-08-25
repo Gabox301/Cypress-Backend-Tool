@@ -92,6 +92,7 @@ export interface DbQuery {
   error?: string;
   duration: number;
   timestamp: number;
+  database?: string;
 }
 
 export interface TabItem {
