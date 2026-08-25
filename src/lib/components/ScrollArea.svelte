@@ -35,20 +35,24 @@
     const { clientHeight, scrollHeight, scrollTop } = viewport;
     const trackHeight = track.clientHeight;
     if (trackHeight === 0) return;
+    let nextHeight: number;
+    let nextTop: number;
     if (scrollHeight <= clientHeight) {
-      thumbHeight = trackHeight;
-      thumbTop = 0;
-      return;
+      nextHeight = trackHeight;
+      nextTop = 0;
+    } else {
+      const calculated = (clientHeight * clientHeight) / scrollHeight;
+      nextHeight = Math.max(40, Math.min(calculated, trackHeight));
+      const maxThumbTop = trackHeight - nextHeight;
+      const maxScrollTop = scrollHeight - clientHeight;
+      nextTop = maxScrollTop > 0 ? (scrollTop / maxScrollTop) * maxThumbTop : 0;
     }
-    const calculated = (clientHeight * clientHeight) / scrollHeight;
-    thumbHeight = Math.max(40, Math.min(calculated, trackHeight));
-    const maxThumbTop = trackHeight - thumbHeight;
-    const maxScrollTop = scrollHeight - clientHeight;
-    thumbTop = maxScrollTop > 0 ? (scrollTop / maxScrollTop) * maxThumbTop : 0;
+    if (nextHeight !== thumbHeight) thumbHeight = nextHeight;
+    if (nextTop !== thumbTop) thumbTop = nextTop;
   }
 
   function handleScroll(): void {
-    updateThumb();
+    scheduleUpdateThumb();
   }
 
   function handleThumbMouseDown(e: MouseEvent): void {
@@ -104,20 +108,16 @@
     if (typeof ResizeObserver !== 'undefined') {
       ro = new ResizeObserver(() => scheduleUpdateThumb());
       ro.observe(viewport);
-      if (track) ro.observe(track);
     }
 
     if (typeof MutationObserver !== 'undefined') {
       mo = new MutationObserver(() => scheduleUpdateThumb());
       mo.observe(viewport, {
         childList: true,
-        subtree: true,
-        attributes: true,
-        characterData: true,
       });
     }
 
-    const onResize = (): void => updateThumb();
+    const onResize = (): void => scheduleUpdateThumb();
     window.addEventListener('resize', onResize);
 
     return () => {

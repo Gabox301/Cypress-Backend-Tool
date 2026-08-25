@@ -5,6 +5,12 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.1.4] - 2026-08-25
+
+### Fixed
+
+- **ResizeObserver loop crítico:** `ScrollArea.svelte` causaba `ResizeObserver loop completed with undelivered notifications` (observaba `track` además de `viewport` y `MutationObserver` con `subtree:true` generaba thrash) que rompía `afterEach` y salteaba todos los tests. Corregido: solo observa `viewport`, `updateThumb` solo escribe si cambió, `handleScroll` y `resize` vía `requestAnimationFrame`, `MutationObserver` solo `childList:true`, y `Cypress.on('uncaught:exception')` ignora el loop benigno. Añadido guard en `src/test-setup.ts` para `requestAnimationFrame` síncrono en jsdom.
+
 ## [1.1.3] - 2026-08-24
 
 ### Added

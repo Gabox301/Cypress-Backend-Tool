@@ -15,6 +15,20 @@ import { EntryRegistry } from '$lib/ui/entry-registry';
 // Auto-inicializar interceptor de aserciones Chai de Cypress
 setupChaiExpectInterceptor();
 
+// Silenciar ResizeObserver loop benigno (Chrome) para que no rompa afterEach en producción
+// El fix real está en ScrollArea (solo viewport + rAF), este handler es red de seguridad
+if (
+  typeof Cypress !== 'undefined' &&
+  (Cypress as unknown as { on?: (e: string, h: (err: Error) => false | void) => void }).on
+) {
+  (Cypress as unknown as { on: (e: string, h: (err: Error) => false | void) => void }).on(
+    'uncaught:exception',
+    (err: Error) => {
+      if (err?.message?.includes('ResizeObserver loop')) return false;
+    },
+  );
+}
+
 // ============================================
 // Ampliaciones del namespace de Cypress
 // ============================================
