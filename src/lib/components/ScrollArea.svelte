@@ -102,13 +102,7 @@
 
     updateThumb();
 
-    let ro: ResizeObserver | undefined;
     let mo: MutationObserver | undefined;
-
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => scheduleUpdateThumb());
-      ro.observe(viewport);
-    }
 
     if (typeof MutationObserver !== 'undefined') {
       mo = new MutationObserver(() => scheduleUpdateThumb());
@@ -120,10 +114,23 @@
     const onResize = (): void => scheduleUpdateThumb();
     window.addEventListener('resize', onResize);
 
+    const onWindowError = (e: ErrorEvent) => {
+      if (e.message?.includes('ResizeObserver loop') || String(e.error?.message ?? '').includes('ResizeObserver')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('error', onWindowError);
+    const onRejection = (e: PromiseRejectionEvent) => {
+      if (String(e.reason?.message ?? e.reason).includes('ResizeObserver')) e.preventDefault();
+    };
+    window.addEventListener('unhandledrejection', onRejection);
+
     return () => {
-      ro?.disconnect();
       mo?.disconnect();
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('error', onWindowError);
+      window.removeEventListener('unhandledrejection', onRejection);
       window.removeEventListener('mousemove', handleThumbMouseMove);
       window.removeEventListener('mouseup', handleThumbMouseUp);
       document.body.style.userSelect = '';

@@ -5,6 +5,12 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.1.5] - 2026-08-25
+
+### Fixed
+
+- **ResizeObserver loop crítico (robusto):** `ScrollArea.svelte` eliminado `ResizeObserver` por completo (queda solo `MutationObserver childList:true` + `scroll`/`resize` vía `requestAnimationFrame`); handler `Cypress.on('uncaught:exception')` endurecido a `String(err).includes('ResizeObserver')` y añadido `window.addEventListener('error')` en `src/index.ts` para producción (con `void 0` para `eslint no-empty`), evitando que el loop benigno de Chrome rompa `afterEach`.
+
 ## [1.1.4] - 2026-08-25
 
 ### Fixed
