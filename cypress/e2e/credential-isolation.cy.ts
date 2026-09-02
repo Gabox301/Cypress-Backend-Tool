@@ -43,11 +43,11 @@ describe('Aislamiento de Credenciales', () => {
       });
     });
 
-    it('las credenciales de cy.task no contaminan Cypress.env', () => {
+    it('las credenciales de cy.task no contaminan Cypress.expose', () => {
       cy.task('db:getConfig').then((_config: any) => {
-        // Verifica que Cypress.env() NO contenga credenciales de BD
-        // (Cypress.env se puebla desde la sección `env` de cypress.config.ts)
-        expect(Cypress.env('dbPassword')).to.be.undefined;
+        // Verifica que Cypress.expose() NO contenga credenciales de BD
+        // (Cypress.expose se puebla desde la sección `env` de cypress.config.ts)
+        expect(Cypress.expose('dbPassword')).to.be.undefined;
       });
     });
 

@@ -416,7 +416,7 @@ Database credentials (`dbPassword`, `dbUser`, etc.) **never enter the browser**.
 2. Only results (rows) return to the browser to be displayed in the UI
 3. Credentials are configured via `cy.task('db:getConfig')` or `.env`, never via `Cypress.expose()`
 
-This is verified by isolation tests that check `dbPassword` does not exist on `window` nor in `Cypress.env()`.
+This is verified by isolation tests that check `dbPassword` does not exist on `window` nor in `Cypress.expose()`.
 
 ### Runtime overrides
 

@@ -34,7 +34,9 @@
     y: 0,
   });
   function handleMouseEnter(text: string, event: MouseEvent) {
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    const target = event.target as HTMLElement;
+    if (target.scrollWidth <= target.clientWidth) return;
+    const rect = target.getBoundingClientRect();
     tooltip = {
       visible: true,
       text: urlParts.full,
@@ -45,6 +47,30 @@
   function handleMouseLeave() {
     tooltip.visible = false;
   }
+  let portalHost: HTMLDivElement | null = null;
+  let portalStyle = $derived(`left:${tooltip.x}px;top:${tooltip.y}px;`);
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    const host = document.createElement('div');
+    host.dataset.testid = 'title-panel-tooltip-portal';
+    document.body.appendChild(host);
+    portalHost = host;
+    return () => {
+      if (host.parentNode) host.parentNode.removeChild(host);
+      portalHost = null;
+    };
+  });
+  function renderPortal(node: HTMLDivElement, visible: boolean, style: string, text: string) {
+    if (!visible || !text) {
+      node.innerHTML = '';
+      return;
+    }
+    node.innerHTML = `<div class="custom-tooltip" style="${style}">${text.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]!)}</div>`;
+  }
+  $effect(() => {
+    if (!portalHost) return;
+    renderPortal(portalHost, tooltip.visible, portalStyle, tooltip.text);
+  });
 </script>
 
 <div class="title-panel">
@@ -79,11 +105,6 @@
   {:else}
     <span class="url-empty">sin URL</span>
   {/if}
-  {#if tooltip.visible}
-    <div class="custom-tooltip" style="left: {tooltip.x}px; top: {tooltip.y}px;">
-      {tooltip.text}
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -98,7 +119,7 @@
     flex-shrink: 0;
     flex-wrap: nowrap;
     white-space: nowrap;
-    overflow: hidden;
+    position: relative;
   }
   .method-badge {
     display: inline-flex;
@@ -142,7 +163,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
   }
-  .custom-tooltip {
+  :global(.custom-tooltip) {
     position: fixed;
     z-index: 10000;
     padding: 6px 10px;

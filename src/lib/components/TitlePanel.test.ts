@@ -1,6 +1,15 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import TitlePanel from './TitlePanel.svelte';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function mockOverflow(element: HTMLElement, overflow: boolean) {
+  Object.defineProperty(element, 'scrollWidth', { configurable: true, value: overflow ? 9999 : 0 });
+  Object.defineProperty(element, 'clientWidth', { configurable: true, value: overflow ? 100 : 100 });
+}
 
 describe('TitlePanel — visualización de método y URL', () => {
   it('renderiza la insignia de método con el color correcto para GET', () => {
@@ -29,29 +38,37 @@ describe('TitlePanel — visualización de método y URL', () => {
     expect(screen.getByText('sin URL')).toBeInTheDocument();
   });
 
-  it('muestra el tooltip al pasar el cursor sobre el origen de la URL', async () => {
+  it('muestra el tooltip al pasar el cursor sobre el origen cuando hay overflow', async () => {
     render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users' } });
     const origin = screen.getByText('https://api.example.com');
+    mockOverflow(origin, true);
     await fireEvent.mouseEnter(origin);
-    // El tooltip debería mostrar la URL completa
     expect(screen.getByText('https://api.example.com/users')).toBeInTheDocument();
   });
 
-  it('muestra el tooltip al pasar el cursor sobre la ruta de la URL', async () => {
+  it('muestra el tooltip al pasar el cursor sobre la ruta cuando hay overflow', async () => {
     render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users/42' } });
     const path = screen.getByText('/users/42');
+    mockOverflow(path, true);
     await fireEvent.mouseEnter(path);
-    // El tooltip debería mostrar la URL completa
     expect(screen.getByText('https://api.example.com/users/42')).toBeInTheDocument();
   });
 
   it('oculta el tooltip al salir el cursor', async () => {
     render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users' } });
     const origin = screen.getByText('https://api.example.com');
+    mockOverflow(origin, true);
     await fireEvent.mouseEnter(origin);
     expect(screen.getByText('https://api.example.com/users')).toBeInTheDocument();
     await fireEvent.mouseLeave(origin);
-    // El tooltip debería eliminarse del DOM
+    expect(screen.queryByText('https://api.example.com/users')).toBeNull();
+  });
+
+  it('no muestra el tooltip cuando el span no tiene overflow', async () => {
+    render(TitlePanel, { props: { method: 'GET', url: 'https://api.example.com/users' } });
+    const origin = screen.getByText('https://api.example.com');
+    mockOverflow(origin, false);
+    await fireEvent.mouseEnter(origin);
     expect(screen.queryByText('https://api.example.com/users')).toBeNull();
   });
 });
