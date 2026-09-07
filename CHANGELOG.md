@@ -5,6 +5,22 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.1.6] - 2026-09-07
+
+### Fixed
+
+- **Tooltip de `TitlePanel` montado como portal a `document.body`:** El tooltip ya no se renderiza dentro del `.title-panel` (que tiene `overflow: hidden`), evitando que paneles hermanos lo recortaran. Se monta en un host anexado a `document.body` con `data-testid="title-panel-tooltip-portal"` y se limpia en el `return` del `$effect`. La clase `.custom-tooltip` ahora es `:global(...)` para que funcione fuera del alcance del estilo del componente.
+- **Tooltip solo aparece cuando hay truncamiento real:** `handleMouseEnter` comprueba `target.scrollWidth <= target.clientWidth` antes de mostrar el tooltip, así que solo aparece cuando el texto del span está recortado con `text-overflow: ellipsis`. Tests de `TitlePanel.test.ts` ampliados con `mockOverflow` (verde/rojo) + `afterEach` con `vi.restoreAllMocks()`.
+
+- **Consistencia visual de badges en `ResponsePanel`:** Los badges de duración, tamaño y retry ahora comparten el mismo sistema de colores (color, border y background). Antes solo el texto del badge de duración cambiaba de color según el umbral, dejando el badge sin fondo/border. Ahora todos los badges usan variables CSS `--pill-color` / `--pill-glow` con `color-mix` para background, y el SVG interno usa `stroke: currentColor` para heredar el color del badge.
+- `getDurationColor` ahora devuelve códigos hex (`#4ade80` / `#facc15` / `#ef4444`) en lugar de strings `'green' | 'yellow' | 'red'`, para permitir su uso directo en estilos inline.
+- Nuevas utilidades `getSizeColor` y `getSizeGlow` en `src/lib/utils/format.ts` con los mismos umbrales de color (verde < 10 KB, amarillo < 1 MB, rojo >= 1 MB).
+- Tests de `format.test.ts` actualizados a los nuevos valores hex.
+
+### Changed
+
+- **`vite.config.ts` — `dts` restringido a entries públicos:** `include: ['src/index.ts', 'src/node/tasks.ts']`. Antes el plugin recorría todo `src/**/*.ts` y `src/**/*.svelte` (incluyendo tests y componentes), lo que hacía que `unplugin-dts` tardara 2.7s en `buildStart`. Ahora solo genera `index.d.ts` y `tasks.d.ts`, y el build bajó de 3.6s a 2.56s (dts: 2165ms).
+
 ## [1.1.5] - 2026-08-25
 
 ### Fixed

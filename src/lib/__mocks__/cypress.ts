@@ -8,7 +8,11 @@ import { vi } from 'vitest';
  * `Commands.add()` como spy, y un helper `_set()` para que los tests muten
  * el store del mock entre casos de prueba.
  */
-export function createMockCypress(exposeValues: Partial<CypressApiPluginConfig> = {}) {
+export function createMockCypress(exposeValues: Partial<CypressApiPluginConfig> = {}): {
+  expose: ReturnType<typeof vi.fn>;
+  Commands: { add: ReturnType<typeof vi.fn> };
+  _set: (key: string, value: unknown) => void;
+} {
   const store = new Map<string, unknown>();
   // Puebla el store con valores iniciales
   for (const [key, value] of Object.entries(exposeValues)) {

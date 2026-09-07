@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ApiResponse } from '$lib/types';
+  import { formatSize, getDurationColor, getDurationGlow, getSizeColor, getSizeGlow } from '$lib/utils/format';
   import CodeBlock from './CodeBlock.svelte';
   import Icon from './Icon.svelte';
 
@@ -60,11 +61,21 @@
 
   let formattedSize = $derived.by(() => {
     if (!response) return '';
-    const bytes = response.size;
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    return formatSize(response.size);
   });
+
+  const sizeColor = $derived.by(() => {
+    if (!response) return '#94a3b8';
+    return getSizeColor(response.size);
+  });
+
+  const sizeGlow = $derived.by(() => {
+    if (!response) return 'rgba(148,163,184,0.2)';
+    return getSizeGlow(response.size);
+  });
+
+  const retryCount = $derived(response?.retryCount ?? 0);
+  const attempts = $derived(response?.attempts ?? []);
 
   $effect(() => {
     // Inyección de estilos globales del panel — reemplaza onMount legacy.
@@ -89,9 +100,9 @@
           border-radius: 99px !important;
           font-size: 10px !important;
           font-weight: 600 !important;
-          color: #22d3ee !important;
-          background: rgba(255,255,255,0.04) !important;
-          border: 1px solid rgba(255,255,255,0.06) !important;
+          color: var(--pill-color, #22d3ee) !important;
+          background: color-mix(in srgb, var(--pill-color, #22d3ee) 12%, transparent) !important;
+          border: 1px solid var(--pill-glow, rgba(255,255,255,0.06)) !important;
           white-space: nowrap !important;
           line-height: 1 !important;
           font-family: 'JetBrains Mono', monospace !important;
@@ -102,7 +113,7 @@
           height: 11px !important;
           vertical-align: text-bottom !important;
           margin-bottom: -0.5px !important;
-          stroke: #22d3ee !important;
+          stroke: currentColor !important;
           stroke-width: 2 !important;
           fill: none !important;
         }
@@ -113,6 +124,40 @@
           gap: 6px !important;
           flex-shrink: 0 !important;
           height: 100% !important;
+        }
+        .cadb-pill-duration-fast {
+          color: var(--pill-color, #4ade80) !important;
+          border-color: var(--pill-glow, rgba(74,222,128,0.4)) !important;
+          background: color-mix(in srgb, var(--pill-color, #4ade80) 12%, transparent) !important;
+        }
+        .cadb-pill-duration-medium {
+          color: var(--pill-color, #facc15) !important;
+          border-color: var(--pill-glow, rgba(250,204,21,0.4)) !important;
+          background: color-mix(in srgb, var(--pill-color, #facc15) 12%, transparent) !important;
+        }
+        .cadb-pill-duration-slow {
+          color: var(--pill-color, #EF4444) !important;
+          border-color: var(--pill-glow, rgba(239,68,68,0.4)) !important;
+          background: color-mix(in srgb, var(--pill-color, #EF4444) 12%, transparent) !important;
+        }
+        .retry-badge {
+          color: var(--pill-color, #f97316) !important;
+          border-color: var(--pill-glow, rgba(249,115,22,0.4)) !important;
+          background: color-mix(in srgb, var(--pill-color, #f97316) 12%, transparent) !important;
+        }
+        .attempt-dots {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: 4px !important;
+          padding: 0 16px !important;
+          flex-shrink: 0 !important;
+        }
+        .attempt-dot {
+          width: 6px !important;
+          height: 6px !important;
+          border-radius: 50% !important;
+          flex-shrink: 0 !important;
         }
       `;
     doc.head.appendChild(style);
@@ -142,14 +187,19 @@
     </div>
     {#if response}
       <div class="cadb-meta-pills">
-        <div class="cadb-pill">
+        <div
+          class="cadb-pill"
+          class:cadb-pill-duration-fast={response.duration < 300}
+          class:cadb-pill-duration-medium={response.duration >= 300 && response.duration < 1000}
+          class:cadb-pill-duration-slow={response.duration >= 1000}
+          style="--pill-color:{getDurationColor(response.duration)}; --pill-glow:{getDurationGlow(response.duration)};"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="12"
             height="12"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#94a3b8"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -158,14 +208,13 @@
           </svg>
           <span>{response.duration}ms</span>
         </div>
-        <div class="cadb-pill">
+        <div class="cadb-pill" style="--pill-color:{sizeColor}; --pill-glow:{sizeGlow};">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="12"
             height="12"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#94a3b8"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -174,7 +223,33 @@
           </svg>
           <span>{formattedSize}</span>
         </div>
+        {#if retryCount > 0}
+          <div class="cadb-pill retry-badge" style="--pill-color:#f97316; --pill-glow:rgba(249,115,22,0.4);">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path
+                d="M21 13v2a4 4 0 0 1-4 4H3"
+              />
+            </svg>
+            <span>Retry x{retryCount}</span>
+          </div>
+        {/if}
       </div>
+      {#if attempts.length > 1}
+        <div class="attempt-dots">
+          {#each attempts as _, i (i)}
+            <span class="attempt-dot" style="background:{i === attempts.length - 1 ? '#4ade80' : '#f97316'};"></span>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
   {#if response}

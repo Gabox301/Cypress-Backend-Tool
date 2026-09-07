@@ -18,7 +18,7 @@ export default defineConfig({
     }),
     dts({
       insertTypesEntry: true,
-      include: ['src/**/*.ts', 'src/**/*.svelte'],
+      include: ['src/index.ts', 'src/node/tasks.ts'],
     }),
   ],
   build: {

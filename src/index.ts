@@ -76,6 +76,10 @@ declare global {
       dbPassword: string;
     }
   }
+
+  interface Window {
+    __cypress_backend_tool__?: Record<string, { apiCalls: ApiCall[]; dbQueries: DbQuery[] }>;
+  }
 }
 
 // ============================================
@@ -90,6 +94,7 @@ interface ApiRequestOptions {
   auth?: { username: string; password: string };
   failOnStatusCode?: boolean;
   expect?: unknown;
+  retry?: { retries: number; delay: number };
 }
 
 /** Forma devuelta por cy.task('db:getConfig') */
@@ -180,12 +185,6 @@ function scrollToEntry(doc: Document, id: string) {
 // para los tests que leen esto directamente (p. ej. aserciones personalizadas sobre
 // el historial crudo de llamadas/consultas); la UI del plugin ya no depende de él,
 // lee los stores compartidos apiCalls/dbQueries en su lugar.
-declare global {
-  interface Window {
-    __cypress_backend_tool__?: Record<string, { apiCalls: ApiCall[]; dbQueries: DbQuery[] }>;
-  }
-}
-
 function getTestStore() {
   const testId = cy.state('runnable')?.id || 'unknown';
   const win = cy.state('window') as Window;
@@ -254,13 +253,14 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
     typeof urlOrOptions === 'string'
       ? { url: urlOrOptions, method: maybeOptions?.method || 'GET', ...maybeOptions }
       : urlOrOptions;
-  const startTime = Date.now();
   const callId = crypto.randomUUID();
-  // Reserva placeholder EN ORDEN DE LLAMADA antes de cy.request para preservar
-  // orden visual = orden de llamada (no orden de finalización). Si query local
-  // (~50ms) termina antes que http remoto (~200ms), sin reserva query aparecería
-  // arriba de http; con placeholder el div vacío se inserta ya en posición correcta
-  // y mountEntry lo reutiliza al completar.
+  const retry = options.retry;
+  const maxAttempts = (retry?.retries ?? 0) + 1;
+  const attemptDelay = retry?.delay ?? 0;
+  const attempts: ApiResponse[] = [];
+
+  // Reserve placeholder EN ORDEN DE LLAMADA before cy.request to preserve
+  // orden visual = orden de llamada (no orden de finalización).
   try {
     const winEarly = cy.state('window') as Window | undefined;
     const docEarly = winEarly?.document;
@@ -273,20 +273,54 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
   } catch (e) {
     logDebug('reserveEntry http early failed', e);
   }
-  // log: false — suprime la entrada de log "request" INTERNA de Cypress. Ese
-  // log interno toma un snapshot automático del AUT en el momento de creación,
-  // que para specs solo-API es la página en blanco "Default blank page" de Cypress
-  // (aún sin contenedor del plugin).
-  return cy.request({ ...options, log: false } as unknown as Record<string, unknown>).then((cyResponse) => {
-    const response: ApiResponse = {
-      status: cyResponse.status,
-      statusText: cyResponse.statusText || '',
-      headers: (cyResponse.headers || {}) as Record<string, string>,
-      body: cyResponse.body,
-      duration: Date.now() - startTime,
-      size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
-      cookies: (cyResponse as { cookies?: ApiResponse['cookies'] }).cookies || [],
-    };
+
+  function doRequest(attemptNumber: number): Cypress.Chainable<ApiResponse> {
+    const attemptStart = Date.now();
+
+    return (
+      cy.request({ ...options, log: false, failOnStatusCode: false } as unknown as Record<
+        string,
+        unknown
+      >) as unknown as Cypress.Chainable<{
+        status: number;
+        statusText: string;
+        headers: Record<string, string>;
+        body: unknown;
+        cookies?: ApiResponse['cookies'];
+      }>
+    ).then((cyResponse) => {
+      const response: ApiResponse = {
+        status: cyResponse.status,
+        statusText: cyResponse.statusText || '',
+        headers: (cyResponse.headers || {}) as Record<string, string>,
+        body: cyResponse.body,
+        duration: Date.now() - attemptStart,
+        size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
+        cookies: cyResponse.cookies || [],
+      };
+      attempts.push(response);
+
+      const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
+
+      if (options.failOnStatusCode !== false && !isSuccess) {
+        throw new Error(`cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`);
+      }
+
+      if (isSuccess) {
+        return response as unknown as Cypress.Chainable<ApiResponse>;
+      }
+
+      if (attemptNumber < maxAttempts) {
+        return cy
+          .wait(attemptDelay)
+          .then(() => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>);
+      }
+
+      return response as unknown as Cypress.Chainable<ApiResponse>;
+    }) as unknown as Cypress.Chainable<ApiResponse>;
+  }
+
+  return doRequest(1).then((finalResponse: ApiResponse) => {
     const call: ApiCall = {
       id: callId,
       request: {
@@ -299,28 +333,21 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
         expect: options.expect,
       },
       expect: options.expect,
-      response,
+      response: finalResponse,
       timestamp: Date.now(),
     };
+    if (retry) {
+      (call.response as ApiResponse & { attempts: ApiResponse[]; retryCount: number }).attempts = attempts;
+      (call.response as ApiResponse & { attempts: ApiResponse[]; retryCount: number }).retryCount = attempts.length - 1;
+    }
     addApiCall(call);
     getTestStore().apiCalls.push(call);
-    // Crea el log AQUÍ — DESPUÉS de que cy.request haya resuelto. Crear el log
-    // al INICIO del comando (antes de cy.request) permitía que la maquinaria interna
-    // de comandos de Cypress inyectara un snapshot SIN NOMBRE del AUT previo al
-    // montaje en nuestro log; al pasar el cursor sobre el Command Log se restauraba
-    // ese primer snapshot (vacío) y el viewport del runner quedaba en blanco. Desde
-    // el callback de .then ya no ocurre ningún pase de comando anidado, por lo que el
-    // ÚNICO snapshot es el explícito 'response' tomado después de montar la entrada
-    // (verificado interactivamente: snapshots === ['response'], sin entradas vacías).
-    // El log sigue apareciendo en el Command Log exactamente igual que el plugin de
-    // referencia (cypress-plugin-api). snapshot: false — tomamos el .snapshot('response')
-    // explícito nosotros mismos; autoEnd: false — llamamos .end() explícitamente después.
     const log = Cypress.log({
       name: options.method,
       autoEnd: false,
       message: `${options.method} ${options.url}`,
       snapshot: false,
-      consoleProps: () => ({ request: options, response }),
+      consoleProps: () => ({ request: options, response: finalResponse }),
     } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
     return showApiUi(call, log);
   });

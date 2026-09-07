@@ -17,6 +17,7 @@ export interface ApiRequestOptions extends ApiRequest {
   encoding?: string;
   timeout?: number;
   expect?: unknown;
+  retry?: { retries: number; delay: number };
 }
 
 export interface ApiResponse {
@@ -35,6 +36,8 @@ export interface ApiResponse {
     httpOnly?: boolean;
     secure?: boolean;
   }>;
+  attempts?: ApiResponse[];
+  retryCount?: number;
 }
 
 export interface CypressApiPluginConfig {
