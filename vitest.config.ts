@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    pool: 'vmThreads',
     globals: true,
     testTimeout: 15000,
     hookTimeout: 30000,

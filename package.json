@@ -59,11 +59,11 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/svelte": "^5.4.2",
     "@testing-library/user-event": "^14.6.7",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.0",
     "@types/pg": "^8.23.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "cypress": "^16.0.0",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "eslint-plugin-svelte": "^3.23.0",
     "globals": "^17.12.0",
     "jsdom": "^30.0.1",
@@ -73,7 +73,7 @@
     "typescript-eslint": "^8.69.0",
     "vite": "^8.2.2",
     "vite-plugin-dts": "^5.1.0",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "peerDependencies": {
     "cypress": ">=15.10.0"
