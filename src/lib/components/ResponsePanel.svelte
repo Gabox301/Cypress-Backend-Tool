@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ApiResponse } from '$lib/types';
+  import { redactApiResponse } from '$lib/utils/redaction';
   import { formatSize, getDurationColor, getDurationGlow, getSizeColor, getSizeGlow } from '$lib/utils/format';
   import CodeBlock from './CodeBlock.svelte';
   import Icon from './Icon.svelte';
@@ -8,9 +9,18 @@
     response: ApiResponse | null;
     expect?: unknown;
     snapshotOnly?: boolean;
+    hideCredentials?: boolean;
+    hideCredentialsOptions?: { headers: boolean; auth: boolean; body: boolean; query: boolean };
   }
 
-  let { response = null, expect = undefined, snapshotOnly: _snapshotOnly = false }: Props = $props();
+  let {
+    response: rawResponse = null,
+    expect = undefined,
+    snapshotOnly: _snapshotOnly = false,
+    hideCredentials = true,
+    hideCredentialsOptions = { headers: true, auth: true, body: true, query: true },
+  }: Props = $props();
+  let response = $derived.by(() => redactApiResponse(rawResponse, { hideCredentials, hideCredentialsOptions }));
   let selectedTab = $state<'body' | 'headers' | 'cookies'>('body');
   let panelElement: HTMLDivElement;
 
@@ -40,13 +50,14 @@
 
   const statusMatches = $derived(expectedStatus !== undefined && response ? response.status === expectedStatus : null);
 
-  function getHeaderStatus(key: string, value: unknown): 'match' | 'mismatch' | null {
-    if (!expectedHeaders) return null;
+  function getHeaderStatus(key: string): 'match' | 'mismatch' | null {
+    if (!expectedHeaders || !rawResponse) return null;
     const lowerKey = key.toLowerCase();
     const expKey = Object.keys(expectedHeaders).find((k) => k.toLowerCase() === lowerKey);
-    if (!expKey) return null;
+    const rawKey = Object.keys(rawResponse.headers).find((k) => k.toLowerCase() === lowerKey);
+    if (!expKey || !rawKey) return null;
     const expVal = expectedHeaders[expKey];
-    return String(expVal) === String(value) ? 'match' : 'mismatch';
+    return String(expVal) === String(rawResponse.headers[rawKey]) ? 'match' : 'mismatch';
   }
 
   const statusConfig = $derived.by(() => {
@@ -264,11 +275,16 @@
     </div>
     <div class="content-area">
       {#if selectedTab === 'body'}
-        <CodeBlock data={response.body} expected={expectedBody} format="json" />
+        <CodeBlock
+          data={response.body}
+          comparisonData={rawResponse?.body}
+          expected={expectedBody}
+          format="json"
+        />
       {:else if selectedTab === 'headers'}
         <div class="headers-list">
           {#each Object.entries(response.headers) as [key, value] (key)}
-            {@const headerStatus = getHeaderStatus(key, value)}
+            {@const headerStatus = getHeaderStatus(key)}
             <div
               class="header-row"
               class:header-match={headerStatus === 'match'}

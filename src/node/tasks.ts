@@ -43,46 +43,66 @@ export interface DbTaskOptions {
 // setupDatabaseTasks
 // ============================================
 /**
- * Registra las tareas de Cypress `{prefix}db:getConfig` y `{prefix}db:query`
- * usando un `pg.Pool(max: 1)` persistente.
+ * Registers Cypress `{prefix}db:getConfig` and `{prefix}db:query` tasks
+ * using a persistent `pg.Pool(max: 1)`.
  *
- * Resolución de variables de entorno (mayor prioridad primero):
- *   1. `{envPrefix}{KEY}` (valor por defecto: `CYPRESS_DB_*`)
+ * Pool connection values are resolved in this order (highest priority first):
+ *   1. `{envPrefix}{KEY}` (default: `CYPRESS_DB_*`)
  *   2. `DB_{KEY}`
  *   3. `options.defaults`
- *   4. Sin valores hardcodeados — todo debe venir por variables de entorno o defaults explícitos
+ *   4. No hardcoded Pool endpoint or credential values; missing values remain empty
+ *      (PORT becomes `NaN`). Pool timeouts default to 2000 ms.
  *
- * Para SSL (genérico, configurable por el consumidor):
- *   - `CYPRESS_DB_SSL` / `DB_SSL` como string `"true"` => `{ rejectUnauthorized: false }`
- *     (`"false"` desactiva SSL, JSON como `'{"rejectUnauthorized":false}'` se parsea).
- *   - O `options.defaults.ssl` como `boolean | object`.
- *   No hay chequeos hardcodeados de `host.includes('neon.tech')` / `supabase`.
+ * For backward compatibility, `db:query` applies Node-side fallbacks when explicit
+ * overrides and resolved environment/default values are missing or empty: `localhost`,
+ * `5432`, `test_db`, `postgres`, and an empty password. These are query-time compatibility
+ * values, not Pool defaults, and `db:getConfig` does not return them.
  *
- * @param on - Cypress PluginEvents de setupNodeEvents
- * @param options - Configuración opcional
+ * SSL is consumer-configurable:
+ *   - `CYPRESS_DB_SSL` / `DB_SSL` as the string `"true"` => `{ rejectUnauthorized: false }`
+ *     (`"false"` disables SSL; JSON such as `'{"rejectUnauthorized":false}'` is parsed).
+ *   - Or `options.defaults.ssl` as a `boolean | object`.
+ *   No hardcoded host checks such as `host.includes('neon.tech')` or `supabase` are used.
+ *
+ * @param on - Cypress PluginEvents from setupNodeEvents
+ * @param options - Optional configuration
  *
  * @example
  * ```ts
  * // cypress.config.ts
+ * import { defineConfig } from 'cypress';
  * import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
  *
  * export default defineConfig({
  *   e2e: {
- *     setupNodeEvents(on) {
- *       setupDatabaseTasks(on);
- *       // Con SSL para Neon:
- *       // setupDatabaseTasks(on, { defaults: { ssl: { rejectUnauthorized: false } } });
- *       // O vía .env: CYPRESS_DB_SSL=true
+ *     setupNodeEvents(on, config) {
+ *       const dbTaskMetadata = setupDatabaseTasks(on, {
+ *         // defaultPrefix: 'myapp_',
+ *         // defaults: { ssl: { rejectUnauthorized: false } },
+ *       });
+ *       return {
+ *         ...config,
+ *         expose: {
+ *           ...config.expose,
+ *           ...dbTaskMetadata,
+ *         },
+ *       };
  *     },
  *   },
  * });
  * ```
  */
-export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOptions): void {
+export function setupDatabaseTasks(
+  on: Cypress.PluginEvents,
+  options?: DbTaskOptions,
+): { dbTaskPrefix: string } {
   const prefix = options?.defaultPrefix ?? '';
   const envPrefix = options?.envPrefix ?? 'CYPRESS_DB_';
-  const readEnv = (key: string): string => {
-    const fromDefaults = options?.defaults?.[key.toLowerCase() as keyof DbTaskConfig];
+  const readEnv = (
+    key: string,
+    defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig,
+  ): string => {
+    const fromDefaults = options?.defaults?.[defaultKey];
     return (
       process.env[envPrefix + key] ??
       process.env['DB_' + key] ??
@@ -126,7 +146,7 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
     max: 1,
     host: defaultHost,
     port: parseInt(readEnv('PORT'), 10),
-    database: readEnv('NAME'),
+    database: readEnv('NAME', 'database'),
     user: readEnv('USER'),
     password: readEnv('PASSWORD'),
     connectionTimeoutMillis: options?.defaults?.connectionTimeoutMillis ?? 2000,
@@ -134,63 +154,73 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
     ...(sslValue !== undefined ? { ssl: sslValue } : {}),
   });
   on('task', {
-    [`${prefix}db:getConfig`]: (): DbTaskConfig => ({
+    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, 'host' | 'port' | 'database'> => ({
       host: readEnv('HOST'),
       port: parseInt(readEnv('PORT'), 10),
-      database: readEnv('NAME'),
-      user: readEnv('USER'),
-      password: readEnv('PASSWORD'),
+      database: readEnv('NAME', 'database'),
     }),
     [`${prefix}db:query`]: async (args: {
       query: string;
-      host: string;
-      port: number;
-      database: string;
-      user: string;
-      password: string;
+      host?: string;
+      port?: number;
+      database?: string;
+      user?: string;
+      password?: string;
       ssl?: boolean | Record<string, unknown>;
       connectionTimeoutMillis?: number;
     }): Promise<DbTaskResult> => {
+      const defaultPort = parseInt(readEnv('PORT'), 10);
+      const host = args.host || readEnv('HOST') || 'localhost';
+      const port = args.port || (Number.isNaN(defaultPort) ? 5432 : defaultPort);
+      const database = args.database || readEnv('NAME', 'database') || 'test_db';
+      const user = args.user || readEnv('USER') || 'postgres';
+      const password = args.password ?? readEnv('PASSWORD');
+      const effectiveSsl = args.ssl ?? readSslEnv();
       const poolOpts = pool.options as unknown as Record<string, unknown>;
-      const argsSsl = (args as { ssl?: boolean | Record<string, unknown> }).ssl;
       const poolSsl = poolOpts['ssl'] as unknown;
 
       // Comparar ssl vía JSON stringify para detectar diferencias de config (undefined vs false vs object)
       const sslMismatch =
-        argsSsl !== undefined || poolSsl !== undefined ? JSON.stringify(argsSsl) !== JSON.stringify(poolSsl) : false;
+        effectiveSsl !== undefined || poolSsl !== undefined
+          ? JSON.stringify(effectiveSsl) !== JSON.stringify(poolSsl)
+          : false;
 
       if (
-        args.host !== poolOpts.host ||
-        args.port !== poolOpts.port ||
-        args.database !== poolOpts.database ||
-        args.user !== poolOpts.user ||
-        args.password !== poolOpts.password ||
+        host !== poolOpts.host ||
+        port !== poolOpts.port ||
+        database !== poolOpts.database ||
+        user !== poolOpts.user ||
+        password !== poolOpts.password ||
         sslMismatch
       ) {
-        const effectiveSsl = argsSsl ?? readSslEnv();
         const client = new pg.Client({
-          host: args.host,
-          port: args.port,
-          database: args.database,
-          user: args.user,
-          password: args.password,
+          host,
+          port,
+          database,
+          user,
+          password,
           connectionTimeoutMillis:
             (args as { connectionTimeoutMillis?: number }).connectionTimeoutMillis ??
             options?.defaults?.connectionTimeoutMillis ??
             2000,
           ...(effectiveSsl !== undefined ? { ssl: effectiveSsl as never } : {}),
         });
-        await client.connect();
-        const result = await client.query(args.query);
         try {
-          await client.end();
-        } catch (_e) {
-          void _e;
+          await client.connect();
+          const result = await client.query(args.query);
+          return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+        } finally {
+          try {
+            await client.end();
+          } catch (_e) {
+            void _e;
+          }
         }
-        return { rows: result.rows, rowCount: result.rowCount ?? 0 };
       }
       const result = await pool.query(args.query);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
   });
+
+  return { dbTaskPrefix: prefix };
 }

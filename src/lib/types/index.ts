@@ -92,6 +92,8 @@ export interface DbQuery {
   connectionId: string;
   query: string;
   result: unknown[] | null;
+  /** PostgreSQL affected-row count (pg rowCount). May differ from result.length for DML without RETURNING. */
+  rowCount?: number;
   error?: string;
   duration: number;
   timestamp: number;

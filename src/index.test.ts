@@ -68,7 +68,6 @@ beforeEach(() => {
   cypressExposeMock.mockImplementation((key: string) => {
     if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
     if (key === 'snapshotOnly') return false;
-    if (key === 'hideCredentials') return false;
     if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
     if (key === 'requestMode') return 'auto';
     return undefined;
@@ -361,5 +360,159 @@ describe('manejo de cuerpo de respuesta vacío', () => {
     // Assert: size debería ser JSON.stringify(body).length = 22
     expect(result).toBeDefined();
     expect(result.size).toBe(22);
+  });
+});
+
+describe('query task prefix', () => {
+  it('uses the task prefix exposed by Cypress for both database tasks', async () => {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key === 'dbTaskPrefix') return 'myapp_';
+      if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
+      if (key === 'snapshotOnly') return false;
+      if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
+      if (key === 'requestMode') return 'auto';
+      return undefined;
+    });
+
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'myapp_db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'myapp_db:query') {
+        return Promise.resolve({ rows: [{ value: 1 }], rowCount: 1 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const queryHandler = capturedCommands['query'] as (query: string) => Promise<unknown>;
+    await queryHandler('SELECT 1');
+
+    expect(task.mock.calls.map(([taskName]) => taskName)).toEqual(['myapp_db:getConfig', 'myapp_db:query']);
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1' });
+  });
+
+  it('keeps default credentials out of query task arguments and redacts query logs by default', async () => {
+    const query = "SELECT 'sql-secret' AS token";
+    const rows = [{ token: 'database-result-secret' }];
+    const task = vi.fn(
+      (taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve({ rows, rowCount: rows.length });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+      },
+    );
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const queryHandler = capturedCommands['query'] as (query: string) => Promise<{ rows: unknown[] }>;
+    const result = await queryHandler(query);
+    const log = (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+    const logOptions = log.mock.calls[0]?.[0] as { message: string; consoleProps: () => unknown };
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query });
+    expect(task.mock.calls[1]?.[2]).toEqual({ log: false });
+    expect(logOptions.message).not.toContain('sql-secret');
+    expect(JSON.stringify(logOptions.consoleProps())).not.toContain('sql-secret');
+    expect(JSON.stringify(logOptions.consoleProps())).not.toContain('database-result-secret');
+    expect(result.rows).toEqual(rows);
+  });
+
+  it('preserves explicit per-query connection overrides', async () => {
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const queryHandler = capturedCommands['query'] as (query: string, options: unknown) => Promise<unknown>;
+    await queryHandler('SELECT 1', connectionOptions);
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
+    expect(task.mock.calls[1]?.[2]).toEqual({ log: false });
+  });
+});
+
+describe('query rowCount history (QPH-04)', () => {
+  it('stores the PostgreSQL affected rowCount in the DbQuery history entry', async () => {
+    const stores = await import('./lib/stores.svelte');
+    stores.clearDbQueries();
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve({ rows: [], rowCount: 3 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const queryHandler = capturedCommands['query'] as (query: string) => Promise<unknown>;
+    await queryHandler('DELETE FROM users WHERE active = false');
+
+    expect(stores.dbQueries).toHaveLength(1);
+    const entry = stores.dbQueries[0] as unknown as Record<string, unknown>;
+    expect(entry.result).toEqual([]);
+    expect(entry.rowCount).toBe(3);
+  });
+});
+
+describe('HTTP log redaction', () => {
+  it('redacts request and response log output by default without changing returned data', async () => {
+    const secrets = [
+      'url-password',
+      'url-secret',
+      'fragment-secret',
+      'header-secret',
+      'request-body-secret',
+      'query-secret',
+      'basic-password',
+      'response-header-secret',
+      'response-body-secret',
+      'cookie-secret',
+    ];
+    const response = {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'X-Response-Key': 'response-header-secret' },
+      body: { accessToken: 'response-body-secret' },
+      cookies: [{ name: 'session', value: 'cookie-secret', domain: 'example.test', path: '/' }],
+    };
+    const request = {
+      url: 'https://url-user:url-password@example.test/users?token=url-secret#access_token=fragment-secret',
+      method: 'POST',
+      headers: { Authorization: 'Bearer header-secret' },
+      body: { password: 'request-body-secret' },
+      qs: { apiKey: 'query-secret' },
+      auth: { username: 'basic-user', password: 'basic-password' },
+    };
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue(response);
+
+    const httpHandler = capturedCommands['http'] as (options: unknown) => Promise<Record<string, unknown>>;
+    const result = await httpHandler(request);
+    const log = (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+    const logOptions = log.mock.calls[0]?.[0] as { message: string; consoleProps: () => unknown };
+    const logOutput = `${logOptions.message} ${JSON.stringify(logOptions.consoleProps())}`;
+
+    for (const secret of secrets) {
+      expect(logOutput).not.toContain(secret);
+    }
+    expect(result.body).toEqual(response.body);
   });
 });

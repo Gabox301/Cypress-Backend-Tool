@@ -10,11 +10,29 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     rows: [] as unknown[],
     database: 'neondb',
     tables: [] as string[],
+    hideCredentials: false,
+    hideCredentialsOptions: { headers: false, auth: false, body: false, query: false },
     ...overrides,
   };
 }
 
 describe('QueryPanel — renderizado', () => {
+  it('redacts SQL text and result values by default', () => {
+    const { container } = render(QueryPanel, {
+      props: {
+        query: "SELECT 'sql-secret' AS token",
+        rowCount: 1,
+        duration: 5,
+        rows: [{ token: 'result-secret' }],
+        database: 'neondb',
+        tables: [],
+      },
+    });
+
+    expect(container.textContent).not.toContain('sql-secret');
+    expect(container.textContent).not.toContain('result-secret');
+  });
+
   it('renderiza el texto de la consulta y los metadatos', () => {
     render(QueryPanel, {
       props: makeProps({ query: 'SELECT 1', duration: 10, rowCount: 0 }),
@@ -173,5 +191,32 @@ describe('QueryPanel — badges UI-RENDER-05/06/07', () => {
     });
     const badge = container.querySelector('.badge-table') as HTMLElement;
     expect(badge.title).toBe('Table: users');
+  });
+});
+
+describe('QueryPanel — affected vs returned rows (QPH-04)', () => {
+  it('shows returned rows distinctly when the affected count differs', () => {
+    render(QueryPanel, {
+      props: makeProps({
+        query: 'UPDATE users SET active = true',
+        rows: [{ id: 1 }, { id: 2 }],
+        rowCount: 5,
+      }),
+    });
+    expect(screen.getByText('2 rows')).toBeInTheDocument();
+    expect(screen.getByText('5 affected')).toBeInTheDocument();
+  });
+
+  it('shows affected rows for DML without RETURNING', () => {
+    render(QueryPanel, {
+      props: makeProps({
+        query: 'DELETE FROM users WHERE active = false',
+        rows: [],
+        rowCount: 3,
+      }),
+    });
+    expect(screen.getByText('0 rows')).toBeInTheDocument();
+    expect(screen.getByText('(no rows returned)')).toBeInTheDocument();
+    expect(screen.getByText('3 affected')).toBeInTheDocument();
   });
 });

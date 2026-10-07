@@ -19,9 +19,9 @@ Cypress plugin for HTTP API testing and PostgreSQL database queries with an inte
 ## Features
 
 - **Persistent UI**: Each request/query has its own permanent DOM entry. Cypress snapshots are stable across `it()` blocks — you will never see a blank panel when inspecting a previous call.
-- **PostgreSQL support**: Run SQL queries directly from Cypress without exposing credentials to the browser.
-- **Credential sanitization**: Automatically hides sensitive data (passwords, tokens, API keys) in the UI.
-- **DB credential isolation**: Database credentials live exclusively in the Cypress Node process via `cy.task()`. They never enter the browser.
+- **PostgreSQL support**: Run SQL queries directly from Cypress without exposing default credentials to the browser.
+- **Credential redaction**: Masks sensitive request and response values in the UI, Cypress logs, and generated cURL by default; redaction can be explicitly disabled.
+- **DB credential isolation**: Default database credentials stay in the Cypress Node process; explicit per-query connection overrides remain supported.
 - **Modern API**: Uses Cypress `Cypress.expose()` and `cy.env()` APIs from Cypress 15.10.0+
 - **Automatic coloring via `expect()`**: Each `expect()` over `response.status`, `response.body`, `response.headers` or nested fields colors the `ResponsePanel`/`CodeBlock` in green (match), red (mismatch) or yellow (nullish). Works with `eq`, `deep.eq`, `have.property` and `not` — no extra configuration.
 - **Colored snapshots**: The `Cypress.log` for `cy.http()`/`cy.query()` saves a second `'assertions'` snapshot after the `expect()` microtask, so hovering the log in the Command Log shows the panel already colored, not just the live DOM.
@@ -71,9 +71,15 @@ dotenv.config(); // loads .env automatically
 
 export default defineConfig({
   e2e: {
-    setupNodeEvents(on) {
-      setupDatabaseTasks(on);
-      // No need to return config unless you modify it
+    setupNodeEvents(on, config) {
+      const dbTaskMetadata = setupDatabaseTasks(on);
+      return {
+        ...config,
+        expose: {
+          ...config.expose,
+          ...dbTaskMetadata,
+        },
+      };
     },
     expose: {
       snapshotOnly: false,
@@ -91,7 +97,13 @@ export default defineConfig({
 });
 ```
 
-Credentials are configured via environment variables (see [Environment variables](#environment-variables)).
+Credentials are configured via environment variables (see [Environment variables](#environment-variables)); the default user and password remain in the Cypress Node process.
+
+`setupDatabaseTasks()` returns `{ dbTaskPrefix }`. Merge this non-secret metadata into the `expose` object returned by `setupNodeEvents`; `cy.query()` reads the same prefix from `Cypress.expose()`. The default prefix is an empty string.
+
+> **Secure default:** request and response values are redacted in the plugin panels, Cypress log text and console properties, and generated cURL output. The cURL command may need credentials restored before replay.
+
+Values returned by `cy.http()` and `cy.query()` remain unchanged for test assertions; redaction applies to plugin-generated output.
 
 > 💡 **HTTP only**: if you only use `cy.http()`, you don't need `setupNodeEvents` — the plugin works with no Node-side configuration.
 
@@ -102,25 +114,32 @@ If you prefer to handle tasks manually:
 ```typescript
 // cypress.config.ts
 import { defineConfig } from 'cypress';
+import pg from 'pg';
 
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
+      const dbDefaults = {
+        host: process.env.CYPRESS_DB_HOST || 'localhost',
+        port: parseInt(process.env.CYPRESS_DB_PORT || '5432', 10),
+        database: process.env.CYPRESS_DB_NAME || 'test_db',
+        user: process.env.CYPRESS_DB_USER || 'postgres',
+        password: process.env.CYPRESS_DB_PASSWORD || '',
+      };
       on('task', {
-        'db:query': async ({ query, host, port, database, user, password }) => {
-          const { Pool } = require('pg');
-          const pool = new Pool({ host, port, database, user, password });
-          const result = await pool.query(query);
-          await pool.end();
-          return { rows: result.rows, rowCount: result.rowCount };
+        'db:query': async ({ query, ...overrides }) => {
+          const client = new pg.Client({ ...dbDefaults, ...overrides });
+          try {
+            await client.connect();
+            const result = await client.query(query);
+            return { rows: result.rows, rowCount: result.rowCount };
+          } finally {
+            // Cleanup runs even when connect/query fails; a cleanup
+            // failure never hides the original error.
+            await client.end().catch(() => {});
+          }
         },
-        'db:getConfig': () => ({
-          host: process.env.CYPRESS_DB_HOST || 'localhost',
-          port: parseInt(process.env.CYPRESS_DB_PORT || '5432', 10),
-          database: process.env.CYPRESS_DB_NAME || 'test_db',
-          user: process.env.CYPRESS_DB_USER || 'postgres',
-          password: process.env.CYPRESS_DB_PASSWORD || '',
-        }),
+        'db:getConfig': () => ({ host: dbDefaults.host, port: dbDefaults.port, database: dbDefaults.database }),
       });
       return config;
     },
@@ -170,56 +189,60 @@ CYPRESS_DB_SSL=true
 
 > For local Postgres without SSL, omit `CYPRESS_DB_SSL` or set `CYPRESS_DB_SSL=false`.
 
-You can also use `cy.env()` from `cypress.config.ts`:
+Do not place database credentials in `e2e.env`, `Cypress.expose()`, or values read by `cy.env()`. Keep defaults in Node-side environment variables or `setupDatabaseTasks({ defaults })`; `db:getConfig` returns only non-secret connection metadata.
+
+### setupDatabaseTasks() — Options
 
 ```typescript
+import { defineConfig } from 'cypress';
+import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
+
 export default defineConfig({
   e2e: {
-    env: {
-      dbHost: 'localhost',
-      dbPort: '5432',
-      dbName: 'my_db',
-      dbUser: 'postgres',
-      dbPassword: 'secret',
+    setupNodeEvents(on, config) {
+      const dbTaskMetadata = setupDatabaseTasks(on, {
+        defaultPrefix: 'myapp_', // tasks → myapp_db:getConfig, myapp_db:query
+        envPrefix: 'MY_DB_', // reads MY_DB_HOST instead of CYPRESS_DB_HOST
+        defaults: {
+          host: 'localhost',
+          port: 5432,
+          database: 'test_db',
+          user: 'postgres',
+          password: '',
+          ssl: { rejectUnauthorized: false }, // or true, or false, or {ca: '...'}
+          connectionTimeoutMillis: 5000,
+          idleTimeoutMillis: 10000,
+        },
+      });
+      return {
+        ...config,
+        expose: {
+          ...config.expose,
+          ...dbTaskMetadata,
+        },
+      };
     },
   },
 });
 ```
 
-### setupDatabaseTasks() — Options
-
-```typescript
-import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
-
-setupDatabaseTasks(on, {
-  defaultPrefix: 'myapp_', // tasks → myapp_db:getConfig, myapp_db:query
-  envPrefix: 'MY_DB_', // reads MY_DB_HOST instead of CYPRESS_DB_HOST
-  defaults: {
-    host: 'localhost',
-    port: 5432,
-    database: 'test_db',
-    user: 'postgres',
-    password: '',
-    ssl: { rejectUnauthorized: false }, // or true, or false, or {ca: '...'}
-    connectionTimeoutMillis: 5000,
-    idleTimeoutMillis: 10000,
-  },
-});
-```
+Always merge the returned `dbTaskPrefix` into `config.expose` when using a custom prefix. This keeps `cy.query()` aligned with the registered task names without adding a per-query prefix option.
 
 | Option                             | Type                | Default         | Description                                                              |
 | ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------------------ |
 | `defaultPrefix`                    | `string`            | `''`            | Prefix for registered task names                                         |
 | `envPrefix`                        | `string`            | `'CYPRESS_DB_'` | Prefix of environment variables to read                                  |
 | `defaults`                         | `object`            | —               | Fallback values when no env vars are set                                 |
-| `defaults.host`                    | `string`            | `'localhost'`   | Database host                                                            |
-| `defaults.port`                    | `number`            | `5432`          | Database port                                                            |
-| `defaults.database`                | `string`            | `'test_db'`     | Database name                                                            |
-| `defaults.user`                    | `string`            | `'postgres'`    | Database user                                                            |
-| `defaults.password`                | `string`            | `''`            | Database password                                                        |
+| `defaults.host`                    | `string`            | —               | Database host                                                            |
+| `defaults.port`                    | `number`            | —               | Database port                                                            |
+| `defaults.database`                | `string`            | —               | Database name                                                            |
+| `defaults.user`                    | `string`            | —               | Database user                                                            |
+| `defaults.password`                | `string`            | —               | Database password                                                        |
 | `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→{rejectUnauthorized:false}, `false`→no SSL, object passed to `pg` |
 | `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Pool/Client connection timeout                                           |
 | `defaults.idleTimeoutMillis`       | `number`            | `2000`          | Pool idle timeout                                                        |
+
+`options.defaults` has no connection values unless configured. For compatibility, when no environment value or per-query override is available, `db:query` uses `localhost`, port `5432`, database `test_db`, user `postgres`, and an empty password inside Node. These are query fallbacks, not Pool defaults; `db:getConfig` returns only configured connection metadata.
 
 > `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"true"`/`"1"`/`"yes"` → `{ rejectUnauthorized: false }`, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object.
 
@@ -300,7 +323,7 @@ cy.http({
 ### cy.query() - PostgreSQL Queries
 
 ```typescript
-// No arguments - uses credentials from .env
+// No explicit options: Node resolves environment values, defaults, or compatibility fallbacks.
 cy.query('SELECT * FROM users LIMIT 10').then((result) => {
   expect(result.rows).to.have.length.greaterThan(0);
   console.log(result.rows);
@@ -329,14 +352,14 @@ export default defineConfig({
     expose: {
       // Collapse UI after execution (useful for clean screenshots)
       snapshotOnly: false,
-      // Enable credential sanitization in the UI
-      hideCredentials: false,
-      // Granular control per section (booleans, not arrays)
+      // Redact sensitive data in the UI, Cypress logs, and cURL by default
+      hideCredentials: true,
+      // Granular control per output section
       hideCredentialsOptions: {
-        headers: true, // Hide Authorization, X-API-Key, etc.
-        auth: true, // Hide passwords in Auth tab
-        body: true, // Hide password, token, secret in body
-        query: true, // Hide sensitive params in query string
+        headers: true, // Request/response headers and cookie values
+        auth: true, // Authentication values and URL user information
+        body: true, // Request/response bodies and query result values
+        query: true, // URL parameters and SQL query text
       },
       // Display mode: 'auto' (show UI on each request) or 'manual'
       requestMode: 'auto',
@@ -352,10 +375,12 @@ export default defineConfig({
 | Option                   | Type                                 | Default    | Description                    |
 | ------------------------ | ------------------------------------ | ---------- | ------------------------------ |
 | `snapshotOnly`           | `boolean`                            | `false`    | Collapse UI after each command |
-| `hideCredentials`        | `boolean`                            | `false`    | Enable credential sanitization |
+| `hideCredentials`        | `boolean`                            | `true`     | Redact sensitive output by default |
 | `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section   |
 | `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`   | Show UI automatically or not   |
 | `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                |
+
+Set `hideCredentials: false` explicitly to show unredacted values. Individual `hideCredentialsOptions` can opt a section out; otherwise all listed values are masked. cURL output is sanitized by default and may need credentials restored before replay.
 
 ### configure() — Programmatic override
 
@@ -366,6 +391,9 @@ import { configure } from 'cypress-backend-tool';
 
 // In setupNodeEvents or beforeEach:
 configure({ snapshotOnly: true });
+
+// Explicitly opt out of redaction for a trusted test run
+configure({ hideCredentials: false });
 
 // configure() values take priority over Cypress.expose()
 configure({
@@ -380,7 +408,7 @@ configure({
 1. `Cypress.expose()` — base values from `cypress.config.ts`
 2. `configure()` — programmatic overrides
 
-`hideCredentialsOptions` does a deep merge: if you only pass `{ headers: false }`, the `auth`, `body`, and `query` options are preserved from `Cypress.expose()`. You don't need to repeat all options.
+`hideCredentialsOptions` does a deep merge: if you only pass `{ headers: false }`, the `auth`, `body`, and `query` options are preserved from `Cypress.expose()`. You don't need to repeat all options. Setting an individual option to `false` reveals that section; `hideCredentials: false` disables redaction globally.
 
 ### Public API table
 
@@ -410,13 +438,13 @@ The `cy.http()` log saves a first `'response'` snapshot after mount and, after t
 
 ## DB Credential Isolation
 
-Database credentials (`dbPassword`, `dbUser`, etc.) **never enter the browser**. The flow is:
+Default database credentials stay in the Cypress Node process. `db:getConfig` returns only the host, port, and database name; `db:query` resolves the default user and password in Node.
 
-1. `cy.query()` calls `cy.task('db:query')` — the query runs IN NODE
-2. Only results (rows) return to the browser to be displayed in the UI
-3. Credentials are configured via `cy.task('db:getConfig')` or `.env`, never via `Cypress.expose()`
+1. `cy.query()` reads safe connection metadata with `cy.task('db:getConfig')`.
+2. It sends the SQL and any explicit `connectionOptions` to `cy.task('db:query')`; defaults are resolved in Node.
+3. Query rows return to Cypress for assertions. The plugin panels and Cypress logs redact query data by default.
 
-This is verified by isolation tests that check `dbPassword` does not exist on `window` nor in `Cypress.expose()`.
+Isolation tests verify that the default user and password are not returned by `db:getConfig` or forwarded in `cy.query()` task arguments. Explicit per-query overrides remain supported.
 
 ### Runtime overrides
 
@@ -428,7 +456,7 @@ beforeEach(() => {
 });
 
 it('specific test', () => {
-  Cypress.expose({ hideCredentials: false }); // Show credentials only here
+  Cypress.expose({ hideCredentials: false }); // Explicitly show unredacted values for this test
   cy.http({ url: '...', method: 'GET' });
 });
 ```

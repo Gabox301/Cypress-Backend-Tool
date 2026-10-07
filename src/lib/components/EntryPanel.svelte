@@ -37,19 +37,27 @@
   <div class="single">
     <QueryPanel
       query={db.query}
-      rowCount={Array.isArray(db.result) ? db.result.length : 0}
+      rowCount={db.rowCount ?? (Array.isArray(db.result) ? db.result.length : 0)}
       duration={db.duration}
       rows={(db.result as unknown[]) ?? []}
       error={db.error}
       {database}
       {tables}
+      {hideCredentials}
+      {hideCredentialsOptions}
     />
   </div>
 {:else}
   {@const api = data as ApiCall}
   <div class="pair">
     <RequestPanel request={api.request} {hideCredentials} {hideCredentialsOptions} />
-    <ResponsePanel response={api.response} expect={api.request?.expect ?? api.expect} {snapshotOnly} />
+    <ResponsePanel
+      response={api.response}
+      expect={api.request?.expect ?? api.expect}
+      {snapshotOnly}
+      {hideCredentials}
+      {hideCredentialsOptions}
+    />
   </div>
 {/if}
 

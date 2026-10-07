@@ -104,6 +104,63 @@ describe('ResponsePanel — formateo de tamaño y estado vacío', () => {
   });
 });
 
+describe('ResponsePanel — secure defaults', () => {
+  it('redacts response body, header, and cookie values by default', () => {
+    const response = makeResponse({
+      headers: { 'X-API-Key': 'header-secret' },
+      body: { accessToken: 'body-secret' },
+      cookies: [{ name: 'session', value: 'cookie-secret', domain: 'example.test', path: '/' }],
+    });
+    const { container } = render(ResponsePanel, { props: { response } });
+
+    expect(container.textContent).not.toContain('body-secret');
+    fireEvent.click(screen.getByText('Headers'));
+    expect(container.textContent).not.toContain('header-secret');
+    fireEvent.click(screen.getByText('Cookies'));
+    expect(container.textContent).not.toContain('cookie-secret');
+  });
+
+  it('shows response values when hideCredentials is explicitly false', () => {
+    const response = makeResponse({
+      headers: { 'X-API-Key': 'visible-header' },
+      body: { accessToken: 'visible-body' },
+      cookies: [{ name: 'session', value: 'visible-cookie' }],
+    });
+    const { container } = render(ResponsePanel, { props: { response, hideCredentials: false } });
+
+    expect(container.textContent).toContain('visible-body');
+    fireEvent.click(screen.getByText('Headers'));
+    expect(container.textContent).toContain('visible-header');
+    fireEvent.click(screen.getByText('Cookies'));
+    expect(container.textContent).toContain('visible-cookie');
+  });
+
+  it('matches expectations against raw response data while rendering redacted values', () => {
+    const response = makeResponse({
+      headers: { 'X-API-Key': 'header-secret' },
+      body: { accessToken: 'body-secret' },
+    });
+    const { container } = render(ResponsePanel, {
+      props: {
+        response,
+        expect: {
+          body: { accessToken: 'body-secret' },
+          headers: { 'X-API-Key': 'header-secret' },
+        },
+      },
+    });
+
+    expect(container.textContent).not.toContain('body-secret');
+    expect(container.querySelector('.line-match')).not.toBeNull();
+    expect(container.querySelector('.line-mismatch')).toBeNull();
+
+    fireEvent.click(screen.getByText('Headers'));
+    expect(container.textContent).not.toContain('header-secret');
+    expect(container.querySelector('.header-match')).not.toBeNull();
+    expect(container.querySelector('.header-mismatch')).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Interacción de pestañas (Headers, Cookies)
 // ---------------------------------------------------------------------------
@@ -112,7 +169,7 @@ describe('ResponsePanel — interacción de pestañas', () => {
     const response = makeResponse({
       headers: { 'Content-Type': 'application/json', 'X-Custom': 'test-value' },
     });
-    render(ResponsePanel, { props: { response } });
+    render(ResponsePanel, { props: { response, hideCredentials: false } });
     fireEvent.click(screen.getByText('Headers'));
     expect(screen.getByText('Content-Type')).toBeInTheDocument();
     expect(screen.getByText('application/json')).toBeInTheDocument();
@@ -127,7 +184,7 @@ describe('ResponsePanel — interacción de pestañas', () => {
         { name: 'theme', value: 'dark', domain: undefined, path: undefined },
       ],
     });
-    render(ResponsePanel, { props: { response } });
+    render(ResponsePanel, { props: { response, hideCredentials: false } });
     fireEvent.click(screen.getByText('Cookies'));
     expect(screen.getByText('session')).toBeInTheDocument();
     expect(screen.getByText('abc123')).toBeInTheDocument();
@@ -177,6 +234,7 @@ describe('ResponsePanel — soporte de expectativas', () => {
     render(ResponsePanel, {
       props: {
         response,
+        hideCredentials: false,
         expect: {
           body: { name: 'Alice', role: 'guest' },
         },
@@ -197,6 +255,7 @@ describe('ResponsePanel — soporte de expectativas', () => {
     render(ResponsePanel, {
       props: {
         response,
+        hideCredentials: false,
         expect: {
           headers: {
             'content-type': 'application/json',

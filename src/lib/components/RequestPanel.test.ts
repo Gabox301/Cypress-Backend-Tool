@@ -51,6 +51,43 @@ describe('RequestPanel — renderizado básico', () => {
   });
 });
 
+describe('RequestPanel — redaction under existing flag', () => {
+  it('redacts URL credentials, request data, and cURL output when hideCredentials is true', async () => {
+    const user = userEvent.setup();
+    const request = makeRequest({
+      url: 'https://url-user:url-password@example.test/users?token=url-secret#access_token=fragment-secret',
+      headers: { Authorization: 'Bearer header-secret' },
+      body: { password: 'body-secret' },
+      qs: { apiKey: 'query-secret' },
+    });
+    const { container } = render(RequestPanel, { props: { request, hideCredentials: true } });
+
+    const visibleText = container.textContent ?? '';
+    for (const secret of ['url-password', 'url-secret', 'fragment-secret', 'body-secret']) {
+      expect(visibleText).not.toContain(secret);
+    }
+
+    await user.click(screen.getByText('Query'));
+    expect(container.textContent).not.toContain('query-secret');
+    await user.click(screen.getByText('cURL'));
+    const curlText = container.querySelector('.code-content')?.textContent ?? '';
+    const copiedText = container.querySelector<HTMLButtonElement>('[data-copy]')?.dataset.copyText ?? '';
+
+    for (const secret of [
+      'url-user:url-password',
+      'url-secret',
+      'fragment-secret',
+      'header-secret',
+      'body-secret',
+      'query-secret',
+    ]) {
+      expect(curlText).not.toContain(secret);
+      expect(copiedText).not.toContain(secret);
+    }
+    expect(curlText).toContain('***');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Enmascarado con hideCredentials activado
 // ---------------------------------------------------------------------------

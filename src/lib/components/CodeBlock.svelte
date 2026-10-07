@@ -4,11 +4,12 @@
 
   interface Props {
     data?: unknown;
+    comparisonData?: unknown;
     expected?: unknown;
     format?: string;
   }
 
-  let { data = null, expected = undefined, format = 'json' }: Props = $props();
+  let { data = null, comparisonData = undefined, expected = undefined, format = 'json' }: Props = $props();
   let copied = $state(false);
   let copyFailed = $state(false);
 
@@ -23,12 +24,13 @@
   });
 
   let lines = $derived(formattedData.split('\n'));
+  let rawComparisonData = $derived(comparisonData === undefined ? data : comparisonData);
 
   let expectResult = $derived.by(() => {
     if (format !== 'json' || expected === undefined) {
       return { statuses: [], summary: { match: 0, mismatch: 0, nullish: 0 } };
     }
-    return computeJsonLineStatuses(formattedData, data, expected);
+    return computeJsonLineStatuses(formattedData, rawComparisonData, expected);
   });
 
   let lineStatuses = $derived(expectResult.statuses);

@@ -5,14 +5,18 @@ import type { CypressApiPluginConfig } from '$lib/types';
  * Función pura — testeable sin el global de Cypress.
  */
 export function getPluginConfig(read: (key: string) => unknown): CypressApiPluginConfig {
+  const hideCredentialsOptions =
+    (read('hideCredentialsOptions') as Partial<CypressApiPluginConfig['hideCredentialsOptions']> | null | undefined) ??
+    {};
   return {
     snapshotOnly: (read('snapshotOnly') as boolean) ?? false,
-    hideCredentials: (read('hideCredentials') as boolean) ?? false,
-    hideCredentialsOptions: (read('hideCredentialsOptions') as CypressApiPluginConfig['hideCredentialsOptions']) ?? {
+    hideCredentials: (read('hideCredentials') as boolean) ?? true,
+    hideCredentialsOptions: {
       headers: true,
       auth: true,
       body: true,
       query: true,
+      ...hideCredentialsOptions,
     },
     requestMode: ((read('requestMode') as string) ?? 'auto') as 'auto' | 'manual',
     CYPRESS_PLUGIN_DEBUG: (read('CYPRESS_PLUGIN_DEBUG') as boolean) ?? false,
