@@ -129,10 +129,15 @@ export default defineConfig({
       on('task', {
         'db:query': async ({ query, ...overrides }) => {
           const client = new pg.Client({ ...dbDefaults, ...overrides });
-          await client.connect();
-          const result = await client.query(query);
-          await client.end();
-          return { rows: result.rows, rowCount: result.rowCount };
+          try {
+            await client.connect();
+            const result = await client.query(query);
+            return { rows: result.rows, rowCount: result.rowCount };
+          } finally {
+            // Cleanup runs even when connect/query fails; a cleanup
+            // failure never hides the original error.
+            await client.end().catch(() => {});
+          }
         },
         'db:getConfig': () => ({ host: dbDefaults.host, port: dbDefaults.port, database: dbDefaults.database }),
       });

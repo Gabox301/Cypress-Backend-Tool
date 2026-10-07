@@ -281,6 +281,27 @@ describe('setupDatabaseTasks', () => {
     expect(result).toEqual({ rows: [{ val: 'override' }], rowCount: 1 });
   });
 
+  it('closes the temporary client when the query fails without hiding the original error', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'pool-host');
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    mockClientQuery.mockRejectedValue(new Error('query failed'));
+
+    const queryHandler = getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>;
+    await expect(
+      queryHandler({
+        query: 'SELECT 1',
+        host: 'some-other-host',
+        port: 5432,
+        database: 'test_db',
+        user: 'postgres',
+        password: 'override_password',
+      }),
+    ).rejects.toThrow('query failed');
+    expect(mockClientEnd).toHaveBeenCalledOnce();
+    expect(mockPoolQuery).not.toHaveBeenCalled();
+  });
+
   // -----------------------------------------------------------------------
   // Options con valores por defecto
   // -----------------------------------------------------------------------

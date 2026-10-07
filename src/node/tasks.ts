@@ -205,14 +205,17 @@ export function setupDatabaseTasks(
             2000,
           ...(effectiveSsl !== undefined ? { ssl: effectiveSsl as never } : {}),
         });
-        await client.connect();
-        const result = await client.query(args.query);
         try {
-          await client.end();
-        } catch (_e) {
-          void _e;
+          await client.connect();
+          const result = await client.query(args.query);
+          return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+        } finally {
+          try {
+            await client.end();
+          } catch (_e) {
+            void _e;
+          }
         }
-        return { rows: result.rows, rowCount: result.rowCount ?? 0 };
       }
       const result = await pool.query(args.query);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
