@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ApiRequest } from '$lib/types';
+  import { redactApiRequest } from '$lib/utils/redaction';
   import CodeBlock from './CodeBlock.svelte';
   import Icon from './Icon.svelte';
   import TitlePanel from './TitlePanel.svelte';
@@ -24,51 +25,15 @@
   }: Props = $props();
   let internalTab = $state<string>('body');
   let selectedTab = $derived(controlledTab ?? internalTab);
-  let method = $derived(request?.method || 'GET');
-  let url = $derived(request?.url || '');
-  // Enmascarado de credenciales — deja en blanco todos los valores de las pestañas enmascaradas
-  function maskObject(obj: Record<string, unknown>): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const key of Object.keys(obj)) {
-      result[key] = '***';
-    }
-    return result;
-  }
-  function deepMask(val: unknown): unknown {
-    if (val === null || val === undefined) return val;
-    if (typeof val === 'object' && !Array.isArray(val)) {
-      return maskObject(val as Record<string, unknown>);
-    }
-    return '***';
-  }
-  let maskedHeaders = $derived.by(() => {
-    if (!request?.headers) return undefined;
-    if (hideCredentials && hideCredentialsOptions.headers) {
-      return maskObject(request.headers);
-    }
-    return request.headers;
-  });
-  let maskedAuth = $derived.by(() => {
-    if (!request?.auth) return undefined;
-    if (hideCredentials && hideCredentialsOptions.auth) {
-      return maskObject(request.auth as unknown as Record<string, unknown>);
-    }
-    return request.auth;
-  });
-  let maskedBody = $derived.by(() => {
-    if (request?.body === undefined || request?.body === null) return request?.body;
-    if (hideCredentials && hideCredentialsOptions.body) {
-      return deepMask(request.body);
-    }
-    return request.body;
-  });
-  let maskedQs = $derived.by(() => {
-    if (!request?.qs) return undefined;
-    if (hideCredentials && hideCredentialsOptions.query) {
-      return maskObject(request.qs);
-    }
-    return request.qs;
-  });
+  let displayRequest = $derived.by(() =>
+    request ? redactApiRequest(request, { hideCredentials, hideCredentialsOptions }) : null,
+  );
+  let method = $derived(displayRequest?.method || 'GET');
+  let url = $derived(displayRequest?.url || '');
+  let maskedHeaders = $derived(displayRequest?.headers);
+  let maskedAuth = $derived(displayRequest?.auth);
+  let maskedBody = $derived(displayRequest?.body);
+  let maskedQs = $derived(displayRequest?.qs);
   function handleTabChange(tab: string) {
     if (controlledTab === undefined) internalTab = tab;
     onTabChange?.(tab);
@@ -81,13 +46,13 @@
     { id: 'curl', label: 'cURL' },
   ] as const;
   let curlCommand = $derived.by(() => {
-    if (!request || selectedTab !== 'curl') return '';
-    const headersPart = request.headers
-      ? Object.entries(request.headers)
+    if (!displayRequest || selectedTab !== 'curl') return '';
+    const headersPart = displayRequest.headers
+      ? Object.entries(displayRequest.headers)
           .map(([k, v]) => `-H "${k}: ${v}"`)
           .join(' \\\n     ')
       : '';
-    const bodyPart = request.body ? ` \\\n     -d '${JSON.stringify(request.body)}'` : '';
+    const bodyPart = displayRequest.body ? ` \\\n     -d '${JSON.stringify(displayRequest.body)}'` : '';
     return `curl -X ${method} "${url}"${headersPart ? ` \\\n     ${headersPart}` : ''}${bodyPart}`;
   });
 </script>
