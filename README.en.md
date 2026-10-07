@@ -71,9 +71,15 @@ dotenv.config(); // loads .env automatically
 
 export default defineConfig({
   e2e: {
-    setupNodeEvents(on) {
-      setupDatabaseTasks(on);
-      // No need to return config unless you modify it
+    setupNodeEvents(on, config) {
+      const dbTaskMetadata = setupDatabaseTasks(on);
+      return {
+        ...config,
+        expose: {
+          ...config.expose,
+          ...dbTaskMetadata,
+        },
+      };
     },
     expose: {
       snapshotOnly: false,
@@ -92,6 +98,8 @@ export default defineConfig({
 ```
 
 Credentials are configured via environment variables (see [Environment variables](#environment-variables)).
+
+`setupDatabaseTasks()` returns `{ dbTaskPrefix }`. Merge this non-secret metadata into the `expose` object returned by `setupNodeEvents`; `cy.query()` reads the same prefix from `Cypress.expose()`. The default prefix is an empty string.
 
 > 💡 **HTTP only**: if you only use `cy.http()`, you don't need `setupNodeEvents` — the plugin works with no Node-side configuration.
 
@@ -189,23 +197,39 @@ export default defineConfig({
 ### setupDatabaseTasks() — Options
 
 ```typescript
+import { defineConfig } from 'cypress';
 import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
 
-setupDatabaseTasks(on, {
-  defaultPrefix: 'myapp_', // tasks → myapp_db:getConfig, myapp_db:query
-  envPrefix: 'MY_DB_', // reads MY_DB_HOST instead of CYPRESS_DB_HOST
-  defaults: {
-    host: 'localhost',
-    port: 5432,
-    database: 'test_db',
-    user: 'postgres',
-    password: '',
-    ssl: { rejectUnauthorized: false }, // or true, or false, or {ca: '...'}
-    connectionTimeoutMillis: 5000,
-    idleTimeoutMillis: 10000,
+export default defineConfig({
+  e2e: {
+    setupNodeEvents(on, config) {
+      const dbTaskMetadata = setupDatabaseTasks(on, {
+        defaultPrefix: 'myapp_', // tasks → myapp_db:getConfig, myapp_db:query
+        envPrefix: 'MY_DB_', // reads MY_DB_HOST instead of CYPRESS_DB_HOST
+        defaults: {
+          host: 'localhost',
+          port: 5432,
+          database: 'test_db',
+          user: 'postgres',
+          password: '',
+          ssl: { rejectUnauthorized: false }, // or true, or false, or {ca: '...'}
+          connectionTimeoutMillis: 5000,
+          idleTimeoutMillis: 10000,
+        },
+      });
+      return {
+        ...config,
+        expose: {
+          ...config.expose,
+          ...dbTaskMetadata,
+        },
+      };
+    },
   },
 });
 ```
+
+Always merge the returned `dbTaskPrefix` into `config.expose` when using a custom prefix. This keeps `cy.query()` aligned with the registered task names without adding a per-query prefix option.
 
 | Option                             | Type                | Default         | Description                                                              |
 | ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------------------ |

@@ -38,7 +38,14 @@ vi.mock('pg', () => {
   };
 });
 
-let setupDatabaseTasks: (on: Record<string, unknown>, options?: Record<string, unknown>) => void;
+vi.mock('dotenv', () => ({
+  default: { config: vi.fn() },
+}));
+
+let setupDatabaseTasks: (
+  on: Record<string, unknown>,
+  options?: Record<string, unknown>,
+) => { dbTaskPrefix: string };
 
 /** Helper para extraer los handlers de tareas del spy on */
 function getTasks(on: ReturnType<typeof vi.fn>): Record<string, unknown> {
@@ -62,20 +69,23 @@ describe('setupDatabaseTasks', () => {
   // -----------------------------------------------------------------------
   it('registra las tareas db:getConfig y db:query con prefijo por defecto', () => {
     const on = vi.fn();
-    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    const metadata = setupDatabaseTasks(on as unknown as Record<string, unknown>);
     expect(on).toHaveBeenCalledWith('task', expect.any(Object));
     const tasks = getTasks(on);
     expect(tasks).toHaveProperty('db:getConfig');
     expect(tasks).toHaveProperty('db:query');
+    expect(metadata).toEqual({ dbTaskPrefix: '' });
   });
 
   it('registra las tareas con prefijo personalizado cuando se proporciona defaultPrefix', () => {
     const on = vi.fn();
-    setupDatabaseTasks(on as unknown as Record<string, unknown>, { defaultPrefix: 'myapp_' });
+    const metadata = setupDatabaseTasks(on as unknown as Record<string, unknown>, { defaultPrefix: 'myapp_' });
     const tasks = getTasks(on);
     expect(tasks).toHaveProperty('myapp_db:getConfig');
     expect(tasks).toHaveProperty('myapp_db:query');
     expect(tasks).not.toHaveProperty('db:getConfig');
+    expect(tasks).not.toHaveProperty('db:query');
+    expect(metadata).toEqual({ dbTaskPrefix: 'myapp_' });
   });
 
   // -----------------------------------------------------------------------
@@ -269,6 +279,18 @@ describe('setupDatabaseTasks', () => {
     expect(config.host).toBe('default-host');
     expect(config.port).toBe(9999);
     expect(config.database).toBe('');
+  });
+
+  it('uses defaults.database as the database name for the task and pool', () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>, {
+      defaults: { database: 'default_database' },
+    });
+
+    const config = (getTasks(on)['db:getConfig'] as () => Record<string, unknown>)();
+
+    expect(config.database).toBe('default_database');
+    expect(mockPoolCtor).toHaveBeenCalledWith(expect.objectContaining({ database: 'default_database' }));
   });
 
   // -----------------------------------------------------------------------

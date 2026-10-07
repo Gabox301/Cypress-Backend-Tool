@@ -64,25 +64,39 @@ export interface DbTaskOptions {
  * @example
  * ```ts
  * // cypress.config.ts
+ * import { defineConfig } from 'cypress';
  * import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
  *
  * export default defineConfig({
  *   e2e: {
- *     setupNodeEvents(on) {
- *       setupDatabaseTasks(on);
- *       // Con SSL para Neon:
- *       // setupDatabaseTasks(on, { defaults: { ssl: { rejectUnauthorized: false } } });
- *       // O vía .env: CYPRESS_DB_SSL=true
+ *     setupNodeEvents(on, config) {
+ *       const dbTaskMetadata = setupDatabaseTasks(on, {
+ *         // defaultPrefix: 'myapp_',
+ *         // defaults: { ssl: { rejectUnauthorized: false } },
+ *       });
+ *       return {
+ *         ...config,
+ *         expose: {
+ *           ...config.expose,
+ *           ...dbTaskMetadata,
+ *         },
+ *       };
  *     },
  *   },
  * });
  * ```
  */
-export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOptions): void {
+export function setupDatabaseTasks(
+  on: Cypress.PluginEvents,
+  options?: DbTaskOptions,
+): { dbTaskPrefix: string } {
   const prefix = options?.defaultPrefix ?? '';
   const envPrefix = options?.envPrefix ?? 'CYPRESS_DB_';
-  const readEnv = (key: string): string => {
-    const fromDefaults = options?.defaults?.[key.toLowerCase() as keyof DbTaskConfig];
+  const readEnv = (
+    key: string,
+    defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig,
+  ): string => {
+    const fromDefaults = options?.defaults?.[defaultKey];
     return (
       process.env[envPrefix + key] ??
       process.env['DB_' + key] ??
@@ -126,7 +140,7 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
     max: 1,
     host: defaultHost,
     port: parseInt(readEnv('PORT'), 10),
-    database: readEnv('NAME'),
+    database: readEnv('NAME', 'database'),
     user: readEnv('USER'),
     password: readEnv('PASSWORD'),
     connectionTimeoutMillis: options?.defaults?.connectionTimeoutMillis ?? 2000,
@@ -137,7 +151,7 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
     [`${prefix}db:getConfig`]: (): DbTaskConfig => ({
       host: readEnv('HOST'),
       port: parseInt(readEnv('PORT'), 10),
-      database: readEnv('NAME'),
+      database: readEnv('NAME', 'database'),
       user: readEnv('USER'),
       password: readEnv('PASSWORD'),
     }),
@@ -193,4 +207,6 @@ export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOpt
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
   });
+
+  return { dbTaskPrefix: prefix };
 }

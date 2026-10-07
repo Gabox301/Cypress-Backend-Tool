@@ -363,3 +363,32 @@ describe('manejo de cuerpo de respuesta vacío', () => {
     expect(result.size).toBe(22);
   });
 });
+
+describe('query task prefix', () => {
+  it('uses the task prefix exposed by Cypress for both database tasks', async () => {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key === 'dbTaskPrefix') return 'myapp_';
+      if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
+      if (key === 'snapshotOnly' || key === 'hideCredentials') return false;
+      if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
+      if (key === 'requestMode') return 'auto';
+      return undefined;
+    });
+
+    const task = vi.fn((taskName: string) => {
+      if (taskName === 'myapp_db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db', user: 'postgres', password: '' });
+      }
+      if (taskName === 'myapp_db:query') {
+        return Promise.resolve({ rows: [{ value: 1 }], rowCount: 1 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const queryHandler = capturedCommands['query'] as (query: string) => Promise<unknown>;
+    await queryHandler('SELECT 1');
+
+    expect(task.mock.calls.map(([taskName]) => taskName)).toEqual(['myapp_db:getConfig', 'myapp_db:query']);
+  });
+});

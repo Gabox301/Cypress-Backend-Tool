@@ -69,6 +69,7 @@ declare global {
       };
       requestMode: 'auto' | 'manual';
       CYPRESS_PLUGIN_DEBUG: boolean;
+      dbTaskPrefix: string;
       dbHost: string;
       dbPort: string;
       dbName: string;
@@ -354,6 +355,7 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
 });
 
 Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOptions) => {
+  const dbTaskPrefix = (Cypress.expose('dbTaskPrefix') as string) ?? '';
   const startTime = Date.now();
   const queryId = crypto.randomUUID();
   // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
@@ -369,13 +371,13 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
   } catch (e) {
     logDebug('reserveEntry query early failed', e);
   }
-  return cy.task<DbTaskConfig>('db:getConfig').then((defaultConfig) => {
+  return cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`).then((defaultConfig) => {
     const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
     const port = connectionOptions?.port || defaultConfig?.port || 5432;
     const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
     const user = connectionOptions?.user || defaultConfig?.user || 'postgres';
     const password = connectionOptions?.password || defaultConfig?.password || '';
-    return cy.task<DbTaskResult>('db:query', { query, host, port, database, user, password }).then((result) => {
+    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, { query, host, port, database, user, password }).then((result) => {
       const dbResponse: DbQueryResponse = {
         rows: result.rows || [],
         rowCount: result.rowCount || 0,
