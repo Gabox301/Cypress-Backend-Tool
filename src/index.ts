@@ -73,8 +73,6 @@ declare global {
       dbHost: string;
       dbPort: string;
       dbName: string;
-      dbUser: string;
-      dbPassword: string;
     }
   }
 
@@ -103,8 +101,6 @@ interface DbTaskConfig {
   host?: string;
   port?: number;
   database?: string;
-  user?: string;
-  password?: string;
 }
 
 /** Forma devuelta por cy.task('db:query') */
@@ -375,9 +371,8 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
     const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
     const port = connectionOptions?.port || defaultConfig?.port || 5432;
     const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
-    const user = connectionOptions?.user || defaultConfig?.user || 'postgres';
-    const password = connectionOptions?.password || defaultConfig?.password || '';
-    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, { query, host, port, database, user, password }).then((result) => {
+    const queryArgs = connectionOptions ? { query, ...connectionOptions } : { query };
+    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs).then((result) => {
       const dbResponse: DbQueryResponse = {
         rows: result.rows || [],
         rowCount: result.rowCount || 0,
