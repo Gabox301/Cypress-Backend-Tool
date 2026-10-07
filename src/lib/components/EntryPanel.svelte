@@ -43,13 +43,21 @@
       error={db.error}
       {database}
       {tables}
+      {hideCredentials}
+      {hideCredentialsOptions}
     />
   </div>
 {:else}
   {@const api = data as ApiCall}
   <div class="pair">
     <RequestPanel request={api.request} {hideCredentials} {hideCredentialsOptions} />
-    <ResponsePanel response={api.response} expect={api.request?.expect ?? api.expect} {snapshotOnly} />
+    <ResponsePanel
+      response={api.response}
+      expect={api.request?.expect ?? api.expect}
+      {snapshotOnly}
+      {hideCredentials}
+      {hideCredentialsOptions}
+    />
   </div>
 {/if}
 

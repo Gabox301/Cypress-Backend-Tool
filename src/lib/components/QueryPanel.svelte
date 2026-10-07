@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { redactValue, REDACTED_VALUE } from '$lib/utils/redaction';
+
   interface Props {
     query: string;
     rowCount: number;
@@ -7,8 +9,26 @@
     error?: string;
     database?: string;
     tables?: string[];
+    hideCredentials?: boolean;
+    hideCredentialsOptions?: { headers: boolean; auth: boolean; body: boolean; query: boolean };
   }
-  let { query, rowCount, duration, rows, error, database = '—', tables = [] }: Props = $props();
+  let {
+    query,
+    rowCount,
+    duration,
+    rows,
+    error,
+    database = '—',
+    tables = [],
+    hideCredentials = true,
+    hideCredentialsOptions = { headers: true, auth: true, body: true, query: true },
+  }: Props = $props();
+
+  let displayQuery = $derived(hideCredentials && hideCredentialsOptions.query ? REDACTED_VALUE : query);
+  let displayRows = $derived.by(() =>
+    hideCredentials && hideCredentialsOptions.body ? (redactValue(rows) as unknown[]) : rows,
+  );
+  let displayError = $derived(hideCredentials && error ? 'Error details are hidden' : error);
 
   let databaseLabel = $derived(`Database: ${database || '—'}`);
   let tableLabel = $derived.by(() => {
@@ -23,18 +43,18 @@
     return `Tables: ${tables.join(', ')}`;
   });
   let tableRows = $derived.by(() => {
-    if (rows.length === 0) return [];
-    if (typeof rows[0] !== 'object' || rows[0] === null) {
-      return rows.map((row) => ({ value: row }));
+    if (displayRows.length === 0) return [];
+    if (typeof displayRows[0] !== 'object' || displayRows[0] === null) {
+      return displayRows.map((row) => ({ value: row }));
     }
-    return rows as Record<string, unknown>[];
+    return displayRows as Record<string, unknown>[];
   });
   let columns = $derived.by(() => {
-    if (rows.length === 0) return [];
-    if (typeof rows[0] !== 'object' || rows[0] === null) {
+    if (displayRows.length === 0) return [];
+    if (typeof displayRows[0] !== 'object' || displayRows[0] === null) {
       return ['value'];
     }
-    return Object.keys(rows[0] as Record<string, unknown>);
+    return Object.keys(displayRows[0] as Record<string, unknown>);
   });
   function getCellValue(row: unknown, col: string): string {
     const obj = row as Record<string, unknown>;
@@ -56,20 +76,20 @@
     </div>
   </div>
   <div class="content-area">
-    {#if error}
+    {#if displayError}
       <div class="error-block">
-        <span class="error-text">{error}</span>
+        <span class="error-text">{displayError}</span>
       </div>
     {:else}
       <div class="section">
         <div class="section-label">Query</div>
         <div class="code-container">
-          <pre class="query-text">{query}</pre>
+          <pre class="query-text">{displayQuery}</pre>
         </div>
       </div>
       <div class="section results-section">
         <div class="section-label">Results</div>
-        {#if rows.length > 0}
+        {#if displayRows.length > 0}
           <div class="table-wrapper">
             <table class="results-table">
               <thead>

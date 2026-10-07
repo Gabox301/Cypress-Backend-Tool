@@ -10,11 +10,29 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     rows: [] as unknown[],
     database: 'neondb',
     tables: [] as string[],
+    hideCredentials: false,
+    hideCredentialsOptions: { headers: false, auth: false, body: false, query: false },
     ...overrides,
   };
 }
 
 describe('QueryPanel — renderizado', () => {
+  it('redacts SQL text and result values by default', () => {
+    const { container } = render(QueryPanel, {
+      props: {
+        query: "SELECT 'sql-secret' AS token",
+        rowCount: 1,
+        duration: 5,
+        rows: [{ token: 'result-secret' }],
+        database: 'neondb',
+        tables: [],
+      },
+    });
+
+    expect(container.textContent).not.toContain('sql-secret');
+    expect(container.textContent).not.toContain('result-secret');
+  });
+
   it('renderiza el texto de la consulta y los metadatos', () => {
     render(QueryPanel, {
       props: makeProps({ query: 'SELECT 1', duration: 10, rowCount: 0 }),

@@ -1,5 +1,5 @@
 import type { ApiCall, DbQuery } from '$lib/types';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import EntryPanel from './EntryPanel.svelte';
 
@@ -39,6 +39,27 @@ describe('EntryPanel — con datos DbQuery', () => {
     expect(screen.getByText('name')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('passes secure redaction settings to query text and result rows', () => {
+    const data: DbQuery = {
+      ...dbData,
+      query: "SELECT 'query-secret' AS token",
+      result: [{ token: 'row-secret' }],
+    };
+    const { container } = render(
+      EntryPanel,
+      {
+        props: baseProps({
+          data,
+          hideCredentials: true,
+          hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
+        }),
+      },
+    );
+
+    expect(container.textContent).not.toContain('query-secret');
+    expect(container.textContent).not.toContain('row-secret');
   });
 
   it('muestra el bloque de error cuando DbQuery tiene un error', () => {
@@ -85,6 +106,37 @@ describe('EntryPanel — con datos ApiCall', () => {
     render(EntryPanel, { props: baseProps({ data: apiData }) });
     expect(screen.getByText('10ms')).toBeInTheDocument();
     expect(screen.getByText('50 B')).toBeInTheDocument();
+  });
+
+  it('passes secure redaction settings to the response panel', () => {
+    const data: ApiCall = {
+      ...apiData,
+      response: {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'X-API-Key': 'response-header-secret' },
+        body: { accessToken: 'response-body-secret' },
+        cookies: [{ name: 'session', value: 'response-cookie-secret' }],
+        duration: 10,
+        size: 50,
+      },
+    };
+    const { container } = render(
+      EntryPanel,
+      {
+        props: baseProps({
+          data,
+          hideCredentials: true,
+          hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
+        }),
+      },
+    );
+
+    expect(container.textContent).not.toContain('response-body-secret');
+    fireEvent.click(screen.getAllByText('Headers')[1]);
+    expect(container.textContent).not.toContain('response-header-secret');
+    fireEvent.click(screen.getByText('Cookies'));
+    expect(container.textContent).not.toContain('response-cookie-secret');
   });
 
   it('propaga hideCredentials a los componentes hijos', () => {
