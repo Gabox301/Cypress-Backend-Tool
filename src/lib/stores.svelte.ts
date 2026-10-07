@@ -10,7 +10,7 @@ export const isLoading = $state(false);
 // Configuración reactiva del plugin — alimentada desde getPluginConfig() vía App.svelte props
 export const pluginConfig = $state<CypressApiPluginConfig>({
   snapshotOnly: false,
-  hideCredentials: false,
+  hideCredentials: true,
   hideCredentialsOptions: {
     headers: true,
     auth: true,

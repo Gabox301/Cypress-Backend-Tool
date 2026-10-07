@@ -17,7 +17,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
   it('retorna valores seguros por defecto cuando no hay valores configurados', () => {
     const config = getPluginConfig(mockReader());
     expect(config.snapshotOnly).toBe(false);
-    expect(config.hideCredentials).toBe(false);
+    expect(config.hideCredentials).toBe(true);
     expect(config.requestMode).toBe('auto');
     expect(config.CYPRESS_PLUGIN_DEBUG).toBe(false);
     expect(config.hideCredentialsOptions).toEqual({
@@ -64,7 +64,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
       }),
     );
     expect(config.snapshotOnly).toBe(true);
-    expect(config.hideCredentials).toBe(false); // por defecto
+    expect(config.hideCredentials).toBe(true); // secure default
     expect(config.requestMode).toBe('auto'); // por defecto
   });
 
@@ -85,6 +85,17 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     expect(config.hideCredentialsOptions).toEqual({
       headers: false,
       auth: false,
+      body: true,
+      query: true,
+    });
+  });
+
+  it('fills unspecified redaction categories with secure defaults', () => {
+    const config = getPluginConfig(mockReader({ hideCredentialsOptions: { headers: false } }));
+
+    expect(config.hideCredentialsOptions).toEqual({
+      headers: false,
+      auth: true,
       body: true,
       query: true,
     });
@@ -129,7 +140,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
       }),
     );
     expect(config.snapshotOnly).toBe(false); // null → valor por defecto
-    expect(config.hideCredentials).toBe(false); // undefined → valor por defecto
+    expect(config.hideCredentials).toBe(true); // undefined → secure default
   });
 });
 

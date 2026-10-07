@@ -8,6 +8,7 @@
 import { configure, getConfigOverrides, getPluginConfig, mergeConfig } from '$lib/config';
 import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries, pluginConfig } from '$lib/stores.svelte';
 import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
+import { REDACTED_VALUE, redactApiRequest, redactApiResponse, redactValue } from '$lib/utils/redaction';
 import { ensurePluginMounted, mountEntry, reserveEntry, teardownPluginUI } from '$lib/ui';
 import { setupChaiExpectInterceptor } from '$lib/ui/chai-interceptor';
 import { EntryRegistry } from '$lib/ui/entry-registry';
@@ -250,6 +251,7 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
     typeof urlOrOptions === 'string'
       ? { url: urlOrOptions, method: maybeOptions?.method || 'GET', ...maybeOptions }
       : urlOrOptions;
+  const redactionSettings = readPluginConfig();
   const callId = crypto.randomUUID();
   const retry = options.retry;
   const maxAttempts = (retry?.retries ?? 0) + 1;
@@ -339,12 +341,14 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
     }
     addApiCall(call);
     getTestStore().apiCalls.push(call);
+    const logRequest = redactApiRequest(options, redactionSettings);
+    const logResponse = redactApiResponse(finalResponse, redactionSettings);
     const log = Cypress.log({
       name: options.method,
       autoEnd: false,
-      message: `${options.method} ${options.url}`,
+      message: `${options.method} ${logRequest.url}`,
       snapshot: false,
-      consoleProps: () => ({ request: options, response: finalResponse }),
+      consoleProps: () => ({ request: logRequest, response: logResponse }),
     } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
     return showApiUi(call, log);
   });
@@ -352,6 +356,7 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
 
 Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOptions) => {
   const dbTaskPrefix = (Cypress.expose('dbTaskPrefix') as string) ?? '';
+  const redactionSettings = readPluginConfig();
   const startTime = Date.now();
   const queryId = crypto.randomUUID();
   // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
@@ -372,9 +377,11 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
     const port = connectionOptions?.port || defaultConfig?.port || 5432;
     const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
     const queryArgs = connectionOptions ? { query, ...connectionOptions } : { query };
-    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs).then((result) => {
+    const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
+    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions).then((result) => {
+      const queryRows = result.rows || [];
       const dbResponse: DbQueryResponse = {
-        rows: result.rows || [],
+        rows: queryRows,
         rowCount: result.rowCount || 0,
         duration: Date.now() - startTime,
         query,
@@ -383,7 +390,7 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
         id: queryId,
         connectionId: `${host}:${port}/${database}`,
         query,
-        result: result.rows || [],
+        result: queryRows,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
         database,
@@ -394,12 +401,18 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
       // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
       // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
       // 'response' tomado después de montar la entrada.
+      const logQuery =
+        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query ? REDACTED_VALUE : query;
+      const logRows =
+        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
+          ? redactValue(queryRows)
+          : queryRows;
       const log = Cypress.log({
         name: 'QUERY',
         autoEnd: false,
-        message: query,
+        message: logQuery,
         snapshot: false,
-        consoleProps: () => ({ query, result: dbResponse.rows, duration: dbResponse.duration, error: undefined }),
+        consoleProps: () => ({ query: logQuery, result: logRows, duration: dbResponse.duration, error: undefined }),
       } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
       showDbQueryUi(dbCall, log);
       return cy.wrap(dbResponse);

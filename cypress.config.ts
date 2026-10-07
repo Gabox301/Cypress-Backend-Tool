@@ -21,7 +21,7 @@ export default defineConfig({
     testIsolation: false,
     expose: {
       snapshotOnly: false,
-      hideCredentials: false,
+      hideCredentials: true,
       CYPRESS_PLUGIN_DEBUG: false,
     },
     video: false,
