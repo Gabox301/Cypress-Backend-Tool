@@ -448,6 +448,31 @@ describe('query task prefix', () => {
   });
 });
 
+describe('query rowCount history (QPH-04)', () => {
+  it('stores the PostgreSQL affected rowCount in the DbQuery history entry', async () => {
+    const stores = await import('./lib/stores.svelte');
+    stores.clearDbQueries();
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve({ rows: [], rowCount: 3 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const queryHandler = capturedCommands['query'] as (query: string) => Promise<unknown>;
+    await queryHandler('DELETE FROM users WHERE active = false');
+
+    expect(stores.dbQueries).toHaveLength(1);
+    const entry = stores.dbQueries[0] as unknown as Record<string, unknown>;
+    expect(entry.result).toEqual([]);
+    expect(entry.rowCount).toBe(3);
+  });
+});
+
 describe('HTTP log redaction', () => {
   it('redacts request and response log output by default without changing returned data', async () => {
     const secrets = [

@@ -79,6 +79,16 @@ describe('EntryPanel — con datos DbQuery', () => {
     });
     expect(screen.getByText('(no rows returned)')).toBeInTheDocument();
   });
+
+  it('carries DbQuery rowCount to the affected pill for DML without RETURNING (QPH-04)', () => {
+    render(EntryPanel, {
+      props: baseProps({
+        data: { ...dbData, query: 'DELETE FROM users WHERE active = false', result: [], rowCount: 3 },
+      }),
+    });
+    expect(screen.getByText('(no rows returned)')).toBeInTheDocument();
+    expect(screen.getByText('3 affected')).toBeInTheDocument();
+  });
 });
 
 describe('EntryPanel — con datos ApiCall', () => {

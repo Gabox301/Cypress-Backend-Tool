@@ -391,6 +391,7 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
         connectionId: `${host}:${port}/${database}`,
         query,
         result: queryRows,
+        rowCount: result.rowCount ?? queryRows.length,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
         database,

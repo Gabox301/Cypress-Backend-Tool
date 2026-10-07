@@ -37,7 +37,7 @@
   <div class="single">
     <QueryPanel
       query={db.query}
-      rowCount={Array.isArray(db.result) ? db.result.length : 0}
+      rowCount={db.rowCount ?? (Array.isArray(db.result) ? db.result.length : 0)}
       duration={db.duration}
       rows={(db.result as unknown[]) ?? []}
       error={db.error}

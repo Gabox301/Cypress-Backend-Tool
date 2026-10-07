@@ -193,3 +193,30 @@ describe('QueryPanel — badges UI-RENDER-05/06/07', () => {
     expect(badge.title).toBe('Table: users');
   });
 });
+
+describe('QueryPanel — affected vs returned rows (QPH-04)', () => {
+  it('shows returned rows distinctly when the affected count differs', () => {
+    render(QueryPanel, {
+      props: makeProps({
+        query: 'UPDATE users SET active = true',
+        rows: [{ id: 1 }, { id: 2 }],
+        rowCount: 5,
+      }),
+    });
+    expect(screen.getByText('2 rows')).toBeInTheDocument();
+    expect(screen.getByText('5 affected')).toBeInTheDocument();
+  });
+
+  it('shows affected rows for DML without RETURNING', () => {
+    render(QueryPanel, {
+      props: makeProps({
+        query: 'DELETE FROM users WHERE active = false',
+        rows: [],
+        rowCount: 3,
+      }),
+    });
+    expect(screen.getByText('0 rows')).toBeInTheDocument();
+    expect(screen.getByText('(no rows returned)')).toBeInTheDocument();
+    expect(screen.getByText('3 affected')).toBeInTheDocument();
+  });
+});

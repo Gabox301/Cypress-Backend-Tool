@@ -30,6 +30,12 @@
   );
   let displayError = $derived(hideCredentials && error ? 'Error details are hidden' : error);
 
+  // PostgreSQL rowCount is the affected-row count; rows.length is the returned-row
+  // count. They coincide for SELECT but differ for DML without RETURNING
+  // (rows empty, rowCount = affected rows).
+  let returnedCount = $derived(rows.length);
+  let showAffected = $derived(rowCount !== returnedCount);
+
   let databaseLabel = $derived(`Database: ${database || '—'}`);
   let tableLabel = $derived.by(() => {
     if (!tables || tables.length === 0) return null;
@@ -71,7 +77,10 @@
       {/if}
     </div>
     <div class="query-meta">
-      <span class="meta-pill">{rowCount} rows</span>
+      <span class="meta-pill">{returnedCount} rows</span>
+      {#if showAffected}
+        <span class="meta-pill">{rowCount} affected</span>
+      {/if}
       <span class="meta-pill">{duration}ms</span>
     </div>
   </div>
