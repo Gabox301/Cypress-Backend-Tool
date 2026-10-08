@@ -322,6 +322,8 @@ cy.http({
 
 ### cy.query() - PostgreSQL Queries
 
+Signature: `cy.query(text, values?, connectionOptions?)`. Pass bind values as a positional array — a second argument that is an object is still treated as connection options.
+
 ```typescript
 // No explicit options: Node resolves environment values, defaults, or compatibility fallbacks.
 cy.query('SELECT * FROM users LIMIT 10').then((result) => {
@@ -329,8 +331,14 @@ cy.query('SELECT * FROM users LIMIT 10').then((result) => {
   console.log(result.rows);
 });
 
-// With explicit arguments
-cy.query('SELECT * FROM users WHERE id = $1', {
+// Parameterized query: values are forwarded to the db:query task as pg bind parameters.
+cy.query('SELECT * FROM users WHERE id = $1 AND status = $2', [42, 'active']).then((result) => {
+  expect(result.rows).to.have.length.greaterThan(0);
+  expect(result.values).to.deep.eq([42, 'active']); // raw values stay available for assertions
+});
+
+// Values combined with explicit connection options
+cy.query('SELECT * FROM users WHERE id = $1', [42], {
   host: 'localhost',
   port: 5432,
   database: 'mydb',
@@ -339,7 +347,22 @@ cy.query('SELECT * FROM users WHERE id = $1', {
 }).then((result) => {
   console.log(result.rows);
 });
+
+// Dynamic value from a previous call: no string interpolation needed.
+cy.http({ url: '.../users', method: 'POST', body: { name: 'Ada' } }).then((response) => {
+  cy.query('SELECT * FROM users WHERE id = $1', [response.body.id]).then((result) => {
+    expect(result.rows).to.have.length(1);
+  });
+});
+
+// INSERT with RETURNING: bound values alongside the affected-row count.
+cy.query('INSERT INTO users(name, status) VALUES ($1, $2) RETURNING id', ['Ada', 'active']).then((result) => {
+  expect(result.rowCount).to.eq(1);
+  expect(result.values).to.deep.eq(['Ada', 'active']);
+});
 ```
+
+Bind values follow the existing query-text redaction flag (`hideCredentials` + `hideCredentialsOptions.query`): they are redacted in Cypress logs wherever SQL text is redacted, while the raw `result.values` remain available for assertions. Bound values are not shown in the query panel.
 
 ## Advanced Configuration
 
@@ -372,13 +395,13 @@ export default defineConfig({
 
 ### Options table
 
-| Option                   | Type                                 | Default    | Description                    |
-| ------------------------ | ------------------------------------ | ---------- | ------------------------------ |
-| `snapshotOnly`           | `boolean`                            | `false`    | Collapse UI after each command |
+| Option                   | Type                                 | Default    | Description                        |
+| ------------------------ | ------------------------------------ | ---------- | ---------------------------------- |
+| `snapshotOnly`           | `boolean`                            | `false`    | Collapse UI after each command     |
 | `hideCredentials`        | `boolean`                            | `true`     | Redact sensitive output by default |
-| `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section   |
-| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`   | Show UI automatically or not   |
-| `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                |
+| `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section       |
+| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`   | Show UI automatically or not       |
+| `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                    |
 
 Set `hideCredentials: false` explicitly to show unredacted values. Individual `hideCredentialsOptions` can opt a section out; otherwise all listed values are masked. cURL output is sanitized by default and may need credentials restored before replay.
 

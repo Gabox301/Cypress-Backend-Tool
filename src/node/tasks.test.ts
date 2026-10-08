@@ -303,6 +303,98 @@ describe('setupDatabaseTasks', () => {
   });
 
   // -----------------------------------------------------------------------
+  // db:query — bind values (QBV-01)
+  // -----------------------------------------------------------------------
+  it('db:query forwards array values to pool.query on the pooled path', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
+    vi.stubEnv('CYPRESS_DB_PORT', '5432');
+    vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
+    vi.stubEnv('CYPRESS_DB_USER', 'postgres');
+    vi.stubEnv('CYPRESS_DB_PASSWORD', '');
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    mockPoolQuery.mockResolvedValue({ rows: [{ result: 1 }], rowCount: 1 });
+    const values = [1, 'two'];
+    const result = await (getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: 'SELECT $1, $2',
+      host: 'localhost',
+      port: 5432,
+      database: 'test_db',
+      user: 'postgres',
+      password: '',
+      values,
+    });
+    expect(mockPoolQuery).toHaveBeenCalledWith('SELECT $1, $2', values);
+    expect(mockClientQuery).not.toHaveBeenCalled();
+    expect(result).toEqual({ rows: [{ result: 1 }], rowCount: 1 });
+  });
+
+  it('db:query forwards array values to client.query on the temp-client override path', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'pool-host');
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    mockClientQuery.mockResolvedValue({ rows: [{ val: 1 }], rowCount: 1 });
+    const values = [1];
+    const result = await (getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: 'SELECT $1 AS val',
+      host: 'some-other-host',
+      port: 5432,
+      database: 'test_db',
+      user: 'postgres',
+      password: 'override_password',
+      values,
+    });
+    expect(mockClientQuery).toHaveBeenCalledWith('SELECT $1 AS val', values);
+    expect(mockPoolQuery).not.toHaveBeenCalled();
+    expect(result).toEqual({ rows: [{ val: 1 }], rowCount: 1 });
+  });
+
+  it('db:query keeps single-arg pool.query call when values is absent', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
+    vi.stubEnv('CYPRESS_DB_PORT', '5432');
+    vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
+    vi.stubEnv('CYPRESS_DB_USER', 'postgres');
+    vi.stubEnv('CYPRESS_DB_PASSWORD', '');
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    mockPoolQuery.mockResolvedValue({ rows: [{ result: 1 }], rowCount: 1 });
+    const result = await (getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: 'SELECT 1',
+      host: 'localhost',
+      port: 5432,
+      database: 'test_db',
+      user: 'postgres',
+      password: '',
+    });
+    expect(mockPoolQuery).toHaveBeenCalledWith('SELECT 1');
+    expect(mockPoolQuery.mock.calls[0]).toHaveLength(1);
+    expect(result).toEqual({ rows: [{ result: 1 }], rowCount: 1 });
+  });
+
+  it('db:query ignores non-array values and keeps single-arg pool.query call', async () => {
+    vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
+    vi.stubEnv('CYPRESS_DB_PORT', '5432');
+    vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
+    vi.stubEnv('CYPRESS_DB_USER', 'postgres');
+    vi.stubEnv('CYPRESS_DB_PASSWORD', '');
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    mockPoolQuery.mockResolvedValue({ rows: [{ result: 1 }], rowCount: 1 });
+    const result = await (getTasks(on)['db:query'] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: 'SELECT 1',
+      host: 'localhost',
+      port: 5432,
+      database: 'test_db',
+      user: 'postgres',
+      password: '',
+      values: 'not-an-array',
+    });
+    expect(mockPoolQuery).toHaveBeenCalledWith('SELECT 1');
+    expect(mockPoolQuery.mock.calls[0]).toHaveLength(1);
+    expect(result).toEqual({ rows: [{ result: 1 }], rowCount: 1 });
+  });
+
+  // -----------------------------------------------------------------------
   // Options con valores por defecto
   // -----------------------------------------------------------------------
   it('acepta la opción personalizada envPrefix', () => {

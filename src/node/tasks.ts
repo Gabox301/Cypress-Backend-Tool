@@ -161,6 +161,7 @@ export function setupDatabaseTasks(
     }),
     [`${prefix}db:query`]: async (args: {
       query: string;
+      values?: unknown[];
       host?: string;
       port?: number;
       database?: string;
@@ -176,6 +177,7 @@ export function setupDatabaseTasks(
       const user = args.user || readEnv('USER') || 'postgres';
       const password = args.password ?? readEnv('PASSWORD');
       const effectiveSsl = args.ssl ?? readSslEnv();
+      const values = Array.isArray(args.values) ? args.values : undefined;
       const poolOpts = pool.options as unknown as Record<string, unknown>;
       const poolSsl = poolOpts['ssl'] as unknown;
 
@@ -207,7 +209,8 @@ export function setupDatabaseTasks(
         });
         try {
           await client.connect();
-          const result = await client.query(args.query);
+          const result =
+            values !== undefined ? await client.query(args.query, values) : await client.query(args.query);
           return { rows: result.rows, rowCount: result.rowCount ?? 0 };
         } finally {
           try {
@@ -217,7 +220,8 @@ export function setupDatabaseTasks(
           }
         }
       }
-      const result = await pool.query(args.query);
+      const result =
+        values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
   });

@@ -53,6 +53,7 @@ declare global {
     interface Chainable {
       http(url: string, options?: Partial<ApiRequestOptions>): Chainable<ApiResponse>;
       http(options: ApiRequestOptions): Chainable<ApiResponse>;
+      query(query: string, values?: unknown[], connectionOptions?: DbConnectionOptions): Chainable<DbQueryResponse>;
       query(query: string, connectionOptions?: DbConnectionOptions): Chainable<DbQueryResponse>;
       state(key: 'window'): Window;
       state(key: 'runnable'): { id?: string; _currentRetry?: unknown } | undefined;
@@ -115,6 +116,7 @@ interface DbQueryResponse {
   rowCount: number;
   duration: number;
   query: string;
+  values?: unknown[];
 }
 
 interface DbConnectionOptions {
@@ -354,7 +356,15 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
   });
 });
 
-Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOptions) => {
+Cypress.Commands.add('query', (
+  query: string,
+  valuesOrOptions?: unknown[] | DbConnectionOptions,
+  maybeConnectionOptions?: DbConnectionOptions,
+) => {
+  const values = Array.isArray(valuesOrOptions) ? valuesOrOptions : undefined;
+  const connectionOptions = (
+    Array.isArray(valuesOrOptions) ? maybeConnectionOptions : valuesOrOptions
+  ) as DbConnectionOptions | undefined;
   const dbTaskPrefix = (Cypress.expose('dbTaskPrefix') as string) ?? '';
   const redactionSettings = readPluginConfig();
   const startTime = Date.now();
@@ -376,7 +386,11 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
     const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
     const port = connectionOptions?.port || defaultConfig?.port || 5432;
     const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
-    const queryArgs = connectionOptions ? { query, ...connectionOptions } : { query };
+    const queryArgs = {
+      query,
+      ...(values !== undefined ? { values } : {}),
+      ...(connectionOptions ? { ...connectionOptions } : {}),
+    };
     const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
     return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions).then((result) => {
       const queryRows = result.rows || [];
@@ -385,6 +399,7 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
         rowCount: result.rowCount || 0,
         duration: Date.now() - startTime,
         query,
+        ...(values !== undefined ? { values } : {}),
       };
       const dbCall: DbQuery = {
         id: queryId,
@@ -408,12 +423,18 @@ Cypress.Commands.add('query', (query: string, connectionOptions?: DbConnectionOp
         redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
           ? redactValue(queryRows)
           : queryRows;
+      const logValues =
+        values !== undefined &&
+        redactionSettings.hideCredentials &&
+        redactionSettings.hideCredentialsOptions.query
+          ? redactValue(values)
+          : values;
       const log = Cypress.log({
         name: 'QUERY',
         autoEnd: false,
         message: logQuery,
         snapshot: false,
-        consoleProps: () => ({ query: logQuery, result: logRows, duration: dbResponse.duration, error: undefined }),
+        consoleProps: () => ({ query: logQuery, values: logValues, result: logRows, duration: dbResponse.duration, error: undefined }),
       } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
       showDbQueryUi(dbCall, log);
       return cy.wrap(dbResponse);

@@ -322,6 +322,8 @@ cy.http({
 
 ### cy.query() - Consultas PostgreSQL
 
+Firma: `cy.query(text, values?, connectionOptions?)`. Los valores se pasan como un arreglo posicional; si el segundo argumento es un objeto, se interpreta como opciones de conexión.
+
 ```typescript
 // Sin opciones explícitas: Node resuelve variables de entorno, defaults o valores de compatibilidad.
 cy.query('SELECT * FROM users LIMIT 10').then((result) => {
@@ -329,8 +331,14 @@ cy.query('SELECT * FROM users LIMIT 10').then((result) => {
   console.log(result.rows);
 });
 
-// Con argumentos explícitos
-cy.query('SELECT * FROM users WHERE id = $1', {
+// Consulta parametrizada: los valores se reenvían a la tarea db:query como parámetros bind de pg.
+cy.query('SELECT * FROM users WHERE id = $1 AND status = $2', [42, 'active']).then((result) => {
+  expect(result.rows).to.have.length.greaterThan(0);
+  expect(result.values).to.deep.eq([42, 'active']); // los valores originales siguen disponibles para las aserciones
+});
+
+// Valores combinados con opciones de conexión explícitas
+cy.query('SELECT * FROM users WHERE id = $1', [42], {
   host: 'localhost',
   port: 5432,
   database: 'mydb',
@@ -339,7 +347,22 @@ cy.query('SELECT * FROM users WHERE id = $1', {
 }).then((result) => {
   console.log(result.rows);
 });
+
+// Valor dinámico de una llamada previa: sin interpolación de strings.
+cy.http({ url: '.../users', method: 'POST', body: { name: 'Ada' } }).then((response) => {
+  cy.query('SELECT * FROM users WHERE id = $1', [response.body.id]).then((result) => {
+    expect(result.rows).to.have.length(1);
+  });
+});
+
+// INSERT con RETURNING: valores vinculados junto al conteo de filas afectadas.
+cy.query('INSERT INTO users(name, status) VALUES ($1, $2) RETURNING id', ['Ada', 'active']).then((result) => {
+  expect(result.rowCount).to.eq(1);
+  expect(result.values).to.deep.eq(['Ada', 'active']);
+});
 ```
+
+Los valores siguen la bandera de enmascaramiento existente del texto SQL (`hideCredentials` + `hideCredentialsOptions.query`): se enmascaran en los registros de Cypress donde se enmascara el texto SQL, mientras que `result.values` conserva los valores originales para las aserciones. Los valores no se muestran en el panel de consultas.
 
 ## Configuración avanzada
 
@@ -372,13 +395,13 @@ export default defineConfig({
 
 ### Tabla de opciones
 
-| Opción                   | Tipo                                 | Default      | Descripción                         |
-| ------------------------ | ------------------------------------ | ------------ | ----------------------------------- |
-| `snapshotOnly`           | `boolean`                            | `false`      | Colapsa la UI tras cada comando     |
+| Opción                   | Tipo                                 | Default      | Descripción                                    |
+| ------------------------ | ------------------------------------ | ------------ | ---------------------------------------------- |
+| `snapshotOnly`           | `boolean`                            | `false`      | Colapsa la UI tras cada comando                |
 | `hideCredentials`        | `boolean`                            | `true`       | Oculta datos sensibles de forma predeterminada |
-| `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | Todas `true` | Control granular por sección        |
-| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`     | Muestra UI automáticamente o no     |
-| `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`      | Logs de diagnóstico                 |
+| `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | Todas `true` | Control granular por sección                   |
+| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`     | Muestra UI automáticamente o no                |
+| `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`      | Logs de diagnóstico                            |
 
 De forma predeterminada, los paneles, el texto y las propiedades de los registros de Cypress, y el cURL generado ocultan los valores sensibles. Puede ser necesario restaurar credenciales en el cURL antes de reproducirlo. `hideCredentials: false` desactiva el enmascaramiento global; cada opción granular también permite mostrar su sección.
 
