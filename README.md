@@ -90,7 +90,6 @@ export default defineConfig({
         body: true,
         query: true,
       },
-      requestMode: 'auto',
       CYPRESS_PLUGIN_DEBUG: false,
     },
   },
@@ -384,8 +383,6 @@ export default defineConfig({
         body: true, // Cuerpos de request/response y resultados de consultas
         query: true, // Parámetros de URL y texto SQL
       },
-      // Modo de visualización: 'auto' (muestra UI en cada request) o 'manual'
-      requestMode: 'auto',
       // Logs de diagnóstico en consola
       CYPRESS_PLUGIN_DEBUG: false,
     },
@@ -400,7 +397,6 @@ export default defineConfig({
 | `snapshotOnly`           | `boolean`                            | `false`      | Colapsa la UI tras cada comando                |
 | `hideCredentials`        | `boolean`                            | `true`       | Oculta datos sensibles de forma predeterminada |
 | `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | Todas `true` | Control granular por sección                   |
-| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`     | Muestra UI automáticamente o no                |
 | `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`      | Logs de diagnóstico                            |
 
 De forma predeterminada, los paneles, el texto y las propiedades de los registros de Cypress, y el cURL generado ocultan los valores sensibles. Puede ser necesario restaurar credenciales en el cURL antes de reproducirlo. `hideCredentials: false` desactiva el enmascaramiento global; cada opción granular también permite mostrar su sección.

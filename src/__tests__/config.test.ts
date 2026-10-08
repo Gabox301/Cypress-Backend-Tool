@@ -18,7 +18,6 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     const config = getPluginConfig(mockReader());
     expect(config.snapshotOnly).toBe(false);
     expect(config.hideCredentials).toBe(true);
-    expect(config.requestMode).toBe('auto');
     expect(config.CYPRESS_PLUGIN_DEBUG).toBe(false);
     expect(config.hideCredentialsOptions).toEqual({
       headers: true,
@@ -44,15 +43,6 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     expect(config.CYPRESS_PLUGIN_DEBUG).toBe(true);
   });
 
-  it('respeta el requestMode configurado', () => {
-    const config = getPluginConfig(
-      mockReader({
-        requestMode: 'manual',
-      }),
-    );
-    expect(config.requestMode).toBe('manual');
-  });
-
   // -----------------------------------------------------------------------
   // Overrides parciales — algunas claves definidas, otras con el valor por defecto
   // -----------------------------------------------------------------------
@@ -65,7 +55,6 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     );
     expect(config.snapshotOnly).toBe(true);
     expect(config.hideCredentials).toBe(true); // secure default
-    expect(config.requestMode).toBe('auto'); // por defecto
   });
 
   // -----------------------------------------------------------------------
@@ -178,14 +167,12 @@ describe('configure() — capa de overrides de configuración', () => {
     const base = {
       snapshotOnly: false,
       hideCredentials: false,
-      requestMode: 'auto' as const,
       CYPRESS_PLUGIN_DEBUG: false,
     };
     const overrides = { snapshotOnly: true };
     const result = mergeConfig(base, overrides);
     expect(result.snapshotOnly).toBe(true);
     expect(result.hideCredentials).toBe(false); // sin cambios
-    expect(result.requestMode).toBe('auto'); // sin cambios
   });
 
   it('mergeConfig fusiona profundamente hideCredentialsOptions', () => {
@@ -215,7 +202,6 @@ describe('configure() — capa de overrides de configuración', () => {
       snapshotOnly: true,
       hideCredentials: true,
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
-      requestMode: 'manual' as const,
       CYPRESS_PLUGIN_DEBUG: true,
     };
     const base = { ...exposeValues };
@@ -223,7 +209,6 @@ describe('configure() — capa de overrides de configuración', () => {
     const hco2 = result.hideCredentialsOptions as Record<string, boolean>;
     expect(result.snapshotOnly).toBe(true);
     expect(result.hideCredentials).toBe(true);
-    expect(result.requestMode).toBe('manual');
     expect(hco2.headers).toBe(true);
   });
 
@@ -242,14 +227,12 @@ describe('configure() — capa de overrides de configuración', () => {
     const exposeValues = {
       snapshotOnly: false,
       hideCredentials: false,
-      requestMode: 'auto' as const,
       CYPRESS_PLUGIN_DEBUG: false,
     };
     const configureValues = { hideCredentials: true };
     const result = mergeConfig(exposeValues, configureValues);
     expect(result.hideCredentials).toBe(true);
     expect(result.snapshotOnly).toBe(false); // sin cambios
-    expect(result.requestMode).toBe('auto'); // sin cambios
   });
 
   it('configure parcial hideCredentialsOptions — fusión profunda con valores de expose', () => {
@@ -277,7 +260,6 @@ describe('configure() — capa de overrides de configuración', () => {
       snapshotOnly: true,
       hideCredentials: false,
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
-      requestMode: 'auto' as const,
       CYPRESS_PLUGIN_DEBUG: false,
     };
     const result = mergeConfig(exposeValues, {});

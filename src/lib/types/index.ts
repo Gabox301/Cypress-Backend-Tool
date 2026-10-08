@@ -49,7 +49,6 @@ export interface CypressApiPluginConfig {
     body: boolean;
     query: boolean;
   };
-  requestMode: 'auto' | 'manual';
   CYPRESS_PLUGIN_DEBUG: boolean;
 }
 

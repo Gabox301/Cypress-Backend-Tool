@@ -90,7 +90,6 @@ export default defineConfig({
         body: true,
         query: true,
       },
-      requestMode: 'auto',
       CYPRESS_PLUGIN_DEBUG: false,
     },
   },
@@ -384,8 +383,6 @@ export default defineConfig({
         body: true, // Request/response bodies and query result values
         query: true, // URL parameters and SQL query text
       },
-      // Display mode: 'auto' (show UI on each request) or 'manual'
-      requestMode: 'auto',
       // Diagnostic logs in console
       CYPRESS_PLUGIN_DEBUG: false,
     },
@@ -400,7 +397,6 @@ export default defineConfig({
 | `snapshotOnly`           | `boolean`                            | `false`    | Collapse UI after each command     |
 | `hideCredentials`        | `boolean`                            | `true`     | Redact sensitive output by default |
 | `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section       |
-| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`   | Show UI automatically or not       |
 | `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                    |
 
 Set `hideCredentials: false` explicitly to show unredacted values. Individual `hideCredentialsOptions` can opt a section out; otherwise all listed values are masked. cURL output is sanitized by default and may need credentials restored before replay.

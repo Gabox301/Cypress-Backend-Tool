@@ -69,7 +69,6 @@ beforeEach(() => {
     if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
     if (key === 'snapshotOnly') return false;
     if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
-    if (key === 'requestMode') return 'auto';
     return undefined;
   });
   // Polyfill de scrollIntoView para jsdom (usado por showApiUi/scrollToEntry)
@@ -370,7 +369,6 @@ describe('query task prefix', () => {
       if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
       if (key === 'snapshotOnly') return false;
       if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
-      if (key === 'requestMode') return 'auto';
       return undefined;
     });
 
@@ -395,8 +393,7 @@ describe('query task prefix', () => {
   it('keeps default credentials out of query task arguments and redacts query logs by default', async () => {
     const query = "SELECT 'sql-secret' AS token";
     const rows = [{ token: 'database-result-secret' }];
-    const task = vi.fn(
-      (taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
       if (taskName === 'db:getConfig') {
         return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
       }
@@ -404,8 +401,7 @@ describe('query task prefix', () => {
         return Promise.resolve({ rows, rowCount: rows.length });
       }
       return Promise.reject(new Error(`Unexpected task: ${taskName}`));
-      },
-    );
+    });
     (globalThis.cy as unknown as Record<string, unknown>).task = task;
 
     const queryHandler = capturedCommands['query'] as (query: string) => Promise<{ rows: unknown[] }>;

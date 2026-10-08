@@ -17,7 +17,6 @@ export const pluginConfig = $state<CypressApiPluginConfig>({
     body: true,
     query: true,
   },
-  requestMode: 'auto',
   CYPRESS_PLUGIN_DEBUG: false,
 });
 
