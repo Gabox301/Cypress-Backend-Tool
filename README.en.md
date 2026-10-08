@@ -322,6 +322,8 @@ cy.http({
 
 ### cy.query() - PostgreSQL Queries
 
+Signature: `cy.query(text, values?, connectionOptions?)`. Pass bind values as a positional array — a second argument that is an object is still treated as connection options.
+
 ```typescript
 // No explicit options: Node resolves environment values, defaults, or compatibility fallbacks.
 cy.query('SELECT * FROM users LIMIT 10').then((result) => {
@@ -329,8 +331,14 @@ cy.query('SELECT * FROM users LIMIT 10').then((result) => {
   console.log(result.rows);
 });
 
-// With explicit arguments
-cy.query('SELECT * FROM users WHERE id = $1', {
+// Parameterized query: values are forwarded to the db:query task as pg bind parameters.
+cy.query('SELECT * FROM users WHERE id = $1 AND status = $2', [42, 'active']).then((result) => {
+  expect(result.rows).to.have.length.greaterThan(0);
+  expect(result.values).to.deep.eq([42, 'active']); // raw values stay available for assertions
+});
+
+// Values combined with explicit connection options
+cy.query('SELECT * FROM users WHERE id = $1', [42], {
   host: 'localhost',
   port: 5432,
   database: 'mydb',
@@ -340,6 +348,8 @@ cy.query('SELECT * FROM users WHERE id = $1', {
   console.log(result.rows);
 });
 ```
+
+Bind values follow the existing query-text redaction flag (`hideCredentials` + `hideCredentialsOptions.query`): they are redacted in Cypress logs wherever SQL text is redacted, while the raw `result.values` remain available for assertions. Bound values are not shown in the query panel.
 
 ## Advanced Configuration
 

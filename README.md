@@ -322,6 +322,8 @@ cy.http({
 
 ### cy.query() - Consultas PostgreSQL
 
+Firma: `cy.query(text, values?, connectionOptions?)`. Los valores se pasan como un arreglo posicional; si el segundo argumento es un objeto, se interpreta como opciones de conexión.
+
 ```typescript
 // Sin opciones explícitas: Node resuelve variables de entorno, defaults o valores de compatibilidad.
 cy.query('SELECT * FROM users LIMIT 10').then((result) => {
@@ -329,8 +331,14 @@ cy.query('SELECT * FROM users LIMIT 10').then((result) => {
   console.log(result.rows);
 });
 
-// Con argumentos explícitos
-cy.query('SELECT * FROM users WHERE id = $1', {
+// Consulta parametrizada: los valores se reenvían a la tarea db:query como parámetros bind de pg.
+cy.query('SELECT * FROM users WHERE id = $1 AND status = $2', [42, 'active']).then((result) => {
+  expect(result.rows).to.have.length.greaterThan(0);
+  expect(result.values).to.deep.eq([42, 'active']); // los valores originales siguen disponibles para las aserciones
+});
+
+// Valores combinados con opciones de conexión explícitas
+cy.query('SELECT * FROM users WHERE id = $1', [42], {
   host: 'localhost',
   port: 5432,
   database: 'mydb',
@@ -340,6 +348,8 @@ cy.query('SELECT * FROM users WHERE id = $1', {
   console.log(result.rows);
 });
 ```
+
+Los valores siguen la bandera de enmascaramiento existente del texto SQL (`hideCredentials` + `hideCredentialsOptions.query`): se enmascaran en los registros de Cypress donde se enmascara el texto SQL, mientras que `result.values` conserva los valores originales para las aserciones. Los valores no se muestran en el panel de consultas.
 
 ## Configuración avanzada
 
