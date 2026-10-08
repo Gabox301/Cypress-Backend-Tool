@@ -347,6 +347,19 @@ cy.query('SELECT * FROM users WHERE id = $1', [42], {
 }).then((result) => {
   console.log(result.rows);
 });
+
+// Dynamic value from a previous call: no string interpolation needed.
+cy.http({ url: '.../users', method: 'POST', body: { name: 'Ada' } }).then((response) => {
+  cy.query('SELECT * FROM users WHERE id = $1', [response.body.id]).then((result) => {
+    expect(result.rows).to.have.length(1);
+  });
+});
+
+// INSERT with RETURNING: bound values alongside the affected-row count.
+cy.query('INSERT INTO users(name, status) VALUES ($1, $2) RETURNING id', ['Ada', 'active']).then((result) => {
+  expect(result.rowCount).to.eq(1);
+  expect(result.values).to.deep.eq(['Ada', 'active']);
+});
 ```
 
 Bind values follow the existing query-text redaction flag (`hideCredentials` + `hideCredentialsOptions.query`): they are redacted in Cypress logs wherever SQL text is redacted, while the raw `result.values` remain available for assertions. Bound values are not shown in the query panel.
@@ -382,13 +395,13 @@ export default defineConfig({
 
 ### Options table
 
-| Option                   | Type                                 | Default    | Description                    |
-| ------------------------ | ------------------------------------ | ---------- | ------------------------------ |
-| `snapshotOnly`           | `boolean`                            | `false`    | Collapse UI after each command |
+| Option                   | Type                                 | Default    | Description                        |
+| ------------------------ | ------------------------------------ | ---------- | ---------------------------------- |
+| `snapshotOnly`           | `boolean`                            | `false`    | Collapse UI after each command     |
 | `hideCredentials`        | `boolean`                            | `true`     | Redact sensitive output by default |
-| `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section   |
-| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`   | Show UI automatically or not   |
-| `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                |
+| `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section       |
+| `requestMode`            | `'auto' \| 'manual'`                 | `'auto'`   | Show UI automatically or not       |
+| `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                    |
 
 Set `hideCredentials: false` explicitly to show unredacted values. Individual `hideCredentialsOptions` can opt a section out; otherwise all listed values are masked. cURL output is sanitized by default and may need credentials restored before replay.
 
