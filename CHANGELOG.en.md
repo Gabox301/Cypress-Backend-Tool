@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.2.1] - 2026-10-09
 
+### Added
+
+- **History entries for failed calls:** when `cy.http()` or `cy.query()` fail, the panel keeps the entry in history (request plus response when one is available, otherwise the error) so you can inspect what was sent and what came back. The Cypress command still fails as before; only the evidence stays visible. Error content follows `hideCredentials` redaction.
+
 ### Fixed
 
 - **Snapshot tooltip in previews:** the truncated-path tooltip now shows in snapshot previews. The `instanceof` guard failed across the runner/AUT realm boundary; it was replaced with a realm-safe check, plus a regression test.
