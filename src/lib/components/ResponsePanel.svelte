@@ -51,6 +51,14 @@
     return undefined;
   });
 
+  const expectedCookies = $derived.by(() => {
+    if (expect === undefined || expect === null) return undefined;
+    if (typeof expect === 'object' && 'cookies' in (expect as Record<string, unknown>)) {
+      return (expect as { cookies: Record<string, string> }).cookies;
+    }
+    return undefined;
+  });
+
   const statusMatches = $derived(expectedStatus !== undefined && response ? response.status === expectedStatus : null);
 
   function getHeaderStatus(key: string): 'match' | 'mismatch' | null {
@@ -61,6 +69,17 @@
     if (!expKey || !rawKey) return null;
     const expVal = expectedHeaders[expKey];
     return String(expVal) === String(rawResponse.headers[rawKey]) ? 'match' : 'mismatch';
+  }
+
+  // Cookie names match exactly (case-sensitive), unlike headers: the interceptor
+  // records `expect.cookies` keyed by exact cookie name (cookiesArrayToMap /
+  // ensureCookiesMap), so lookup here stays exact to mirror that behavior.
+  function getCookieStatus(name: string): 'match' | 'mismatch' | null {
+    if (!expectedCookies || !rawResponse?.cookies) return null;
+    if (!(name in expectedCookies)) return null;
+    const rawCookie = rawResponse.cookies.find((c) => c.name === name);
+    if (!rawCookie) return null;
+    return String(expectedCookies[name]) === String(rawCookie.value) ? 'match' : 'mismatch';
   }
 
   const statusConfig = $derived.by(() => {
@@ -314,7 +333,8 @@
               </thead>
               <tbody>
                 {#each response.cookies as c (c.name)}
-                  <tr>
+                  {@const cookieStatus = getCookieStatus(c.name)}
+                  <tr class:cookie-match={cookieStatus === 'match'} class:cookie-mismatch={cookieStatus === 'mismatch'}>
                     <td class="cookie-name">{c.name}</td>
                     <td class="cookie-val">{c.value}</td>
                     <td class="cookie-meta">{c.domain || '—'}</td>
@@ -629,6 +649,24 @@
   }
   .cookies-table tbody tr:hover td {
     background: rgba(255, 255, 255, 0.025);
+  }
+  .cookies-table tbody tr.cookie-match td {
+    background: rgba(74, 222, 128, 0.08);
+  }
+  .cookies-table tbody tr.cookie-match .cookie-name {
+    color: #4ade80;
+  }
+  .cookies-table tbody tr.cookie-match .cookie-val {
+    color: #86efac;
+  }
+  .cookies-table tbody tr.cookie-mismatch td {
+    background: rgba(239, 68, 68, 0.1);
+  }
+  .cookies-table tbody tr.cookie-mismatch .cookie-name {
+    color: #f87171;
+  }
+  .cookies-table tbody tr.cookie-mismatch .cookie-val {
+    color: #fca5a5;
   }
   .cookie-name {
     color: #7dd3fc;

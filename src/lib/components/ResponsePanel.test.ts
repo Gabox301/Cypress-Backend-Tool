@@ -277,3 +277,78 @@ describe('ResponsePanel — soporte de expectativas', () => {
     expect(mismatchHeader?.textContent).toContain('x-powered-by');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Coloreado de aserciones de cookies (ACM-02)
+// ---------------------------------------------------------------------------
+describe('ResponsePanel — cookie assertion coloring', () => {
+  it('highlights a matching cookie row', () => {
+    const response = makeResponse({
+      cookies: [{ name: 'session', value: 'abc123', domain: 'example.test', path: '/' }],
+    });
+    render(ResponsePanel, {
+      props: {
+        response,
+        hideCredentials: false,
+        expect: { cookies: { session: 'abc123' } },
+      },
+    });
+
+    fireEvent.click(screen.getByText('Cookies'));
+
+    const matchRow = document.querySelector('.cookie-match');
+    expect(matchRow).not.toBeNull();
+    expect(matchRow?.textContent).toContain('session');
+    expect(document.querySelector('.cookie-mismatch')).toBeNull();
+  });
+
+  it('highlights a mismatching cookie row', () => {
+    const response = makeResponse({
+      cookies: [{ name: 'session', value: 'actual-val' }],
+    });
+    render(ResponsePanel, {
+      props: {
+        response,
+        hideCredentials: false,
+        expect: { cookies: { session: 'expected-val' } },
+      },
+    });
+
+    fireEvent.click(screen.getByText('Cookies'));
+
+    const mismatchRow = document.querySelector('.cookie-mismatch');
+    expect(mismatchRow).not.toBeNull();
+    expect(mismatchRow?.textContent).toContain('session');
+    expect(document.querySelector('.cookie-match')).toBeNull();
+  });
+
+  it('applies no cookie classes when no cookie expectation exists', () => {
+    const response = makeResponse({
+      cookies: [{ name: 'session', value: 'abc123' }],
+    });
+    render(ResponsePanel, { props: { response, hideCredentials: false } });
+
+    fireEvent.click(screen.getByText('Cookies'));
+
+    expect(document.querySelector('.cookie-match')).toBeNull();
+    expect(document.querySelector('.cookie-mismatch')).toBeNull();
+  });
+
+  it('matches cookie expectations against raw values while rendering redacted values', () => {
+    const response = makeResponse({
+      cookies: [{ name: 'session', value: 'cookie-secret', domain: 'example.test', path: '/' }],
+    });
+    const { container } = render(ResponsePanel, {
+      props: {
+        response,
+        expect: { cookies: { session: 'cookie-secret' } },
+      },
+    });
+
+    fireEvent.click(screen.getByText('Cookies'));
+
+    expect(container.textContent).not.toContain('cookie-secret');
+    expect(container.querySelector('.cookie-match')).not.toBeNull();
+    expect(container.querySelector('.cookie-mismatch')).toBeNull();
+  });
+});
