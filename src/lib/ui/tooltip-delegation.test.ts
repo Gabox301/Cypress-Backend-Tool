@@ -98,4 +98,51 @@ describe('ensureTooltipDelegation', () => {
     unhover(path);
     expect(fallbackTooltip()).toBeNull();
   });
+
+  it('muestra el fallback para nodos de otro realm (iframe del AUT)', () => {
+    const iframe = document.createElement('iframe');
+    document.body.appendChild(iframe);
+    try {
+      const iframeDoc = iframe.contentDocument;
+      const iframeWindow = iframe.contentWindow;
+      expect(iframeDoc).not.toBeNull();
+      expect(iframeWindow).not.toBeNull();
+      if (!iframeDoc || !iframeWindow) return;
+      // Sanity: nodo genuinamente cross-realm — el guard `instanceof Element`
+      // del realm del bundle lo rechaza.
+      expect(iframeDoc.createElement('span') instanceof Element).toBe(false);
+
+      ensureTooltipDelegation(iframeDoc);
+
+      const panel = iframeDoc.createElement('div');
+      panel.className = 'title-panel';
+      const container = iframeDoc.createElement('div');
+      container.className = 'url-container';
+      const origin = iframeDoc.createElement('span');
+      origin.className = 'url-origin';
+      origin.textContent = ORIGIN;
+      const path = iframeDoc.createElement('span');
+      path.className = 'url-path';
+      path.textContent = PATH;
+      container.appendChild(origin);
+      container.appendChild(path);
+      panel.appendChild(container);
+      iframeDoc.body.appendChild(panel);
+      mockOverflow(path, true);
+
+      path.dispatchEvent(
+        new (iframeWindow as unknown as { MouseEvent: typeof MouseEvent }).MouseEvent(
+          'mouseover',
+          { bubbles: true, cancelable: true },
+        ),
+      );
+
+      const tip = iframeDoc.querySelector(
+        '[data-testid="title-panel-tooltip-fallback"] .custom-tooltip',
+      );
+      expect(tip?.textContent).toBe(FULL_URL);
+    } finally {
+      iframe.remove();
+    }
+  });
 });
