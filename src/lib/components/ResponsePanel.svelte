@@ -8,6 +8,7 @@
   interface Props {
     response: ApiResponse | null;
     expect?: unknown;
+    error?: string;
     snapshotOnly?: boolean;
     hideCredentials?: boolean;
     hideCredentialsOptions?: { headers: boolean; auth: boolean; body: boolean; query: boolean };
@@ -16,11 +17,13 @@
   let {
     response: rawResponse = null,
     expect = undefined,
+    error = undefined,
     snapshotOnly: _snapshotOnly = false,
     hideCredentials = true,
     hideCredentialsOptions = { headers: true, auth: true, body: true, query: true },
   }: Props = $props();
   let response = $derived.by(() => redactApiResponse(rawResponse, { hideCredentials, hideCredentialsOptions }));
+  let displayError = $derived(hideCredentials && error ? 'Error details are hidden' : error);
   let selectedTab = $state<'body' | 'headers' | 'cookies'>('body');
   let panelElement: HTMLDivElement;
 
@@ -264,6 +267,13 @@
     {/if}
   </div>
   {#if response}
+    {#if displayError}
+      <div class="error-wrapper">
+        <div class="error-block">
+          <span class="error-text">{displayError}</span>
+        </div>
+      </div>
+    {/if}
     <div class="tabs-bar">
       <button class="tab-btn" class:active={selectedTab === 'body'} onclick={() => (selectedTab = 'body')}>Body</button>
       <button class="tab-btn" class:active={selectedTab === 'headers'} onclick={() => (selectedTab = 'headers')}
@@ -320,10 +330,18 @@
       {/if}
     </div>
   {:else}
-    <div class="empty-state">
-      <span class="empty-icon"><Icon name="wifi" size={36} color="#64748b" /></span>
-      <span class="empty-text">Esperando respuesta</span>
-    </div>
+    {#if displayError}
+      <div class="content-area">
+        <div class="error-block">
+          <span class="error-text">{displayError}</span>
+        </div>
+      </div>
+    {:else}
+      <div class="empty-state">
+        <span class="empty-icon"><Icon name="wifi" size={36} color="#64748b" /></span>
+        <span class="empty-text">Esperando respuesta</span>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -621,6 +639,25 @@
   }
   .cookie-meta {
     color: rgba(100, 116, 139, 0.65);
+  }
+  .error-wrapper {
+    padding: 14px 14px 0;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+  .error-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 12px;
+  }
+  .error-text {
+    word-break: break-all;
   }
   .empty-state {
     flex: 1;

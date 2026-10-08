@@ -583,6 +583,200 @@ describe('query bind values (QBV-02)', () => {
   });
 });
 
+describe('HTTP failure entries (FCU-01)', () => {
+  let apiCallsStore: unknown[];
+  let clearStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    apiCallsStore = stores.apiCalls as unknown[];
+    clearStore = stores.clearApiCalls;
+  });
+
+  beforeEach(() => {
+    clearStore();
+  });
+
+  function httpHandler() {
+    return capturedCommands['http'] as (options: unknown) => Promise<Record<string, unknown>>;
+  }
+
+  function cypressLogMock() {
+    return (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+  }
+
+  function lastLogOptions() {
+    const calls = cypressLogMock().mock.calls;
+    return calls[calls.length - 1]?.[0] as { message: string; consoleProps: () => unknown };
+  }
+
+  function windowHistory(): unknown[] {
+    const win = window as unknown as {
+      __cypress_backend_tool__?: Record<string, { apiCalls: unknown[] }>;
+    };
+    return win.__cypress_backend_tool__?.['test-1']?.apiCalls ?? [];
+  }
+
+  it('H2: failOnStatusCode throw renders an entry with the full response and rethrows', async () => {
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: { 'content-type': 'application/json' },
+      body: { error: 'boom' },
+      cookies: [],
+    });
+    const historyBefore = windowHistory().length;
+
+    let caught: unknown;
+    try {
+      await httpHandler()({ url: 'https://api.example.com/fails', method: 'GET' });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('500');
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 500, body: { error: 'boom' } });
+    expect(entry.response.headers).toEqual({ 'content-type': 'application/json' });
+    expect(entry.error).toContain('500');
+    expect(windowHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('H2: keeps collected attempts/retryCount on the failure response when retry is configured', async () => {
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: {},
+      body: 'down',
+      cookies: [],
+    });
+
+    await expect(
+      httpHandler()({ url: 'https://api.example.com/flaky', method: 'GET', retry: { retries: 2, delay: 0 } }),
+    ).rejects.toThrow('503');
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response.attempts).toHaveLength(1);
+    expect(entry.response.retryCount).toBe(0);
+    expect(entry.error).toContain('503');
+  });
+
+  it('H1: cy.request rejection renders a degraded entry with null response and rethrows the original error', async () => {
+    const transportError = new Error('getaddrinfo ENOTFOUND example.test');
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockRejectedValue(transportError);
+    const historyBefore = windowHistory().length;
+
+    let caught: unknown;
+    try {
+      await httpHandler()({ url: 'https://example.test/unreachable', method: 'GET' });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(transportError);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.request).toMatchObject({ url: 'https://example.test/unreachable', method: 'GET' });
+    expect(entry.response).toBeNull();
+    expect(entry.error).toContain('ENOTFOUND');
+    expect(windowHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('H1: rejection carrying status/body preserves the available response', async () => {
+    const rejection = {
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: { 'content-type': 'application/json' },
+      body: { upstream: 'down' },
+      message: 'Bad Gateway',
+    };
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockRejectedValue(rejection);
+
+    let caught: unknown;
+    try {
+      await httpHandler()({ url: 'https://example.test/gateway', method: 'GET' });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(rejection);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 502, body: { upstream: 'down' } });
+    expect(entry.error).toContain('Bad Gateway');
+  });
+
+  it('H1 with retry and carried status stores retryCount >= 0 instead of -1', async () => {
+    const rejection = {
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: {},
+      body: 'down',
+      message: 'Bad Gateway',
+    };
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockRejectedValue(rejection);
+
+    let caught: unknown;
+    try {
+      await httpHandler()({
+        url: 'https://example.test/gateway-retry',
+        method: 'GET',
+        retry: { retries: 2, delay: 0 },
+      });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(rejection);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 502 });
+    expect(entry.error).toContain('Bad Gateway');
+    expect(entry.response.retryCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it('redacts failure log projections by default while keeping raw data in the store', async () => {
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'x-secret': 'response-header-secret' },
+      body: { accessToken: 'response-body-secret' },
+      cookies: [],
+    });
+
+    await expect(
+      httpHandler()({
+        url: 'https://api.example.com/secure',
+        method: 'POST',
+        body: { password: 'request-body-secret' },
+      }),
+    ).rejects.toThrow('403');
+
+    const logOutput = JSON.stringify(lastLogOptions().consoleProps());
+    expect(logOutput).not.toContain('request-body-secret');
+    expect(logOutput).not.toContain('response-body-secret');
+    expect(logOutput).not.toContain('response-header-secret');
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response.body).toEqual({ accessToken: 'response-body-secret' });
+    expect((entry.request as Record<string, unknown>).body).toEqual({ password: 'request-body-secret' });
+  });
+
+  it('leaves success entries without an error', async () => {
+    const result = await httpHandler()({ url: 'https://api.example.com/ok', method: 'GET' });
+
+    expect(result.status).toBe(200);
+    expect(apiCallsStore).toHaveLength(1);
+    expect((apiCallsStore[0] as Record<string, unknown>).error).toBeUndefined();
+  });
+});
+
 describe('HTTP log redaction', () => {
   it('redacts request and response log output by default without changing returned data', async () => {
     const secrets = [
@@ -624,5 +818,199 @@ describe('HTTP log redaction', () => {
       expect(logOutput).not.toContain(secret);
     }
     expect(result.body).toEqual(response.body);
+  });
+});
+
+describe('DB failure entries (FCU-02)', () => {
+  let dbQueriesStore: unknown[];
+  let clearDbStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    dbQueriesStore = stores.dbQueries as unknown[];
+    clearDbStore = stores.clearDbQueries;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+  });
+
+  function queryHandler() {
+    return capturedCommands['query'] as (...args: unknown[]) => Promise<unknown>;
+  }
+
+  function cypressLogMock() {
+    return (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+  }
+
+  function windowDbHistory(): unknown[] {
+    const win = window as unknown as {
+      __cypress_backend_tool__?: Record<string, { dbQueries: unknown[] }>;
+    };
+    return win.__cypress_backend_tool__?.['test-1']?.dbQueries ?? [];
+  }
+
+  function mockDbTasks(options: {
+    getConfig?: unknown;
+    getConfigError?: unknown;
+    queryResult?: unknown;
+    queryError?: unknown;
+  }) {
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return options.getConfigError !== undefined
+          ? Promise.reject(options.getConfigError)
+          : Promise.resolve(options.getConfig ?? { host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return options.queryError !== undefined
+          ? Promise.reject(options.queryError)
+          : Promise.resolve(options.queryResult ?? { rows: [{ value: 1 }], rowCount: 1 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  it('D2: db:query rejection renders an entry with connectionId + error and rethrows the original', async () => {
+    const dbError = new Error('relation "missing_table" does not exist');
+    mockDbTasks({ queryError: dbError });
+    const historyBefore = windowDbHistory().length;
+
+    let caught: unknown;
+    try {
+      await queryHandler()('SELECT * FROM missing_table');
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(dbError);
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('localhost:5432/test_db');
+    expect(entry.query).toBe('SELECT * FROM missing_table');
+    expect(entry.result).toBeNull();
+    expect(entry.rowCount).toBe(0);
+    expect(entry.error).toContain('missing_table');
+    expect(entry.database).toBe('test_db');
+    expect(typeof entry.duration).toBe('number');
+    expect(windowDbHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('D2: keeps explicit connection overrides in the failure connectionId', async () => {
+    const dbError = new Error('connection refused');
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+    const task = mockDbTasks({ queryError: dbError });
+
+    let caught: unknown;
+    try {
+      await queryHandler()('SELECT $1::int', [42], connectionOptions);
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(dbError);
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('override.example.test:5544/override_db');
+    expect(entry.database).toBe('override_db');
+    expect(entry.error).toContain('connection refused');
+  });
+
+  it('D1: db:getConfig rejection renders a degraded entry with unknown connectionId and rethrows the original', async () => {
+    const configError = new Error('db:getConfig failed: missing DATABASE_URL');
+    const task = mockDbTasks({ getConfigError: configError });
+    const historyBefore = windowDbHistory().length;
+
+    let caught: unknown;
+    try {
+      await queryHandler()('SELECT 1');
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(configError);
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('unknown');
+    expect(entry.query).toBe('SELECT 1');
+    expect(entry.result).toBeNull();
+    expect(entry.rowCount).toBe(0);
+    expect(entry.error).toContain('missing DATABASE_URL');
+    expect(windowDbHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('D1: uses per-query overrides for the degraded connectionId when supplied', async () => {
+    const configError = new Error('db:getConfig failed');
+    mockDbTasks({ getConfigError: configError });
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+
+    await expect(queryHandler()('SELECT 1', connectionOptions)).rejects.toBe(configError);
+
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('override.example.test:5544/override_db');
+    expect(entry.database).toBe('override_db');
+  });
+
+  it('D1: falls back per segment for partial overrides without undefined segments', async () => {
+    const configError = new Error('db:getConfig failed');
+    mockDbTasks({ getConfigError: configError });
+
+    await expect(queryHandler()('SELECT 1', { database: 'partial_db' })).rejects.toBe(configError);
+
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('unknown:unknown/partial_db');
+    expect(entry.connectionId).not.toContain('undefined');
+    expect(entry.database).toBe('partial_db');
+  });
+
+  it('redacts failure log projections by default while keeping raw data in the store', async () => {
+    const dbError = new Error("column 'query-secret' does not exist");
+    mockDbTasks({ queryError: dbError });
+
+    await expect(queryHandler()("SELECT 'query-secret'", ['bind-secret'])).rejects.toBe(dbError);
+
+    const log = cypressLogMock();
+    const logOptions = log.mock.calls[log.mock.calls.length - 1]?.[0] as {
+      message: string;
+      consoleProps: () => unknown;
+    };
+    const logOutput = `${logOptions.message} ${JSON.stringify(logOptions.consoleProps())}`;
+    expect(logOutput).not.toContain('query-secret');
+    expect(logOutput).not.toContain('bind-secret');
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.query).toContain('query-secret');
+    expect(entry.error).toContain('query-secret');
+  });
+
+  it('leaves success entries without an error', async () => {
+    mockDbTasks({});
+
+    await queryHandler()('SELECT 1');
+
+    expect(dbQueriesStore).toHaveLength(1);
+    expect((dbQueriesStore[0] as Record<string, unknown>).error).toBeUndefined();
   });
 });

@@ -455,6 +455,10 @@ El log de `cy.http()` guarda un primer snapshot `'response'` tras el montaje y, 
 - Verificado con `window.__cbtLastSnapshotInfo` (`hasMatch`/`hasMismatch`/`hasNullish`) y con el E2E `snapshot-coloring-verification.cy.ts`.
 - Para depurar: `CYPRESS_PLUGIN_DEBUG=true` expone `window.__cbtDebug` con cada `assert` interceptado.
 
+### Las llamadas fallidas permanecen visibles
+
+Las llamadas fallidas de `cy.http()`/`cy.query()` conservan su entrada en el historial del panel (request más respuesta cuando está disponible, de lo contrario el error) mientras Cypress sigue marcando el comando como fallido. El contenido del error aplica el mismo enmascaramiento `hideCredentials` que el resto de la salida del panel.
+
 ## Aislamiento de credenciales de base de datos
 
 Las credenciales predeterminadas permanecen en el proceso Node de Cypress. `db:getConfig` devuelve únicamente el host, el puerto y el nombre de la base; `db:query` resuelve el usuario y la contraseña predeterminados dentro de Node.

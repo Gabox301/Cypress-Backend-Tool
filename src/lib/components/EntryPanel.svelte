@@ -54,6 +54,7 @@
     <ResponsePanel
       response={api.response}
       expect={api.request?.expect ?? api.expect}
+      error={api.error}
       {snapshotOnly}
       {hideCredentials}
       {hideCredentialsOptions}
