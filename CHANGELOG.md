@@ -5,6 +5,12 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.1] - 2026-10-09
+
+### Fixed
+
+- **Tooltip de snapshots en previews:** el tooltip de rutas truncadas ahora aparece en los previews de snapshots. El guard `instanceof` fallaba al cruzar el límite entre realms del runner y el AUT; se reemplazó por una comprobación segura entre realms, con test de regresión.
+
 ## [1.2.0] - 2026-10-08
 
 ### Added
