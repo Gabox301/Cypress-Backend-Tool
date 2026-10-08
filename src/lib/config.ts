@@ -18,7 +18,6 @@ export function getPluginConfig(read: (key: string) => unknown): CypressApiPlugi
       query: true,
       ...hideCredentialsOptions,
     },
-    requestMode: ((read('requestMode') as string) ?? 'auto') as 'auto' | 'manual',
     CYPRESS_PLUGIN_DEBUG: (read('CYPRESS_PLUGIN_DEBUG') as boolean) ?? false,
   };
 }

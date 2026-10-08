@@ -8,10 +8,10 @@
 import { configure, getConfigOverrides, getPluginConfig, mergeConfig } from '$lib/config';
 import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries, pluginConfig } from '$lib/stores.svelte';
 import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
-import { REDACTED_VALUE, redactApiRequest, redactApiResponse, redactValue } from '$lib/utils/redaction';
 import { ensurePluginMounted, mountEntry, reserveEntry, teardownPluginUI } from '$lib/ui';
 import { setupChaiExpectInterceptor } from '$lib/ui/chai-interceptor';
 import { EntryRegistry } from '$lib/ui/entry-registry';
+import { REDACTED_VALUE, redactApiRequest, redactApiResponse, redactValue } from '$lib/utils/redaction';
 
 // Auto-inicializar interceptor de aserciones Chai de Cypress
 setupChaiExpectInterceptor();
@@ -69,7 +69,6 @@ declare global {
         body: boolean;
         query: boolean;
       };
-      requestMode: 'auto' | 'manual';
       CYPRESS_PLUGIN_DEBUG: boolean;
       dbTaskPrefix: string;
       dbHost: string;
@@ -356,91 +355,94 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
   });
 });
 
-Cypress.Commands.add('query', (
-  query: string,
-  valuesOrOptions?: unknown[] | DbConnectionOptions,
-  maybeConnectionOptions?: DbConnectionOptions,
-) => {
-  const values = Array.isArray(valuesOrOptions) ? valuesOrOptions : undefined;
-  const connectionOptions = (
-    Array.isArray(valuesOrOptions) ? maybeConnectionOptions : valuesOrOptions
-  ) as DbConnectionOptions | undefined;
-  const dbTaskPrefix = (Cypress.expose('dbTaskPrefix') as string) ?? '';
-  const redactionSettings = readPluginConfig();
-  const startTime = Date.now();
-  const queryId = crypto.randomUUID();
-  // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
-  try {
-    const winEarly = cy.state('window') as Window | undefined;
-    const docEarly = winEarly?.document;
-    if (docEarly?.getElementById) {
-      const containerEarly = getOrCreateContainer(docEarly);
-      const cfgEarly = readPluginConfig();
-      applySnapshotOnly(containerEarly, cfgEarly);
-      reserveEntry(queryId, docEarly);
+Cypress.Commands.add(
+  'query',
+  (query: string, valuesOrOptions?: unknown[] | DbConnectionOptions, maybeConnectionOptions?: DbConnectionOptions) => {
+    const values = Array.isArray(valuesOrOptions) ? valuesOrOptions : undefined;
+    const connectionOptions = (Array.isArray(valuesOrOptions) ? maybeConnectionOptions : valuesOrOptions) as
+      | DbConnectionOptions
+      | undefined;
+    const dbTaskPrefix = (Cypress.expose('dbTaskPrefix') as string) ?? '';
+    const redactionSettings = readPluginConfig();
+    const startTime = Date.now();
+    const queryId = crypto.randomUUID();
+    // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
+    try {
+      const winEarly = cy.state('window') as Window | undefined;
+      const docEarly = winEarly?.document;
+      if (docEarly?.getElementById) {
+        const containerEarly = getOrCreateContainer(docEarly);
+        const cfgEarly = readPluginConfig();
+        applySnapshotOnly(containerEarly, cfgEarly);
+        reserveEntry(queryId, docEarly);
+      }
+    } catch (e) {
+      logDebug('reserveEntry query early failed', e);
     }
-  } catch (e) {
-    logDebug('reserveEntry query early failed', e);
-  }
-  return cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`).then((defaultConfig) => {
-    const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
-    const port = connectionOptions?.port || defaultConfig?.port || 5432;
-    const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
-    const queryArgs = {
-      query,
-      ...(values !== undefined ? { values } : {}),
-      ...(connectionOptions ? { ...connectionOptions } : {}),
-    };
-    const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
-    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions).then((result) => {
-      const queryRows = result.rows || [];
-      const dbResponse: DbQueryResponse = {
-        rows: queryRows,
-        rowCount: result.rowCount || 0,
-        duration: Date.now() - startTime,
+    return cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`).then((defaultConfig) => {
+      const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
+      const port = connectionOptions?.port || defaultConfig?.port || 5432;
+      const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
+      const queryArgs = {
         query,
         ...(values !== undefined ? { values } : {}),
+        ...(connectionOptions ? { ...connectionOptions } : {}),
       };
-      const dbCall: DbQuery = {
-        id: queryId,
-        connectionId: `${host}:${port}/${database}`,
-        query,
-        result: queryRows,
-        rowCount: result.rowCount ?? queryRows.length,
-        duration: Date.now() - startTime,
-        timestamp: Date.now(),
-        database,
-      };
-      addDbQuery(dbCall);
-      getTestStore().dbQueries.push(dbCall);
-      // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
-      // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
-      // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
-      // 'response' tomado después de montar la entrada.
-      const logQuery =
-        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query ? REDACTED_VALUE : query;
-      const logRows =
-        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
-          ? redactValue(queryRows)
-          : queryRows;
-      const logValues =
-        values !== undefined &&
-        redactionSettings.hideCredentials &&
-        redactionSettings.hideCredentialsOptions.query
-          ? redactValue(values)
-          : values;
-      const log = Cypress.log({
-        name: 'QUERY',
-        autoEnd: false,
-        message: logQuery,
-        snapshot: false,
-        consoleProps: () => ({ query: logQuery, values: logValues, result: logRows, duration: dbResponse.duration, error: undefined }),
-      } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
-      showDbQueryUi(dbCall, log);
-      return cy.wrap(dbResponse);
+      const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
+      return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions).then((result) => {
+        const queryRows = result.rows || [];
+        const dbResponse: DbQueryResponse = {
+          rows: queryRows,
+          rowCount: result.rowCount || 0,
+          duration: Date.now() - startTime,
+          query,
+          ...(values !== undefined ? { values } : {}),
+        };
+        const dbCall: DbQuery = {
+          id: queryId,
+          connectionId: `${host}:${port}/${database}`,
+          query,
+          result: queryRows,
+          rowCount: result.rowCount ?? queryRows.length,
+          duration: Date.now() - startTime,
+          timestamp: Date.now(),
+          database,
+        };
+        addDbQuery(dbCall);
+        getTestStore().dbQueries.push(dbCall);
+        // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
+        // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
+        // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
+        // 'response' tomado después de montar la entrada.
+        const logQuery =
+          redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query ? REDACTED_VALUE : query;
+        const logRows =
+          redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
+            ? redactValue(queryRows)
+            : queryRows;
+        const logValues =
+          values !== undefined && redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+            ? redactValue(values)
+            : values;
+        const log = Cypress.log({
+          name: 'QUERY',
+          autoEnd: false,
+          message: logQuery,
+          snapshot: false,
+          consoleProps: () => ({
+            query: logQuery,
+            values: logValues,
+            result: logRows,
+            duration: dbResponse.duration,
+            error: undefined,
+          }),
+        } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+        showDbQueryUi(dbCall, log);
+        return cy.wrap(dbResponse);
+      });
     });
-  });
-});
+  },
+);
 
 // ============================================
 // Reconexión automática: Cypress destruye el DOM del AUT durante la reproducción
