@@ -587,6 +587,200 @@ describe('query bind values (QBV-02)', () => {
   });
 });
 
+describe('HTTP failure entries (FCU-01)', () => {
+  let apiCallsStore: unknown[];
+  let clearStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    apiCallsStore = stores.apiCalls as unknown[];
+    clearStore = stores.clearApiCalls;
+  });
+
+  beforeEach(() => {
+    clearStore();
+  });
+
+  function httpHandler() {
+    return capturedCommands['http'] as (options: unknown) => Promise<Record<string, unknown>>;
+  }
+
+  function cypressLogMock() {
+    return (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+  }
+
+  function lastLogOptions() {
+    const calls = cypressLogMock().mock.calls;
+    return calls[calls.length - 1]?.[0] as { message: string; consoleProps: () => unknown };
+  }
+
+  function windowHistory(): unknown[] {
+    const win = window as unknown as {
+      __cypress_backend_tool__?: Record<string, { apiCalls: unknown[] }>;
+    };
+    return win.__cypress_backend_tool__?.['test-1']?.apiCalls ?? [];
+  }
+
+  it('H2: failOnStatusCode throw renders an entry with the full response and rethrows', async () => {
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: { 'content-type': 'application/json' },
+      body: { error: 'boom' },
+      cookies: [],
+    });
+    const historyBefore = windowHistory().length;
+
+    let caught: unknown;
+    try {
+      await httpHandler()({ url: 'https://api.example.com/fails', method: 'GET' });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('500');
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 500, body: { error: 'boom' } });
+    expect(entry.response.headers).toEqual({ 'content-type': 'application/json' });
+    expect(entry.error).toContain('500');
+    expect(windowHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('H2: keeps collected attempts/retryCount on the failure response when retry is configured', async () => {
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: {},
+      body: 'down',
+      cookies: [],
+    });
+
+    await expect(
+      httpHandler()({ url: 'https://api.example.com/flaky', method: 'GET', retry: { retries: 2, delay: 0 } }),
+    ).rejects.toThrow('503');
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response.attempts).toHaveLength(1);
+    expect(entry.response.retryCount).toBe(0);
+    expect(entry.error).toContain('503');
+  });
+
+  it('H1: cy.request rejection renders a degraded entry with null response and rethrows the original error', async () => {
+    const transportError = new Error('getaddrinfo ENOTFOUND example.test');
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockRejectedValue(transportError);
+    const historyBefore = windowHistory().length;
+
+    let caught: unknown;
+    try {
+      await httpHandler()({ url: 'https://example.test/unreachable', method: 'GET' });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(transportError);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.request).toMatchObject({ url: 'https://example.test/unreachable', method: 'GET' });
+    expect(entry.response).toBeNull();
+    expect(entry.error).toContain('ENOTFOUND');
+    expect(windowHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('H1: rejection carrying status/body preserves the available response', async () => {
+    const rejection = {
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: { 'content-type': 'application/json' },
+      body: { upstream: 'down' },
+      message: 'Bad Gateway',
+    };
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockRejectedValue(rejection);
+
+    let caught: unknown;
+    try {
+      await httpHandler()({ url: 'https://example.test/gateway', method: 'GET' });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(rejection);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 502, body: { upstream: 'down' } });
+    expect(entry.error).toContain('Bad Gateway');
+  });
+
+  it('H1 with retry and carried status stores retryCount >= 0 instead of -1', async () => {
+    const rejection = {
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: {},
+      body: 'down',
+      message: 'Bad Gateway',
+    };
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockRejectedValue(rejection);
+
+    let caught: unknown;
+    try {
+      await httpHandler()({
+        url: 'https://example.test/gateway-retry',
+        method: 'GET',
+        retry: { retries: 2, delay: 0 },
+      });
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(rejection);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 502 });
+    expect(entry.error).toContain('Bad Gateway');
+    expect(entry.response.retryCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it('redacts failure log projections by default while keeping raw data in the store', async () => {
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
+      status: 403,
+      statusText: 'Forbidden',
+      headers: { 'x-secret': 'response-header-secret' },
+      body: { accessToken: 'response-body-secret' },
+      cookies: [],
+    });
+
+    await expect(
+      httpHandler()({
+        url: 'https://api.example.com/secure',
+        method: 'POST',
+        body: { password: 'request-body-secret' },
+      }),
+    ).rejects.toThrow('403');
+
+    const logOutput = JSON.stringify(lastLogOptions().consoleProps());
+    expect(logOutput).not.toContain('request-body-secret');
+    expect(logOutput).not.toContain('response-body-secret');
+    expect(logOutput).not.toContain('response-header-secret');
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response.body).toEqual({ accessToken: 'response-body-secret' });
+    expect((entry.request as Record<string, unknown>).body).toEqual({ password: 'request-body-secret' });
+  });
+
+  it('leaves success entries without an error', async () => {
+    const result = await httpHandler()({ url: 'https://api.example.com/ok', method: 'GET' });
+
+    expect(result.status).toBe(200);
+    expect(apiCallsStore).toHaveLength(1);
+    expect((apiCallsStore[0] as Record<string, unknown>).error).toBeUndefined();
+  });
+});
+
 describe('HTTP log redaction', () => {
   it('redacts request and response log output by default without changing returned data', async () => {
     const secrets = [

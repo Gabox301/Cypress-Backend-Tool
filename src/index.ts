@@ -138,6 +138,14 @@ function logDebug(...args: unknown[]) {
   }
 }
 
+// Extracts a message from an H1 transport rejection of unknown shape.
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  const message = (err as { message?: unknown } | null)?.message;
+  return typeof message === 'string' && message.length > 0 ? message : String(err);
+}
+
 function readPluginConfig(): CypressApiPluginConfig {
   const base = getPluginConfig((key: string) => Cypress.expose(key));
   const config = mergeConfig(base, getConfigOverrides());
@@ -205,7 +213,10 @@ export { getOrCreateContainer as createFreshContainer };
 export { configure };
 
 function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
-  if (!call.response) return null as unknown as ApiResponse;
+  // Failure entries (H1 transport rejection) may carry response: null with only
+  // call.error set. ResponsePanel already renders a null response as its empty
+  // state without crashing, so mount unconditionally and let the panel show the
+  // request side. Dedicated error display belongs to FCU-03.
   const config = readPluginConfig();
   const win = cy.state('window') as Window;
   const doc = win.document;
@@ -224,7 +235,7 @@ function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
   scrollToEntry(doc, elementId);
   const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
   log.set({ $el }).snapshot('response').end();
-  return call.response;
+  return call.response as ApiResponse;
 }
 
 function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
@@ -278,47 +289,132 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
   function doRequest(attemptNumber: number): Cypress.Chainable<ApiResponse> {
     const attemptStart = Date.now();
 
+    // Renders a failure UI entry (store + log + mount + snapshot) for the H1/H2
+    // paths below. Never throws: a render problem must not mask the original
+    // error that the caller rethrows so Cypress still fails the command.
+    function renderHttpFailure(response: ApiResponse | null, errorMessage: string): void {
+      try {
+        const call: ApiCall = {
+          id: callId,
+          request: {
+            url: options.url,
+            method: options.method,
+            headers: options.headers,
+            body: options.body,
+            qs: options.qs,
+            auth: options.auth,
+            expect: options.expect,
+          },
+          expect: options.expect,
+          response,
+          timestamp: Date.now(),
+          error: errorMessage,
+        };
+        if (retry && response) {
+          (call.response as ApiResponse & { attempts: ApiResponse[]; retryCount: number }).attempts = attempts;
+          (call.response as ApiResponse & { attempts: ApiResponse[]; retryCount: number }).retryCount = Math.max(
+            0,
+            attempts.length - 1,
+          );
+        }
+        addApiCall(call);
+        getTestStore().apiCalls.push(call);
+        const logRequest = redactApiRequest(options, redactionSettings);
+        const logResponse = redactApiResponse(response, redactionSettings);
+        // One-policy redaction mapping for the free-text error: transport
+        // messages may echo URLs, so the log projection hides them under
+        // hideCredentials while the store keeps the raw message for assertions.
+        const logError = redactionSettings.hideCredentials ? REDACTED_VALUE : errorMessage;
+        const log = Cypress.log({
+          name: options.method,
+          autoEnd: false,
+          message: `${options.method} ${logRequest.url}`,
+          snapshot: false,
+          consoleProps: () => ({ request: logRequest, response: logResponse, error: logError }),
+        } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+        showApiUi(call, log);
+      } catch (e) {
+        logDebug('http failure UI render failed', e);
+      }
+    }
+
     return (
       cy.request({ ...options, log: false, failOnStatusCode: false } as unknown as Record<
         string,
         unknown
-      >) as unknown as Cypress.Chainable<{
+      >) as unknown as Promise<{
         status: number;
         statusText: string;
         headers: Record<string, string>;
         body: unknown;
         cookies?: ApiResponse['cookies'];
       }>
-    ).then((cyResponse) => {
-      const response: ApiResponse = {
-        status: cyResponse.status,
-        statusText: cyResponse.statusText || '',
-        headers: (cyResponse.headers || {}) as Record<string, string>,
-        body: cyResponse.body,
-        duration: Date.now() - attemptStart,
-        size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
-        cookies: cyResponse.cookies || [],
-      };
-      attempts.push(response);
+    ).then(
+      (cyResponse) => {
+        const response: ApiResponse = {
+          status: cyResponse.status,
+          statusText: cyResponse.statusText || '',
+          headers: (cyResponse.headers || {}) as Record<string, string>,
+          body: cyResponse.body,
+          duration: Date.now() - attemptStart,
+          size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
+          cookies: cyResponse.cookies || [],
+        };
+        attempts.push(response);
 
-      const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
+        const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
 
-      if (options.failOnStatusCode !== false && !isSuccess) {
-        throw new Error(`cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`);
-      }
+        if (options.failOnStatusCode !== false && !isSuccess) {
+          // H2: failOnStatusCode throws BEFORE retry — with the default
+          // failOnStatusCode:true a non-2xx response fails fast here and never
+          // reaches the retry branch below. Retry semantics intentionally
+          // unchanged (FCU-01).
+          const failure = new Error(`cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`);
+          renderHttpFailure(response, failure.message);
+          throw failure;
+        }
 
-      if (isSuccess) {
+        if (isSuccess) {
+          return response as unknown as Cypress.Chainable<ApiResponse>;
+        }
+
+        if (attemptNumber < maxAttempts) {
+          return cy
+            .wait(attemptDelay)
+            .then(() => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>);
+        }
+
         return response as unknown as Cypress.Chainable<ApiResponse>;
-      }
-
-      if (attemptNumber < maxAttempts) {
-        return cy
-          .wait(attemptDelay)
-          .then(() => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>);
-      }
-
-      return response as unknown as Cypress.Chainable<ApiResponse>;
-    }) as unknown as Cypress.Chainable<ApiResponse>;
+      },
+      (err: unknown) => {
+        // H1: cy.request itself rejected (transport failure). The rejection
+        // carries no full response; preserve whatever status/body it exposes,
+        // otherwise the entry stays degraded (response: null, request known).
+        // No retry here — transport rejections never entered the retry branch.
+        const rejection = err as {
+          status?: unknown;
+          statusText?: unknown;
+          headers?: unknown;
+          body?: unknown;
+          cookies?: ApiResponse['cookies'];
+        } | null;
+        const carriedStatus = typeof rejection?.status === 'number' ? rejection.status : null;
+        const failureResponse: ApiResponse | null =
+          carriedStatus === null
+            ? null
+            : {
+                status: carriedStatus,
+                statusText: typeof rejection?.statusText === 'string' ? rejection.statusText : '',
+                headers: (rejection?.headers || {}) as Record<string, string>,
+                body: rejection?.body,
+                duration: Date.now() - attemptStart,
+                size: rejection?.body ? JSON.stringify(rejection.body).length : 0,
+                cookies: rejection?.cookies || [],
+              };
+        renderHttpFailure(failureResponse, toErrorMessage(err));
+        throw err;
+      },
+    ) as unknown as Cypress.Chainable<ApiResponse>;
   }
 
   return doRequest(1).then((finalResponse: ApiResponse) => {
