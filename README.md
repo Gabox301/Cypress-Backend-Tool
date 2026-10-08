@@ -23,7 +23,7 @@ Plugin de Cypress para testing de APIs HTTP y consultas a bases de datos Postgre
 - **Enmascaramiento de credenciales**: Oculta valores sensibles en la interfaz, los registros de Cypress y el cURL generado de forma predeterminada; es posible desactivarlo explícitamente.
 - **Aislamiento de credenciales de base de datos**: Las credenciales predeterminadas permanecen en el proceso Node de Cypress; se mantienen las opciones explícitas por consulta.
 - **API moderna**: Usa las APIs `Cypress.expose()` y `cy.env()` de Cypress 15.10.0+
-- **Coloreo automático por `expect()`**: Cada `expect()` sobre `response.status`, `response.body`, `response.headers` o campos anidados colorea el `ResponsePanel`/`CodeBlock` en verde (match), rojo (mismatch) o amarillo (nullish). Funciona con `eq`, `deep.eq`, `have.property` y `not` — sin configuración adicional.
+- **Coloreo automático por `expect()`**: Cada `expect()` sobre `response.status`, `response.body`, `response.headers`, `response.cookies` o campos anidados colorea el `ResponsePanel`/`CodeBlock` en verde (match), rojo (mismatch) o amarillo (nullish). Las aserciones de cookies se registran como mapa nombre→valor (igual que los headers) y resaltan las filas de cookies; la comparación usa los valores originales mientras `hideCredentials` sigue ocultando el valor mostrado. Funciona con `eq`, `deep.eq`, `have.property` y `not` — sin configuración adicional.
 - **Snapshot con coloreo**: El `Cypress.log` de `cy.http()`/`cy.query()` guarda un segundo snapshot `'assertions'` tras el microtask de `expect()`, por lo que al hacer hover sobre el log en el Command Log ves el panel ya coloreado, no solo el DOM vivo.
 - **Amarillo preciso — solo si el valor _real_ es `null`/`undefined`**: `expect("hildegard.org").to.not.be.null` ahora es **verde** (no amarillo). Amarillo solo cuando `response.body.campo` es realmente `null`/`undefined` en la respuesta.
 
@@ -316,6 +316,11 @@ cy.http({
   body: { title: null, body: 'test', userId: 1 },
 }).then((r) => {
   expect(r.body.title).to.eq(null); // → línea amarilla (real es null)
+});
+
+// Aserciones de cookies — se registran como mapa nombre→valor (igual que los headers)
+cy.http('https://example.com/login').then((r) => {
+  expect(r.cookies).to.have.property('session', 'abc123'); // → fila verde si coincide, roja si no
 });
 ```
 

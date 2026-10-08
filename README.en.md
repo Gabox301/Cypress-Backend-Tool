@@ -23,7 +23,7 @@ Cypress plugin for HTTP API testing and PostgreSQL database queries with an inte
 - **Credential redaction**: Masks sensitive request and response values in the UI, Cypress logs, and generated cURL by default; redaction can be explicitly disabled.
 - **DB credential isolation**: Default database credentials stay in the Cypress Node process; explicit per-query connection overrides remain supported.
 - **Modern API**: Uses Cypress `Cypress.expose()` and `cy.env()` APIs from Cypress 15.10.0+
-- **Automatic coloring via `expect()`**: Each `expect()` over `response.status`, `response.body`, `response.headers` or nested fields colors the `ResponsePanel`/`CodeBlock` in green (match), red (mismatch) or yellow (nullish). Works with `eq`, `deep.eq`, `have.property` and `not` — no extra configuration.
+- **Automatic coloring via `expect()`**: Each `expect()` over `response.status`, `response.body`, `response.headers`, `response.cookies` or nested fields colors the `ResponsePanel`/`CodeBlock` in green (match), red (mismatch) or yellow (nullish). Cookie assertions are recorded as a name→value map (mirroring headers) and highlight cookie rows; comparison uses raw values while `hideCredentials` still redacts the displayed value. Works with `eq`, `deep.eq`, `have.property` and `not` — no extra configuration.
 - **Colored snapshots**: The `Cypress.log` for `cy.http()`/`cy.query()` saves a second `'assertions'` snapshot after the `expect()` microtask, so hovering the log in the Command Log shows the panel already colored, not just the live DOM.
 - **Precise yellow — only when the _real_ value is `null`/`undefined`**: `expect("hildegard.org").to.not.be.null` is now **green** (not yellow). Yellow only when `response.body.field` is actually `null`/`undefined` in the response.
 
@@ -316,6 +316,11 @@ cy.http({
   body: { title: null, body: 'test', userId: 1 },
 }).then((r) => {
   expect(r.body.title).to.eq(null); // → yellow line (real is null)
+});
+
+// Cookie assertions — recorded as a name→value map (mirroring headers)
+cy.http('https://example.com/login').then((r) => {
+  expect(r.cookies).to.have.property('session', 'abc123'); // → green cookie row on match, red on mismatch
 });
 ```
 

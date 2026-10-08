@@ -61,6 +61,33 @@ export function setDeepValue(obj: Record<string, unknown>, path: string[], value
 }
 
 /**
+ * Convierte una lista de cookies [{name, value, ...}] al mapa nombre→valor
+ * registrado en `expect.cookies` (misma convención que `expect.headers`).
+ */
+function cookiesArrayToMap(list: unknown): Record<string, unknown> {
+  const map: Record<string, unknown> = {};
+  if (!Array.isArray(list)) return map;
+  for (const entry of list) {
+    if (entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).name === 'string') {
+      const rec = entry as Record<string, unknown>;
+      map[rec.name as string] = rec.value;
+    }
+  }
+  return map;
+}
+
+/**
+ * Asegura el mapa nombre→valor de `expect.cookies` (misma convención que
+ * `expect.headers`) y lo devuelve para registrar entradas por cookie.
+ */
+function ensureCookiesMap(expectObj: Record<string, unknown>): Record<string, unknown> {
+  if (!expectObj.cookies || typeof expectObj.cookies !== 'object' || Array.isArray(expectObj.cookies)) {
+    expectObj.cookies = {};
+  }
+  return expectObj.cookies as Record<string, unknown>;
+}
+
+/**
  * Procesa una aserción de Chai y la vincula con la llamada API más reciente.
  */
 export function recordAssertionOnApiCall(
@@ -137,6 +164,19 @@ export function recordAssertionOnApiCall(
     return;
   }
 
+  // 7. Aserción directa sobre response.cookies: expect(response.cookies).to.deep.eq([...])
+  // Forma registrada: mapa nombre→valor (igual que expect.headers) para que
+  // ACM-02 coloree filas por nombre comparando valores crudos (sin redactar).
+  if (response.cookies && isSameObject(target, response.cookies)) {
+    const cookiesMap = ensureCookiesMap(expectObj);
+    if (Array.isArray(expected)) {
+      Object.assign(cookiesMap, cookiesArrayToMap(expected));
+    } else if (typeof expected === 'object' && expected !== null) {
+      Object.assign(cookiesMap, expected);
+    }
+    return;
+  }
+
   // 5. Aserción sobre un campo o sub-propiedad de response.body:
   // e.g. expect(response.body.name).to.eq('Leanne Graham') o expect(response.body.address.city).to.eq(...)
   if (response.body && typeof response.body === 'object') {
@@ -160,6 +200,38 @@ export function recordAssertionOnApiCall(
       }
       const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
       setDeepValue(expectObj.headers as Record<string, unknown>, path, valToSet);
+      return;
+    }
+  }
+
+  // 8. Aserción sobre el valor de una cookie nombrada:
+  // e.g. expect(response.cookies[0].value).to.eq('abc')
+  // La ruta de índices se traduce al nombre de la cookie para mantener el mapa.
+  if (response.cookies && Array.isArray(response.cookies)) {
+    const path = findPathInObject(response.cookies, target);
+    if (path) {
+      const index = Number(path[0]);
+      const cookieAt = Number.isInteger(index) ? response.cookies[index] : undefined;
+      const cookieName =
+        cookieAt && typeof cookieAt === 'object' && typeof cookieAt.name === 'string'
+          ? cookieAt.name
+          : undefined;
+      if (cookieName) {
+        const cookiesMap = ensureCookiesMap(expectObj);
+        const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
+        if (path.length === 1) {
+          // target es el objeto cookie completo: extraer su valor
+          if (valToSet && typeof valToSet === 'object' && 'value' in (valToSet as Record<string, unknown>)) {
+            cookiesMap[cookieName] = (valToSet as Record<string, unknown>).value;
+          } else {
+            cookiesMap[cookieName] = valToSet;
+          }
+        } else if (path[1] === 'value') {
+          cookiesMap[cookieName] = valToSet;
+        }
+        // Otras sub-props (domain/path/expires/...) no son comparaciones de valor
+        // para el coloreado por nombre: se omiten para no corromper el mapa.
+      }
       return;
     }
   }
@@ -268,6 +340,7 @@ export function setupChaiExpectInterceptor() {
   // También interceptamos .property(name, val) para capturar:
   //   expect(response.body).to.have.property('name', 'val')
   //   expect(response.headers).to.have.property('content-type', 'val')
+  //   expect(response.cookies).to.have.property('session', 'val')
   // Corre DESPUÉS de originalProperty (que dispara assert → recordAssertionOnApiCall)
   // para no pisar lo que este último pueda haber escrito cuando expected es escalar.
   if (typeof proto.property === 'function') {
@@ -302,6 +375,26 @@ export function setupChaiExpectInterceptor() {
             const actualVal = (targetObj as Record<string, unknown>)[propName];
             (expObj.headers as Record<string, unknown>)[propName] = expectedVal !== undefined ? expectedVal : actualVal;
             scheduleEntryRefresh(lastCall.id);
+          }
+          // expect(response.cookies).to.have.property('session', 'val')
+          // La propiedad es el nombre de la cookie (o su índice en la lista);
+          // se registra en el mapa nombre→valor (igual que expect.headers).
+          else if (lastCall?.response?.cookies && isSameObject(lastCall.response.cookies, targetObj) && propName) {
+            const propKey = propName as string;
+            const isIndexProp = /^\d+$/.test(propKey);
+            const byIndex = isIndexProp ? lastCall.response.cookies[Number(propKey)] : undefined;
+            const indexedName =
+              byIndex && typeof byIndex === 'object' && typeof byIndex.name === 'string' ? byIndex.name : undefined;
+            if (propKey !== 'length' && (!isIndexProp || indexedName)) {
+              if (!lastCall.expect || typeof lastCall.expect !== 'object') lastCall.expect = {};
+              const expObj = lastCall.expect as Record<string, unknown>;
+              const cookiesMap = ensureCookiesMap(expObj);
+              const cookieName = indexedName ?? propKey;
+              const actualVal = (targetObj as Record<string, unknown>)[propKey];
+              const indexedVal = byIndex ? (byIndex.value ?? actualVal) : undefined;
+              cookiesMap[cookieName] = expectedVal !== undefined ? expectedVal : (indexedVal ?? actualVal);
+              scheduleEntryRefresh(lastCall.id);
+            }
           }
         }
       } catch {
