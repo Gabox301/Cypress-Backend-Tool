@@ -138,6 +138,14 @@ function logDebug(...args: unknown[]) {
   }
 }
 
+// Extracts a message from an H1 transport rejection of unknown shape.
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  const message = (err as { message?: unknown } | null)?.message;
+  return typeof message === 'string' && message.length > 0 ? message : String(err);
+}
+
 function readPluginConfig(): CypressApiPluginConfig {
   const base = getPluginConfig((key: string) => Cypress.expose(key));
   const config = mergeConfig(base, getConfigOverrides());
@@ -205,7 +213,10 @@ export { getOrCreateContainer as createFreshContainer };
 export { configure };
 
 function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
-  if (!call.response) return null as unknown as ApiResponse;
+  // Failure entries (H1 transport rejection) may carry response: null with only
+  // call.error set. ResponsePanel already renders a null response as its empty
+  // state without crashing, so mount unconditionally and let the panel show the
+  // request side. Dedicated error display belongs to FCU-03.
   const config = readPluginConfig();
   const win = cy.state('window') as Window;
   const doc = win.document;
@@ -224,7 +235,7 @@ function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
   scrollToEntry(doc, elementId);
   const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
   log.set({ $el }).snapshot('response').end();
-  return call.response;
+  return call.response as ApiResponse;
 }
 
 function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
@@ -278,47 +289,132 @@ Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOpt
   function doRequest(attemptNumber: number): Cypress.Chainable<ApiResponse> {
     const attemptStart = Date.now();
 
+    // Renders a failure UI entry (store + log + mount + snapshot) for the H1/H2
+    // paths below. Never throws: a render problem must not mask the original
+    // error that the caller rethrows so Cypress still fails the command.
+    function renderHttpFailure(response: ApiResponse | null, errorMessage: string): void {
+      try {
+        const call: ApiCall = {
+          id: callId,
+          request: {
+            url: options.url,
+            method: options.method,
+            headers: options.headers,
+            body: options.body,
+            qs: options.qs,
+            auth: options.auth,
+            expect: options.expect,
+          },
+          expect: options.expect,
+          response,
+          timestamp: Date.now(),
+          error: errorMessage,
+        };
+        if (retry && response) {
+          (call.response as ApiResponse & { attempts: ApiResponse[]; retryCount: number }).attempts = attempts;
+          (call.response as ApiResponse & { attempts: ApiResponse[]; retryCount: number }).retryCount = Math.max(
+            0,
+            attempts.length - 1,
+          );
+        }
+        addApiCall(call);
+        getTestStore().apiCalls.push(call);
+        const logRequest = redactApiRequest(options, redactionSettings);
+        const logResponse = redactApiResponse(response, redactionSettings);
+        // One-policy redaction mapping for the free-text error: transport
+        // messages may echo URLs, so the log projection hides them under
+        // hideCredentials while the store keeps the raw message for assertions.
+        const logError = redactionSettings.hideCredentials ? REDACTED_VALUE : errorMessage;
+        const log = Cypress.log({
+          name: options.method,
+          autoEnd: false,
+          message: `${options.method} ${logRequest.url}`,
+          snapshot: false,
+          consoleProps: () => ({ request: logRequest, response: logResponse, error: logError }),
+        } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+        showApiUi(call, log);
+      } catch (e) {
+        logDebug('http failure UI render failed', e);
+      }
+    }
+
     return (
       cy.request({ ...options, log: false, failOnStatusCode: false } as unknown as Record<
         string,
         unknown
-      >) as unknown as Cypress.Chainable<{
+      >) as unknown as Promise<{
         status: number;
         statusText: string;
         headers: Record<string, string>;
         body: unknown;
         cookies?: ApiResponse['cookies'];
       }>
-    ).then((cyResponse) => {
-      const response: ApiResponse = {
-        status: cyResponse.status,
-        statusText: cyResponse.statusText || '',
-        headers: (cyResponse.headers || {}) as Record<string, string>,
-        body: cyResponse.body,
-        duration: Date.now() - attemptStart,
-        size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
-        cookies: cyResponse.cookies || [],
-      };
-      attempts.push(response);
+    ).then(
+      (cyResponse) => {
+        const response: ApiResponse = {
+          status: cyResponse.status,
+          statusText: cyResponse.statusText || '',
+          headers: (cyResponse.headers || {}) as Record<string, string>,
+          body: cyResponse.body,
+          duration: Date.now() - attemptStart,
+          size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
+          cookies: cyResponse.cookies || [],
+        };
+        attempts.push(response);
 
-      const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
+        const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
 
-      if (options.failOnStatusCode !== false && !isSuccess) {
-        throw new Error(`cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`);
-      }
+        if (options.failOnStatusCode !== false && !isSuccess) {
+          // H2: failOnStatusCode throws BEFORE retry — with the default
+          // failOnStatusCode:true a non-2xx response fails fast here and never
+          // reaches the retry branch below. Retry semantics intentionally
+          // unchanged (FCU-01).
+          const failure = new Error(`cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`);
+          renderHttpFailure(response, failure.message);
+          throw failure;
+        }
 
-      if (isSuccess) {
+        if (isSuccess) {
+          return response as unknown as Cypress.Chainable<ApiResponse>;
+        }
+
+        if (attemptNumber < maxAttempts) {
+          return cy
+            .wait(attemptDelay)
+            .then(() => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>);
+        }
+
         return response as unknown as Cypress.Chainable<ApiResponse>;
-      }
-
-      if (attemptNumber < maxAttempts) {
-        return cy
-          .wait(attemptDelay)
-          .then(() => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>);
-      }
-
-      return response as unknown as Cypress.Chainable<ApiResponse>;
-    }) as unknown as Cypress.Chainable<ApiResponse>;
+      },
+      (err: unknown) => {
+        // H1: cy.request itself rejected (transport failure). The rejection
+        // carries no full response; preserve whatever status/body it exposes,
+        // otherwise the entry stays degraded (response: null, request known).
+        // No retry here — transport rejections never entered the retry branch.
+        const rejection = err as {
+          status?: unknown;
+          statusText?: unknown;
+          headers?: unknown;
+          body?: unknown;
+          cookies?: ApiResponse['cookies'];
+        } | null;
+        const carriedStatus = typeof rejection?.status === 'number' ? rejection.status : null;
+        const failureResponse: ApiResponse | null =
+          carriedStatus === null
+            ? null
+            : {
+                status: carriedStatus,
+                statusText: typeof rejection?.statusText === 'string' ? rejection.statusText : '',
+                headers: (rejection?.headers || {}) as Record<string, string>,
+                body: rejection?.body,
+                duration: Date.now() - attemptStart,
+                size: rejection?.body ? JSON.stringify(rejection.body).length : 0,
+                cookies: rejection?.cookies || [],
+              };
+        renderHttpFailure(failureResponse, toErrorMessage(err));
+        throw err;
+      },
+    ) as unknown as Cypress.Chainable<ApiResponse>;
   }
 
   return doRequest(1).then((finalResponse: ApiResponse) => {
@@ -382,64 +478,155 @@ Cypress.Commands.add('query', (
   } catch (e) {
     logDebug('reserveEntry query early failed', e);
   }
-  return cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`).then((defaultConfig) => {
-    const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
-    const port = connectionOptions?.port || defaultConfig?.port || 5432;
-    const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
-    const queryArgs = {
-      query,
-      ...(values !== undefined ? { values } : {}),
-      ...(connectionOptions ? { ...connectionOptions } : {}),
-    };
-    const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
-    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions).then((result) => {
-      const queryRows = result.rows || [];
-      const dbResponse: DbQueryResponse = {
-        rows: queryRows,
-        rowCount: result.rowCount || 0,
-        duration: Date.now() - startTime,
-        query,
-        ...(values !== undefined ? { values } : {}),
-      };
+
+  // Renders a failure UI entry (store + log + mount + snapshot) for the D1/D2
+  // paths below. Never throws: a render problem must not mask the original
+  // error that the caller rethrows so Cypress still fails the command.
+  function renderDbFailure(connectionId: string, database: string, errorMessage: string): void {
+    try {
       const dbCall: DbQuery = {
         id: queryId,
-        connectionId: `${host}:${port}/${database}`,
+        connectionId,
         query,
-        result: queryRows,
-        rowCount: result.rowCount ?? queryRows.length,
+        result: null,
+        rowCount: 0,
+        error: errorMessage,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
         database,
       };
       addDbQuery(dbCall);
       getTestStore().dbQueries.push(dbCall);
-      // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
-      // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
-      // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
-      // 'response' tomado después de montar la entrada.
       const logQuery =
-        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query ? REDACTED_VALUE : query;
-      const logRows =
-        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
-          ? redactValue(queryRows)
-          : queryRows;
+        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+          ? REDACTED_VALUE
+          : query;
       const logValues =
         values !== undefined &&
         redactionSettings.hideCredentials &&
         redactionSettings.hideCredentialsOptions.query
           ? redactValue(values)
           : values;
+      // One-policy redaction mapping for the free-text error: DB messages may
+      // echo query text, so the log projection hides them under
+      // hideCredentials while the store keeps the raw message for assertions.
+      const logError = redactionSettings.hideCredentials ? REDACTED_VALUE : errorMessage;
       const log = Cypress.log({
         name: 'QUERY',
         autoEnd: false,
         message: logQuery,
         snapshot: false,
-        consoleProps: () => ({ query: logQuery, values: logValues, result: logRows, duration: dbResponse.duration, error: undefined }),
+        consoleProps: () => ({
+          query: logQuery,
+          values: logValues,
+          result: null,
+          duration: dbCall.duration,
+          error: logError,
+        }),
       } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
       showDbQueryUi(dbCall, log);
-      return cy.wrap(dbResponse);
-    });
-  });
+    } catch (e) {
+      logDebug('query failure UI render failed', e);
+    }
+  }
+
+  return (
+    cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`) as unknown as Promise<DbTaskConfig>
+  ).then(
+    (defaultConfig) => {
+      const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
+      const port = connectionOptions?.port || defaultConfig?.port || 5432;
+      const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
+      const queryArgs = {
+        query,
+        ...(values !== undefined ? { values } : {}),
+        ...(connectionOptions ? { ...connectionOptions } : {}),
+      };
+      const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
+      return (
+        cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions) as unknown as Promise<DbTaskResult>
+      ).then(
+        (result) => {
+          const queryRows = result.rows || [];
+          const dbResponse: DbQueryResponse = {
+            rows: queryRows,
+            rowCount: result.rowCount || 0,
+            duration: Date.now() - startTime,
+            query,
+            ...(values !== undefined ? { values } : {}),
+          };
+          const dbCall: DbQuery = {
+            id: queryId,
+            connectionId: `${host}:${port}/${database}`,
+            query,
+            result: queryRows,
+            rowCount: result.rowCount ?? queryRows.length,
+            duration: Date.now() - startTime,
+            timestamp: Date.now(),
+            database,
+          };
+          addDbQuery(dbCall);
+          getTestStore().dbQueries.push(dbCall);
+          // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
+          // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
+          // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
+          // 'response' tomado después de montar la entrada.
+          const logQuery =
+            redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+              ? REDACTED_VALUE
+              : query;
+          const logRows =
+            redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
+              ? redactValue(queryRows)
+              : queryRows;
+          const logValues =
+            values !== undefined &&
+            redactionSettings.hideCredentials &&
+            redactionSettings.hideCredentialsOptions.query
+              ? redactValue(values)
+              : values;
+          const log = Cypress.log({
+            name: 'QUERY',
+            autoEnd: false,
+            message: logQuery,
+            snapshot: false,
+            consoleProps: () => ({
+              query: logQuery,
+              values: logValues,
+              result: logRows,
+              duration: dbResponse.duration,
+              error: undefined,
+            }),
+          } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+          showDbQueryUi(dbCall, log);
+          return cy.wrap(dbResponse);
+        },
+        (err: unknown) => {
+          // D2: db:query rejected — host/port/database were already resolved
+          // above, so the entry carries the real connectionId. Rethrow the
+          // original error unchanged so Cypress still fails the command.
+          renderDbFailure(`${host}:${port}/${database}`, database, toErrorMessage(err));
+          throw err;
+        },
+      );
+    },
+    (err: unknown) => {
+      // D1: db:getConfig rejected, so default host/port/database are
+      // unavailable. Per-query connection overrides (when supplied) are the
+      // only known connection info — use them; otherwise fall back to the
+      // explicit 'unknown' sentinel so the entry still renders in call order
+      // instead of leaving an orphan placeholder. Rethrow the original error
+      // unchanged so Cypress still fails the command.
+      const degradedHost = connectionOptions?.host ?? 'unknown';
+      const degradedPort = connectionOptions?.port ?? 'unknown';
+      const degradedDatabase = connectionOptions?.database ?? 'unknown';
+      const degradedConnectionId = connectionOptions
+        ? `${degradedHost}:${degradedPort}/${degradedDatabase}`
+        : 'unknown';
+      renderDbFailure(degradedConnectionId, degradedDatabase, toErrorMessage(err));
+      throw err;
+    },
+  ) as unknown as Cypress.Chainable<DbQueryResponse>;
 });
 
 // ============================================
