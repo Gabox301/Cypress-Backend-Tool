@@ -21,6 +21,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 ### Fixed
 
 - **Limpieza de clientes temporales:** los clientes creados para una consulta puntual ahora se cierran en `finally`, también cuando la query falla (antes quedaban conexiones abiertas).
+- **Tooltip en snapshots:** el tooltip de rutas truncadas ahora también aparece al pasar el cursor sobre el preview de un snapshot, igual que en el runner en vivo.
 
 ## [1.1.6] - 2026-09-07
 
