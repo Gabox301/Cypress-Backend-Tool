@@ -824,3 +824,197 @@ describe('HTTP log redaction', () => {
     expect(result.body).toEqual(response.body);
   });
 });
+
+describe('DB failure entries (FCU-02)', () => {
+  let dbQueriesStore: unknown[];
+  let clearDbStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    dbQueriesStore = stores.dbQueries as unknown[];
+    clearDbStore = stores.clearDbQueries;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+  });
+
+  function queryHandler() {
+    return capturedCommands['query'] as (...args: unknown[]) => Promise<unknown>;
+  }
+
+  function cypressLogMock() {
+    return (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+  }
+
+  function windowDbHistory(): unknown[] {
+    const win = window as unknown as {
+      __cypress_backend_tool__?: Record<string, { dbQueries: unknown[] }>;
+    };
+    return win.__cypress_backend_tool__?.['test-1']?.dbQueries ?? [];
+  }
+
+  function mockDbTasks(options: {
+    getConfig?: unknown;
+    getConfigError?: unknown;
+    queryResult?: unknown;
+    queryError?: unknown;
+  }) {
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return options.getConfigError !== undefined
+          ? Promise.reject(options.getConfigError)
+          : Promise.resolve(options.getConfig ?? { host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return options.queryError !== undefined
+          ? Promise.reject(options.queryError)
+          : Promise.resolve(options.queryResult ?? { rows: [{ value: 1 }], rowCount: 1 });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  it('D2: db:query rejection renders an entry with connectionId + error and rethrows the original', async () => {
+    const dbError = new Error('relation "missing_table" does not exist');
+    mockDbTasks({ queryError: dbError });
+    const historyBefore = windowDbHistory().length;
+
+    let caught: unknown;
+    try {
+      await queryHandler()('SELECT * FROM missing_table');
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(dbError);
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('localhost:5432/test_db');
+    expect(entry.query).toBe('SELECT * FROM missing_table');
+    expect(entry.result).toBeNull();
+    expect(entry.rowCount).toBe(0);
+    expect(entry.error).toContain('missing_table');
+    expect(entry.database).toBe('test_db');
+    expect(typeof entry.duration).toBe('number');
+    expect(windowDbHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('D2: keeps explicit connection overrides in the failure connectionId', async () => {
+    const dbError = new Error('connection refused');
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+    const task = mockDbTasks({ queryError: dbError });
+
+    let caught: unknown;
+    try {
+      await queryHandler()('SELECT $1::int', [42], connectionOptions);
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(dbError);
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('override.example.test:5544/override_db');
+    expect(entry.database).toBe('override_db');
+    expect(entry.error).toContain('connection refused');
+  });
+
+  it('D1: db:getConfig rejection renders a degraded entry with unknown connectionId and rethrows the original', async () => {
+    const configError = new Error('db:getConfig failed: missing DATABASE_URL');
+    const task = mockDbTasks({ getConfigError: configError });
+    const historyBefore = windowDbHistory().length;
+
+    let caught: unknown;
+    try {
+      await queryHandler()('SELECT 1');
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBe(configError);
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('unknown');
+    expect(entry.query).toBe('SELECT 1');
+    expect(entry.result).toBeNull();
+    expect(entry.rowCount).toBe(0);
+    expect(entry.error).toContain('missing DATABASE_URL');
+    expect(windowDbHistory()).toHaveLength(historyBefore + 1);
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+  });
+
+  it('D1: uses per-query overrides for the degraded connectionId when supplied', async () => {
+    const configError = new Error('db:getConfig failed');
+    mockDbTasks({ getConfigError: configError });
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+
+    await expect(queryHandler()('SELECT 1', connectionOptions)).rejects.toBe(configError);
+
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('override.example.test:5544/override_db');
+    expect(entry.database).toBe('override_db');
+  });
+
+  it('D1: falls back per segment for partial overrides without undefined segments', async () => {
+    const configError = new Error('db:getConfig failed');
+    mockDbTasks({ getConfigError: configError });
+
+    await expect(queryHandler()('SELECT 1', { database: 'partial_db' })).rejects.toBe(configError);
+
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('unknown:unknown/partial_db');
+    expect(entry.connectionId).not.toContain('undefined');
+    expect(entry.database).toBe('partial_db');
+  });
+
+  it('redacts failure log projections by default while keeping raw data in the store', async () => {
+    const dbError = new Error("column 'query-secret' does not exist");
+    mockDbTasks({ queryError: dbError });
+
+    await expect(queryHandler()("SELECT 'query-secret'", ['bind-secret'])).rejects.toBe(dbError);
+
+    const log = cypressLogMock();
+    const logOptions = log.mock.calls[log.mock.calls.length - 1]?.[0] as {
+      message: string;
+      consoleProps: () => unknown;
+    };
+    const logOutput = `${logOptions.message} ${JSON.stringify(logOptions.consoleProps())}`;
+    expect(logOutput).not.toContain('query-secret');
+    expect(logOutput).not.toContain('bind-secret');
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.query).toContain('query-secret');
+    expect(entry.error).toContain('query-secret');
+  });
+
+  it('leaves success entries without an error', async () => {
+    mockDbTasks({});
+
+    await queryHandler()('SELECT 1');
+
+    expect(dbQueriesStore).toHaveLength(1);
+    expect((dbQueriesStore[0] as Record<string, unknown>).error).toBeUndefined();
+  });
+});

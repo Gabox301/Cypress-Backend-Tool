@@ -478,64 +478,155 @@ Cypress.Commands.add('query', (
   } catch (e) {
     logDebug('reserveEntry query early failed', e);
   }
-  return cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`).then((defaultConfig) => {
-    const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
-    const port = connectionOptions?.port || defaultConfig?.port || 5432;
-    const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
-    const queryArgs = {
-      query,
-      ...(values !== undefined ? { values } : {}),
-      ...(connectionOptions ? { ...connectionOptions } : {}),
-    };
-    const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
-    return cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions).then((result) => {
-      const queryRows = result.rows || [];
-      const dbResponse: DbQueryResponse = {
-        rows: queryRows,
-        rowCount: result.rowCount || 0,
-        duration: Date.now() - startTime,
-        query,
-        ...(values !== undefined ? { values } : {}),
-      };
+
+  // Renders a failure UI entry (store + log + mount + snapshot) for the D1/D2
+  // paths below. Never throws: a render problem must not mask the original
+  // error that the caller rethrows so Cypress still fails the command.
+  function renderDbFailure(connectionId: string, database: string, errorMessage: string): void {
+    try {
       const dbCall: DbQuery = {
         id: queryId,
-        connectionId: `${host}:${port}/${database}`,
+        connectionId,
         query,
-        result: queryRows,
-        rowCount: result.rowCount ?? queryRows.length,
+        result: null,
+        rowCount: 0,
+        error: errorMessage,
         duration: Date.now() - startTime,
         timestamp: Date.now(),
         database,
       };
       addDbQuery(dbCall);
       getTestStore().dbQueries.push(dbCall);
-      // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
-      // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
-      // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
-      // 'response' tomado después de montar la entrada.
       const logQuery =
-        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query ? REDACTED_VALUE : query;
-      const logRows =
-        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
-          ? redactValue(queryRows)
-          : queryRows;
+        redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+          ? REDACTED_VALUE
+          : query;
       const logValues =
         values !== undefined &&
         redactionSettings.hideCredentials &&
         redactionSettings.hideCredentialsOptions.query
           ? redactValue(values)
           : values;
+      // One-policy redaction mapping for the free-text error: DB messages may
+      // echo query text, so the log projection hides them under
+      // hideCredentials while the store keeps the raw message for assertions.
+      const logError = redactionSettings.hideCredentials ? REDACTED_VALUE : errorMessage;
       const log = Cypress.log({
         name: 'QUERY',
         autoEnd: false,
         message: logQuery,
         snapshot: false,
-        consoleProps: () => ({ query: logQuery, values: logValues, result: logRows, duration: dbResponse.duration, error: undefined }),
+        consoleProps: () => ({
+          query: logQuery,
+          values: logValues,
+          result: null,
+          duration: dbCall.duration,
+          error: logError,
+        }),
       } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
       showDbQueryUi(dbCall, log);
-      return cy.wrap(dbResponse);
-    });
-  });
+    } catch (e) {
+      logDebug('query failure UI render failed', e);
+    }
+  }
+
+  return (
+    cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`) as unknown as Promise<DbTaskConfig>
+  ).then(
+    (defaultConfig) => {
+      const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
+      const port = connectionOptions?.port || defaultConfig?.port || 5432;
+      const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
+      const queryArgs = {
+        query,
+        ...(values !== undefined ? { values } : {}),
+        ...(connectionOptions ? { ...connectionOptions } : {}),
+      };
+      const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
+      return (
+        cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions) as unknown as Promise<DbTaskResult>
+      ).then(
+        (result) => {
+          const queryRows = result.rows || [];
+          const dbResponse: DbQueryResponse = {
+            rows: queryRows,
+            rowCount: result.rowCount || 0,
+            duration: Date.now() - startTime,
+            query,
+            ...(values !== undefined ? { values } : {}),
+          };
+          const dbCall: DbQuery = {
+            id: queryId,
+            connectionId: `${host}:${port}/${database}`,
+            query,
+            result: queryRows,
+            rowCount: result.rowCount ?? queryRows.length,
+            duration: Date.now() - startTime,
+            timestamp: Date.now(),
+            database,
+          };
+          addDbQuery(dbCall);
+          getTestStore().dbQueries.push(dbCall);
+          // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
+          // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
+          // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
+          // 'response' tomado después de montar la entrada.
+          const logQuery =
+            redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+              ? REDACTED_VALUE
+              : query;
+          const logRows =
+            redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
+              ? redactValue(queryRows)
+              : queryRows;
+          const logValues =
+            values !== undefined &&
+            redactionSettings.hideCredentials &&
+            redactionSettings.hideCredentialsOptions.query
+              ? redactValue(values)
+              : values;
+          const log = Cypress.log({
+            name: 'QUERY',
+            autoEnd: false,
+            message: logQuery,
+            snapshot: false,
+            consoleProps: () => ({
+              query: logQuery,
+              values: logValues,
+              result: logRows,
+              duration: dbResponse.duration,
+              error: undefined,
+            }),
+          } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+          showDbQueryUi(dbCall, log);
+          return cy.wrap(dbResponse);
+        },
+        (err: unknown) => {
+          // D2: db:query rejected — host/port/database were already resolved
+          // above, so the entry carries the real connectionId. Rethrow the
+          // original error unchanged so Cypress still fails the command.
+          renderDbFailure(`${host}:${port}/${database}`, database, toErrorMessage(err));
+          throw err;
+        },
+      );
+    },
+    (err: unknown) => {
+      // D1: db:getConfig rejected, so default host/port/database are
+      // unavailable. Per-query connection overrides (when supplied) are the
+      // only known connection info — use them; otherwise fall back to the
+      // explicit 'unknown' sentinel so the entry still renders in call order
+      // instead of leaving an orphan placeholder. Rethrow the original error
+      // unchanged so Cypress still fails the command.
+      const degradedHost = connectionOptions?.host ?? 'unknown';
+      const degradedPort = connectionOptions?.port ?? 'unknown';
+      const degradedDatabase = connectionOptions?.database ?? 'unknown';
+      const degradedConnectionId = connectionOptions
+        ? `${degradedHost}:${degradedPort}/${degradedDatabase}`
+        : 'unknown';
+      renderDbFailure(degradedConnectionId, degradedDatabase, toErrorMessage(err));
+      throw err;
+    },
+  ) as unknown as Cypress.Chainable<DbQueryResponse>;
 });
 
 // ============================================
