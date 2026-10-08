@@ -42,8 +42,15 @@ export function ensureTooltipDelegation(doc: Document = document): void {
   doc.addEventListener('mouseout', handleTooltipOut);
 }
 
+function isElement(target: EventTarget | null): target is Element {
+  // Duck-typing agnóstico al realm: el bundle puede correr en el realm del
+  // runner mientras los nodos pertenecen al document del iframe del AUT, donde
+  // `instanceof Element` es siempre falso. Igual que en copy-delegation.
+  return target !== null && typeof (target as Element).closest === 'function';
+}
+
 function findUrlTarget(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof Element)) return null;
+  if (!isElement(target)) return null;
   return target.closest<HTMLElement>('.url-origin, .url-path');
 }
 
@@ -88,7 +95,7 @@ function handleTooltipOut(event: MouseEvent): void {
   const element = findUrlTarget(event.target);
   if (!element) return;
   const related = event.relatedTarget;
-  if (related instanceof Element && element.contains(related)) return;
+  if (isElement(related) && element.contains(related)) return;
   hideFallback();
 }
 
