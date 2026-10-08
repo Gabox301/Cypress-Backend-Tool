@@ -2,6 +2,7 @@ import { pluginConfig } from '$lib/stores.svelte';
 import { mount, unmount } from 'svelte';
 import App from '../components/App.svelte';
 import { ensureCopyDelegation } from './copy-delegation';
+import { ensureTooltipDelegation } from './tooltip-delegation';
 import { EntryRegistry } from './entry-registry';
 import { mountEntry, reserveEntry } from './mountEntry';
 export { mountEntry, reserveEntry };
@@ -139,6 +140,7 @@ export function ensurePluginMounted(container: HTMLElement, doc: Document): void
   // aquí, no desde CodeBlock, porque el bundle se ejecuta en el contexto del
   // spec/runner y su document global puede ser otro documento.
   ensureCopyDelegation(doc);
+  ensureTooltipDelegation(doc);
   // Contenedor eliminado del DOM (reproducción de snapshot de Cypress) — reset
   if (!container.isConnected || mountedDocument !== doc) {
     resetMountState();

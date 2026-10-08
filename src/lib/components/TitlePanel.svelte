@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { HttpMethod } from '$lib/types';
+  import { registerLiveUrlElement } from '../ui/tooltip-delegation';
   interface Props {
     method?: HttpMethod;
     url?: string;
@@ -91,6 +92,7 @@
         class="url-origin"
         role="button"
         tabindex="0"
+        use:registerLiveUrlElement
         onmouseenter={(e) => handleMouseEnter(urlParts.origin, e)}
         onmouseleave={handleMouseLeave}>{urlParts.origin}</span
       >
@@ -98,6 +100,7 @@
         class="url-path"
         role="button"
         tabindex="0"
+        use:registerLiveUrlElement
         onmouseenter={(e) => handleMouseEnter(urlParts.path, e)}
         onmouseleave={handleMouseLeave}>{urlParts.path}</span
       >
