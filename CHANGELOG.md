@@ -5,6 +5,23 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.0] - 2026-10-08
+
+### Added
+
+- **Valores enlazados (bind values) en `cy.query`:** nueva firma `cy.query(texto, valores?, opcionesDeConexion?)` para consultas parametrizadas (`$1`, `$2`, …). Los valores se reenvían a la tarea Node (`db:query`) y se ejecutan de forma segura contra Postgres. Compatible hacia atrás: llamar solo con opciones (`cy.query(texto, { host, ... })`) sigue funcionando.
+- **Redacción de credenciales activada por defecto:** los paneles de request/response/query, los logs de tareas y la salida cURL ocultan contraseñas y secretos automáticamente. Se puede desactivar de forma explícita con `hideCredentials: false` (ver `hideCredentialsOptions` para un control granular).
+- **Conteo de filas afectadas en el historial:** el historial de queries conserva `rowCount`, así que `INSERT`/`UPDATE`/`DELETE` ahora muestran cuántas filas afectaron.
+
+### Changed
+
+- **Prefijo de tareas y `defaultPrefix` vía `e2e.expose`:** `setupDatabaseTasks()` devuelve metadatos que se exponen en la configuración, así los prefijos personalizados se resuelven igual en Node y en el navegador. También se corrigió la resolución de `defaults.database`.
+- **Credenciales por defecto solo en Node:** los valores de conexión por defecto ya no se exponen al navegador (`db:getConfig` no los devuelve).
+
+### Fixed
+
+- **Limpieza de clientes temporales:** los clientes creados para una consulta puntual ahora se cierran en `finally`, también cuando la query falla (antes quedaban conexiones abiertas).
+
 ## [1.1.6] - 2026-09-07
 
 ### Fixed
