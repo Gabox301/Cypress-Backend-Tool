@@ -473,6 +473,120 @@ describe('query rowCount history (QPH-04)', () => {
   });
 });
 
+describe('query bind values (QBV-02)', () => {
+  beforeAll(async () => {
+    await import('./index');
+  });
+
+  function mockQueryTasks(rows: unknown[] = [{ value: 1 }]) {
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve({ rows, rowCount: rows.length });
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  function lastLogOptions() {
+    const cypress = globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> };
+    const call = cypress.log.mock.calls[cypress.log.mock.calls.length - 1]?.[0] as {
+      message: string;
+      consoleProps: () => unknown;
+    };
+    return call;
+  }
+
+  it('forwards array values through the task args and keeps raw values in the response', async () => {
+    const task = mockQueryTasks([{ id: 1 }]);
+    const queryHandler = capturedCommands['query'] as (
+      query: string,
+      values?: unknown,
+      options?: unknown,
+    ) => Promise<{ rows: unknown[]; values?: unknown[] }>;
+
+    const result = await queryHandler('SELECT $1::int AS id', [1]);
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int AS id', values: [1] });
+    expect(result.values).toEqual([1]);
+  });
+
+  it('redacts values in logs wherever query text is redacted but keeps raw values for assertions', async () => {
+    const secret = 'bind-value-secret';
+    const task = mockQueryTasks([{ token: 'row-secret' }]);
+    const queryHandler = capturedCommands['query'] as (
+      query: string,
+      values?: unknown,
+    ) => Promise<{ rows: unknown[]; values?: unknown[] }>;
+
+    const result = await queryHandler('SELECT $1 AS token', [secret]);
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1 AS token', values: [secret] });
+    const logOptions = lastLogOptions();
+    const logged = JSON.stringify(logOptions.consoleProps());
+    expect(logged).not.toContain(secret);
+    expect(logged).not.toContain('row-secret');
+    expect(result.values).toEqual([secret]);
+  });
+
+  it('leaves the 1-arg call unchanged with no values sent', async () => {
+    const task = mockQueryTasks([{ value: 1 }]);
+    const queryHandler = capturedCommands['query'] as (query: string) => Promise<{ values?: unknown[] }>;
+
+    const result = await queryHandler('SELECT 1');
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1' });
+    expect(task.mock.calls[1]?.[1]).not.toHaveProperty('values');
+    expect(result.values).toBeUndefined();
+  });
+
+  it('leaves the 2-arg-object call unchanged with no values sent', async () => {
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+    const task = mockQueryTasks([]);
+    const queryHandler = capturedCommands['query'] as (
+      query: string,
+      options: unknown,
+    ) => Promise<{ values?: unknown[] }>;
+
+    const result = await queryHandler('SELECT 1', connectionOptions);
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
+    expect(task.mock.calls[1]?.[1]).not.toHaveProperty('values');
+    expect(result.values).toBeUndefined();
+  });
+
+  it('preserves explicit per-query overrides when values are supplied as the 2nd arg', async () => {
+    const connectionOptions = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    };
+    const task = mockQueryTasks([]);
+    const queryHandler = capturedCommands['query'] as (
+      query: string,
+      values: unknown,
+      options: unknown,
+    ) => Promise<{ values?: unknown[] }>;
+
+    const result = await queryHandler('SELECT $1::int', [42], connectionOptions);
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
+    expect(result.values).toEqual([42]);
+  });
+});
+
 describe('HTTP log redaction', () => {
   it('redacts request and response log output by default without changing returned data', async () => {
     const secrets = [
