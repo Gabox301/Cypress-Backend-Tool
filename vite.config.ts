@@ -32,8 +32,8 @@ export default defineConfig({
     rollupOptions: {
       external: (source: string, importer: string | undefined) => {
         if (source === 'cypress') return true;
-        // Solo externaliza 'pg' y 'dotenv' cuando se importa desde el entry de tasks (Node-only)
-        if ((source === 'pg' || source === 'dotenv') && importer?.includes('src/node/tasks.ts')) return true;
+        // Solo externaliza 'pg' cuando se importa desde el entry de tasks (Node-only)
+        if (source === 'pg' && importer?.includes('src/node/tasks.ts')) return true;
         return false;
       },
       output: {

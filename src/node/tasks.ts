@@ -1,11 +1,15 @@
 /// <reference types="cypress" />
 
-import dotenv from 'dotenv';
 import pg from 'pg';
 
 // No cargar .env durante tests (Vitest) y evitar doble carga si cypress.config.ts ya lo hizo
 if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST) {
-  dotenv.config();
+  // loadEnvFile lanza ENOENT si falta .env (dotenv era silencioso): ignorar solo ese caso.
+  try {
+    process.loadEnvFile();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
 }
 
 // ============================================

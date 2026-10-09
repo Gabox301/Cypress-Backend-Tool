@@ -8,9 +8,8 @@ vi.mock('cypress', () => ({
   defineConfig: (config: unknown) => config,
 }));
 
-vi.mock('dotenv', () => ({
-  default: { config: vi.fn() },
-}));
+// Stub native .env loader so importing cypress.config.ts never reads a real `.env`.
+vi.spyOn(process, 'loadEnvFile').mockImplementation(() => {});
 
 vi.mock('../src/node/tasks', () => ({
   setupDatabaseTasks: setupDatabaseTasksMock,

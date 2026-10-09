@@ -64,10 +64,9 @@ La forma más simple de configurar las tareas de base de datos es con `setupData
 ```typescript
 // cypress.config.ts
 import { defineConfig } from 'cypress';
-import dotenv from 'dotenv';
 import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
 
-dotenv.config(); // carga .env automáticamente
+process.loadEnvFile(); // carga .env automáticamente (cargador nativo de Node >=22)
 
 export default defineConfig({
   e2e: {
@@ -175,7 +174,7 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
-Crea un `.env` en la raíz — `cypress.config.ts` y `src/node/tasks.ts` lo cargan automáticamente vía `dotenv` (no necesitas `fs` manual). Ejemplo `.env` para Neon:
+Crea un `.env` en la raíz — `cypress.config.ts` y `src/node/tasks.ts` lo cargan automáticamente vía el cargador nativo de Node (`process.loadEnvFile()`, sin dependencias) (no necesitas `fs` manual). Ejemplo `.env` para Neon:
 
 ```env
 CYPRESS_DB_HOST=ep-xxx.neon.tech
