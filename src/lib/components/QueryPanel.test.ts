@@ -220,3 +220,13 @@ describe('QueryPanel — affected vs returned rows (QPH-04)', () => {
     expect(screen.getByText('3 affected')).toBeInTheDocument();
   });
 });
+
+describe('QueryPanel — invalid rows hardening (QIR-2)', () => {
+  it('renders the empty state instead of crashing when rows is not an array', () => {
+    render(QueryPanel, {
+      props: makeProps({ rows: undefined as unknown as unknown[] }),
+    });
+    expect(screen.getByText('(no rows returned)')).toBeInTheDocument();
+    expect(screen.getByText('0 rows')).toBeInTheDocument();
+  });
+});
