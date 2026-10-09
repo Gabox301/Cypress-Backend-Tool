@@ -47,16 +47,13 @@ describe('EntryPanel — con datos DbQuery', () => {
       query: "SELECT 'query-secret' AS token",
       result: [{ token: 'row-secret' }],
     };
-    const { container } = render(
-      EntryPanel,
-      {
-        props: baseProps({
-          data,
-          hideCredentials: true,
-          hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
-        }),
-      },
-    );
+    const { container } = render(EntryPanel, {
+      props: baseProps({
+        data,
+        hideCredentials: true,
+        hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
+      }),
+    });
 
     expect(container.textContent).not.toContain('query-secret');
     expect(container.textContent).not.toContain('row-secret');
@@ -131,16 +128,13 @@ describe('EntryPanel — con datos ApiCall', () => {
         size: 50,
       },
     };
-    const { container } = render(
-      EntryPanel,
-      {
-        props: baseProps({
-          data,
-          hideCredentials: true,
-          hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
-        }),
-      },
-    );
+    const { container } = render(EntryPanel, {
+      props: baseProps({
+        data,
+        hideCredentials: true,
+        hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
+      }),
+    });
 
     expect(container.textContent).not.toContain('response-body-secret');
     fireEvent.click(screen.getAllByText('Headers')[1]);

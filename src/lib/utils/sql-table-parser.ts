@@ -43,8 +43,7 @@ export function normalizeIdentifier(identifier: string): string {
   // Elimina espacios y caracteres de entrecomillado " ` [ ]
   last = last.trim();
   // Elimina comillas/corchetes del inicio y final de forma iterativa
-  // eslint-disable-next-line no-useless-escape
-  last = last.replace(/^["`\[]+/, '').replace(/["`\]]+$/, '');
+  last = last.replace(/^["`[]+/, '').replace(/["`\]]+$/, '');
   // También maneja caso donde "users" queda con comillas internas ya eliminadas
   // Elimina cualquier comilla restante al inicio/final
   last = last.replace(/^["`]+|["`]+$/g, '');

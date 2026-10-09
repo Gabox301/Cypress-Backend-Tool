@@ -8,7 +8,6 @@
   }
 
   let { children, id, class: klass }: Props = $props();
-
   let viewport: HTMLDivElement | undefined = $state(undefined);
   let track: HTMLDivElement | undefined = $state(undefined);
   let thumb: HTMLDivElement | undefined = $state(undefined);

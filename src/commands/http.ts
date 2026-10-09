@@ -4,9 +4,9 @@ import { reserveEntry } from '$lib/ui';
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse } from '$lib/utils/redaction';
 import { logDebug, toErrorMessage } from '../support/debug';
 import { readPluginConfig } from '../support/plugin-config';
-import { getTestStore } from '../support/test-store';
-import { applySnapshotOnly, getOrCreateContainer, showApiUi } from '../support/plugin-ui';
 import type { ApiRequestOptions } from '../support/plugin-types';
+import { applySnapshotOnly, getOrCreateContainer, showApiUi } from '../support/plugin-ui';
+import { getTestStore } from '../support/test-store';
 
 // ============================================
 // Registro de comandos — auto-inicialización al importar

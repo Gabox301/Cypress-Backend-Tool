@@ -20,11 +20,13 @@ describe('cypress.config setupNodeEvents', () => {
     setupDatabaseTasksMock.mockImplementation((_on: unknown, config: unknown) => config);
 
     const configModule = await import('../cypress.config');
-    const setupNodeEvents = (configModule.default as unknown as {
-      e2e: {
-        setupNodeEvents: (on: unknown, config: { expose: Record<string, unknown> }) => unknown;
-      };
-    }).e2e.setupNodeEvents;
+    const setupNodeEvents = (
+      configModule.default as unknown as {
+        e2e: {
+          setupNodeEvents: (on: unknown, config: { expose: Record<string, unknown> }) => unknown;
+        };
+      }
+    ).e2e.setupNodeEvents;
     const on = vi.fn();
     const existingExpose = { snapshotOnly: false, existingValue: 'preserved' };
     const config = { expose: existingExpose };

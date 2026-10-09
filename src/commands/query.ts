@@ -4,19 +4,18 @@ import { reserveEntry } from '$lib/ui';
 import { REDACTED_VALUE, redactValue } from '$lib/utils/redaction';
 import { logDebug, toErrorMessage } from '../support/debug';
 import { readPluginConfig } from '../support/plugin-config';
-import { getTestStore } from '../support/test-store';
+import type { DbConnectionOptions, DbQueryResponse, DbQueryTaskThen, DbTaskResult } from '../support/plugin-types';
 import { applySnapshotOnly, getOrCreateContainer, showDbQueryUi } from '../support/plugin-ui';
-import type {
-  DbConnectionOptions,
-  DbQueryResponse,
-  DbQueryTaskThen,
-  DbTaskResult,
-} from '../support/plugin-types';
+import { getTestStore } from '../support/test-store';
 
 export function registerQueryCommand(): void {
   Cypress.Commands.add(
     'query',
-    (query: string, valuesOrOptions?: unknown[] | DbConnectionOptions, maybeConnectionOptions?: DbConnectionOptions) => {
+    (
+      query: string,
+      valuesOrOptions?: unknown[] | DbConnectionOptions,
+      maybeConnectionOptions?: DbConnectionOptions,
+    ) => {
       const values = Array.isArray(valuesOrOptions) ? valuesOrOptions : undefined;
       const connectionOptions = (Array.isArray(valuesOrOptions) ? maybeConnectionOptions : valuesOrOptions) as
         | DbConnectionOptions
@@ -99,8 +98,7 @@ export function registerQueryCommand(): void {
       const exposedHost = Cypress.expose('dbHost') as string | undefined;
       const exposedPort = Cypress.expose('dbPort') as string | number | undefined;
       const exposedDatabase = Cypress.expose('dbDatabase') as string | undefined;
-      const snapshotAbsent =
-        exposedHost === undefined && exposedPort === undefined && exposedDatabase === undefined;
+      const snapshotAbsent = exposedHost === undefined && exposedPort === undefined && exposedDatabase === undefined;
       if (connectionOptions === undefined && snapshotAbsent) {
         // Sync-degraded (ex D1): no per-query overrides and no setup snapshot,
         // so the real endpoint is unknown — fail closed with the 'unknown'
@@ -195,9 +193,7 @@ export function registerQueryCommand(): void {
               ? redactValue(queryRows)
               : queryRows;
           const logValues =
-            values !== undefined &&
-            redactionSettings.hideCredentials &&
-            redactionSettings.hideCredentialsOptions.query
+            values !== undefined && redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
               ? redactValue(values)
               : values;
           const log = Cypress.log({

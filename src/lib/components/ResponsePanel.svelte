@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ApiResponse } from '$lib/types';
-  import { redactApiResponse } from '$lib/utils/redaction';
   import { formatSize, getDurationColor, getDurationGlow, getSizeColor, getSizeGlow } from '$lib/utils/format';
+  import { redactApiResponse } from '$lib/utils/redaction';
   import CodeBlock from './CodeBlock.svelte';
   import Icon from './Icon.svelte';
 
@@ -304,12 +304,7 @@
     </div>
     <div class="content-area">
       {#if selectedTab === 'body'}
-        <CodeBlock
-          data={response.body}
-          comparisonData={rawResponse?.body}
-          expected={expectedBody}
-          format="json"
-        />
+        <CodeBlock data={response.body} comparisonData={rawResponse?.body} expected={expectedBody} format="json" />
       {:else if selectedTab === 'headers'}
         <div class="headers-list">
           {#each Object.entries(response.headers) as [key, value] (key)}
@@ -349,19 +344,17 @@
         {/if}
       {/if}
     </div>
+  {:else if displayError}
+    <div class="content-area">
+      <div class="error-block">
+        <span class="error-text">{displayError}</span>
+      </div>
+    </div>
   {:else}
-    {#if displayError}
-      <div class="content-area">
-        <div class="error-block">
-          <span class="error-text">{displayError}</span>
-        </div>
-      </div>
-    {:else}
-      <div class="empty-state">
-        <span class="empty-icon"><Icon name="wifi" size={36} color="#64748b" /></span>
-        <span class="empty-text">Esperando respuesta</span>
-      </div>
-    {/if}
+    <div class="empty-state">
+      <span class="empty-icon"><Icon name="wifi" size={36} color="#64748b" /></span>
+      <span class="empty-text">Esperando respuesta</span>
+    </div>
   {/if}
 </div>
 

@@ -120,11 +120,7 @@ function isDbTaskOptions(value: unknown): value is DbTaskOptions {
  * ```
  */
 export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOptions): { dbTaskPrefix: string };
-export function setupDatabaseTasks<C extends object>(
-  on: Cypress.PluginEvents,
-  config: C,
-  options?: DbTaskOptions,
-): C;
+export function setupDatabaseTasks<C extends object>(on: Cypress.PluginEvents, config: C, options?: DbTaskOptions): C;
 export function setupDatabaseTasks(
   on: Cypress.PluginEvents,
   configOrOptions?: unknown,
@@ -143,10 +139,7 @@ export function setupDatabaseTasks(
     maybeOptions ?? (config === undefined ? (configOrOptions as DbTaskOptions | undefined) : undefined);
   const prefix = options?.defaultPrefix ?? '';
   const envPrefix = options?.envPrefix ?? 'CYPRESS_DB_';
-  const readEnv = (
-    key: string,
-    defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig,
-  ): string => {
+  const readEnv = (key: string, defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig): string => {
     const fromDefaults = options?.defaults?.[defaultKey];
     return (
       process.env[envPrefix + key] ??
@@ -254,8 +247,7 @@ export function setupDatabaseTasks(
         });
         try {
           await client.connect();
-          const result =
-            values !== undefined ? await client.query(args.query, values) : await client.query(args.query);
+          const result = values !== undefined ? await client.query(args.query, values) : await client.query(args.query);
           return { rows: result.rows, rowCount: result.rowCount ?? 0 };
         } finally {
           try {
@@ -265,8 +257,7 @@ export function setupDatabaseTasks(
           }
         }
       }
-      const result =
-        values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
+      const result = values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
   });

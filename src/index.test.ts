@@ -1226,10 +1226,7 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
     vi.stubEnv('CYPRESS_DB_USER', 'postgres');
     vi.stubEnv('CYPRESS_DB_PASSWORD', '');
     const { setupDatabaseTasks } = (await import('./node/tasks')) as unknown as {
-      setupDatabaseTasks: (
-        on: Record<string, unknown>,
-        options?: Record<string, unknown>,
-      ) => { dbTaskPrefix: string };
+      setupDatabaseTasks: (on: Record<string, unknown>, options?: Record<string, unknown>) => { dbTaskPrefix: string };
     };
     const on = vi.fn();
     setupDatabaseTasks(on as unknown as Record<string, unknown>);
