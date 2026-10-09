@@ -1014,3 +1014,109 @@ describe('DB failure entries (FCU-02)', () => {
     expect((dbQueriesStore[0] as Record<string, unknown>).error).toBeUndefined();
   });
 });
+
+describe('DB invalid result guard (QIR-1..QIR-3)', () => {
+  let dbQueriesStore: unknown[];
+  let clearDbStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    dbQueriesStore = stores.dbQueries as unknown[];
+    clearDbStore = stores.clearDbQueries;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+  });
+
+  function queryHandler() {
+    return capturedCommands['query'] as (...args: unknown[]) => Promise<unknown>;
+  }
+
+  function cypressLogMock() {
+    return (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
+  }
+
+  function mockQueryResolving(resolvedValue: unknown) {
+    const task = vi.fn((taskName: string) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve(resolvedValue);
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  async function catchQuery(...args: unknown[]) {
+    let caught: unknown;
+    try {
+      await queryHandler()(...args);
+    } catch (e) {
+      caught = e;
+    }
+    return caught;
+  }
+
+  function expectInvalidResultEntry(queryText: string) {
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('localhost:5432/test_db');
+    expect(entry.query).toBe(queryText);
+    expect(entry.result).toBeNull();
+    expect(entry.error).toContain('invalid result');
+    expect(entry.database).toBe('test_db');
+    expect(cypressLogMock()).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
+    return entry;
+  }
+
+  it('db:query resolving undefined fails closed with a visible invalid-result entry', async () => {
+    mockQueryResolving(undefined);
+
+    const caught = await catchQuery('SELECT 1');
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('invalid db:query result');
+    expectInvalidResultEntry('SELECT 1');
+  });
+
+  it('db:query resolving null fails closed with a visible invalid-result entry', async () => {
+    mockQueryResolving(null);
+
+    const caught = await catchQuery('SELECT 1');
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('invalid db:query result');
+    expectInvalidResultEntry('SELECT 1');
+  });
+
+  it('db:query resolving {rowCount} without rows fails closed with a visible invalid-result entry', async () => {
+    mockQueryResolving({ rowCount: 1 });
+
+    const caught = await catchQuery('SELECT 1');
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('invalid db:query result');
+    const entry = expectInvalidResultEntry('SELECT 1');
+    expect(entry.error).toContain('rowCount');
+  });
+
+  it('zero-row rows:[] stays a success with a visible empty state and no error', async () => {
+    mockQueryResolving({ rows: [], rowCount: 0 });
+
+    await queryHandler()('SELECT 1');
+
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.error).toBeUndefined();
+    expect(entry.result).toEqual([]);
+    expect(entry.rowCount).toBe(0);
+    expect(document.body.textContent).toContain('(no rows returned)');
+    expect(document.body.textContent).toContain('0 rows');
+  });
+});

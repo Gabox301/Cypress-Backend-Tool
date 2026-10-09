@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { redactValue, REDACTED_VALUE } from '$lib/utils/redaction';
+  import { REDACTED_VALUE, redactValue } from '$lib/utils/redaction';
 
   interface Props {
     query: string;
@@ -12,6 +12,7 @@
     hideCredentials?: boolean;
     hideCredentialsOptions?: { headers: boolean; auth: boolean; body: boolean; query: boolean };
   }
+
   let {
     query,
     rowCount,
@@ -23,19 +24,19 @@
     hideCredentials = true,
     hideCredentialsOptions = { headers: true, auth: true, body: true, query: true },
   }: Props = $props();
-
   let displayQuery = $derived(hideCredentials && hideCredentialsOptions.query ? REDACTED_VALUE : query);
-  let displayRows = $derived.by(() =>
-    hideCredentials && hideCredentialsOptions.body ? (redactValue(rows) as unknown[]) : rows,
-  );
+  let displayRows = $derived.by(() => {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    return hideCredentials && hideCredentialsOptions.body ? (redactValue(safeRows) as unknown[]) : safeRows;
+  });
   let displayError = $derived(hideCredentials && error ? 'Error details are hidden' : error);
-
   // PostgreSQL rowCount is the affected-row count; rows.length is the returned-row
   // count. They coincide for SELECT but differ for DML without RETURNING
-  // (rows empty, rowCount = affected rows).
-  let returnedCount = $derived(rows.length);
+  // (rows empty, rowCount = affected rows). The Array.isArray guard keeps
+  // direct uses with a non-array rows prop on the empty state instead of
+  // throwing on rows.length (EntryPanel already normalizes via ?? []).
+  let returnedCount = $derived(Array.isArray(rows) ? rows.length : 0);
   let showAffected = $derived(rowCount !== returnedCount);
-
   let databaseLabel = $derived(`Database: ${database || '—'}`);
   let tableLabel = $derived.by(() => {
     if (!tables || tables.length === 0) return null;

@@ -523,9 +523,7 @@ Cypress.Commands.add(
       }
     }
 
-    return (
-      cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`) as unknown as Promise<DbTaskConfig>
-    ).then(
+    return (cy.task<DbTaskConfig>(`${dbTaskPrefix}db:getConfig`) as unknown as Promise<DbTaskConfig>).then(
       (defaultConfig) => {
         const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
         const port = connectionOptions?.port || defaultConfig?.port || 5432;
@@ -540,7 +538,32 @@ Cypress.Commands.add(
           cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions) as unknown as Promise<DbTaskResult>
         ).then(
           (result) => {
-            const queryRows = result.rows || [];
+            // QIR-1: fail closed on invalid db:query results (foreign, overriding,
+            // or older task handler, or a transport edge resolving undefined, null,
+            // or a rowless object). Without this guard `result.rows` below throws
+            // an orphan TypeError with no panel entry; reuse renderDbFailure so the
+            // failure stays visible like cy.http errors instead of going green.
+            const resultRows = (result as unknown as { rows?: unknown } | null | undefined)?.rows;
+            if (!result || !Array.isArray(resultRows)) {
+              const rawResult: unknown = result;
+              let received: string;
+              if (rawResult === undefined) received = 'undefined';
+              else if (rawResult === null) received = 'null';
+              else {
+                try {
+                  received = JSON.stringify(rawResult) ?? String(rawResult);
+                } catch {
+                  received = String(rawResult);
+                }
+              }
+              renderDbFailure(
+                `${host}:${port}/${database}`,
+                database,
+                `db:query returned invalid result (expected {rows,rowCount}, got ${received}) for query: ${query}`,
+              );
+              throw new Error('cy.query failed: invalid db:query result (rows missing)');
+            }
+            const queryRows = resultRows as unknown[];
             const dbResponse: DbQueryResponse = {
               rows: queryRows,
               rowCount: result.rowCount || 0,
@@ -565,13 +588,17 @@ Cypress.Commands.add(
             // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
             // 'response' tomado después de montar la entrada.
             const logQuery =
-              redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query ? REDACTED_VALUE : query;
+              redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+                ? REDACTED_VALUE
+                : query;
             const logRows =
               redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.body
                 ? redactValue(queryRows)
                 : queryRows;
             const logValues =
-              values !== undefined && redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+              values !== undefined &&
+              redactionSettings.hideCredentials &&
+              redactionSettings.hideCredentialsOptions.query
                 ? redactValue(values)
                 : values;
             const log = Cypress.log({
