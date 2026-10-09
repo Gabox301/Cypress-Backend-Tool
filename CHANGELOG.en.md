@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] - 2026-10-09
+
+### Changed
+
+- **Native `.env` loading:** replaced the `dotenv` dependency with native `process.loadEnvFile()` (Node >= 22). An ENOENT-only guard preserves the silent-missing behavior when the default `.env` is absent, without overriding existing variables.
+
 ## [1.2.1] - 2026-10-09
 
 ### Added
