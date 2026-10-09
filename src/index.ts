@@ -1,4 +1,5 @@
 /// <reference types="cypress" />
+/// <reference path="./support/cypress-augment.d.ts" />
 
 // ============================================
 // Herramienta Backend de Cypress — Entrada unificada
@@ -12,6 +13,14 @@ import { ensurePluginMounted, mountEntry, reserveEntry, teardownPluginUI } from 
 import { setupChaiExpectInterceptor } from '$lib/ui/chai-interceptor';
 import { EntryRegistry } from '$lib/ui/entry-registry';
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse, redactValue } from '$lib/utils/redaction';
+import { logDebug, toErrorMessage } from './support/debug';
+import type {
+  ApiRequestOptions,
+  DbConnectionOptions,
+  DbQueryResponse,
+  DbQueryTaskThen,
+  DbTaskResult,
+} from './support/plugin-types';
 
 // Auto-inicializar interceptor de aserciones Chai de Cypress
 setupChaiExpectInterceptor();
@@ -46,113 +55,8 @@ try {
 }
 
 // ============================================
-// Ampliaciones del namespace de Cypress
-// ============================================
-declare global {
-  namespace Cypress {
-    interface Chainable {
-      http(url: string, options?: Partial<ApiRequestOptions>): Chainable<ApiResponse>;
-      http(options: ApiRequestOptions): Chainable<ApiResponse>;
-      query(query: string, values?: unknown[], connectionOptions?: DbConnectionOptions): Chainable<DbQueryResponse>;
-      query(query: string, connectionOptions?: DbConnectionOptions): Chainable<DbQueryResponse>;
-      state(key: 'window'): Window;
-      state(key: 'runnable'): { id?: string; _currentRetry?: unknown } | undefined;
-      state(key: string): unknown;
-    }
-
-    interface ExposeValues {
-      snapshotOnly: boolean;
-      hideCredentials: boolean;
-      hideCredentialsOptions: {
-        headers: boolean;
-        auth: boolean;
-        body: boolean;
-        query: boolean;
-      };
-      CYPRESS_PLUGIN_DEBUG: boolean;
-      dbTaskPrefix: string;
-      dbHost: string;
-      dbPort: string;
-      dbName: string;
-      /** Setup-time snapshot written by setupDatabaseTasks(on, config); absent until then. */
-      dbDatabase?: string;
-    }
-  }
-
-  interface Window {
-    __cypress_backend_tool__?: Record<string, { apiCalls: ApiCall[]; dbQueries: DbQuery[] }>;
-  }
-}
-
-// ============================================
-// Tipos
-// ============================================
-interface ApiRequestOptions {
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
-  headers?: Record<string, string>;
-  body?: unknown;
-  qs?: Record<string, string>;
-  auth?: { username: string; password: string };
-  failOnStatusCode?: boolean;
-  expect?: unknown;
-  retry?: { retries: number; delay: number };
-}
-
-/** Forma devuelta por cy.task('db:query') */
-interface DbTaskResult {
-  rows: unknown[];
-  rowCount: number;
-}
-
-/**
- * Cypress's `Chainable.then` types only model `(fn)` / `(options, fn)`, so the
- * single-level rejection callback needs a narrow assertion on the task object.
- * This is NOT an `as unknown as Promise` cast: `then(success, reject)` stays
- * a method call on the one task chainable — receiver preserved — with a
- * runtime call shape identical to the pre-flatten chain, which production
- * evidence shows executes.
- */
-type DbQueryTaskThen = (
-  onFulfilled: (result: DbTaskResult) => Cypress.Chainable<DbQueryResponse>,
-  onRejected: (err: unknown) => never,
-) => Cypress.Chainable<DbQueryResponse>;
-
-interface DbQueryResponse {
-  rows: unknown[];
-  rowCount: number;
-  duration: number;
-  query: string;
-  values?: unknown[];
-}
-
-interface DbConnectionOptions {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-}
-
-// ============================================
 // Configuración del plugin
 // ============================================
-const DEBUG = (Cypress.expose('CYPRESS_PLUGIN_DEBUG') as boolean) ?? false;
-
-function logDebug(...args: unknown[]) {
-  if (DEBUG) {
-    console.warn('[cypress-backend-tool]', ...args);
-  }
-}
-
-// Extracts a message from an H1 transport rejection of unknown shape.
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  const message = (err as { message?: unknown } | null)?.message;
-  return typeof message === 'string' && message.length > 0 ? message : String(err);
-}
-
 function readPluginConfig(): CypressApiPluginConfig {
   const base = getPluginConfig((key: string) => Cypress.expose(key));
   const config = mergeConfig(base, getConfigOverrides());
