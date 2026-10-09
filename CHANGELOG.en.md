@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.4] - 2026-10-09
+
+### Fixed
+
+- **Flattened `cy.query` chain (single task):** `cy.query()` now resolves through a single task with no intermediate hops, removing the task-interop hazard; guard diagnostics keep the prefixed task name, `connectionId`, argument keys, result type, and received payload.
+- **One-line `setupDatabaseTasks(on, config)`:** setup auto-merges tasks into the existing config and keeps legacy support for previous signatures, with no extra manual wiring.
+- **Fail-closed kept:** invalid `db:query` results (missing or non-array `rows`) still fail closed with a visible entry; valid zero rows stays a visible success.
+
 ## [1.2.3] - 2026-10-09
 
 ### Fixed

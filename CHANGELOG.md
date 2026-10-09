@@ -5,6 +5,14 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.4] - 2026-10-09
+
+### Fixed
+
+- **Cadena de `cy.query` aplanada (una sola tarea):** `cy.query()` ahora resuelve en una única tarea sin eslabones intermedios, eliminando el riesgo de interop entre tareas; el diagnóstico del guardia conserva el nombre de tarea con prefijo, `connectionId`, claves de argumentos, tipo de resultado y payload recibido.
+- **`setupDatabaseTasks(on, config)` en una línea:** el setup fusiona automáticamente las tareas con la configuración existente y mantiene soporte legacy para firmas previas, sin cableado manual extra.
+- **Fail-closed intacto:** los resultados inválidos de `db:query` (`rows` ausente o no-arreglo) siguen fallando de forma cerrada con entrada visible; cero filas válidas sigue siendo éxito visible.
+
 ## [1.2.3] - 2026-10-09
 
 ### Fixed
