@@ -6,11 +6,10 @@
 // Auto-inicialización con importación por efecto secundario.
 // Reemplaza cypress/support/plugin/index.ts
 // ============================================
-import { configure, getConfigOverrides, getPluginConfig, mergeConfig } from '$lib/config';
-import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries, pluginConfig } from '$lib/stores.svelte';
-import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
-import { ensurePluginMounted, mountEntry, reserveEntry, teardownPluginUI } from '$lib/ui';
-import { setupChaiExpectInterceptor } from '$lib/ui/chai-interceptor';
+import { configure } from '$lib/config';
+import { addApiCall, addDbQuery, clearApiCalls, clearDbQueries } from '$lib/stores.svelte';
+import type { ApiCall, ApiResponse, DbQuery } from '$lib/types';
+import { reserveEntry, teardownPluginUI } from '$lib/ui';
 import { EntryRegistry } from '$lib/ui/entry-registry';
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse, redactValue } from '$lib/utils/redaction';
 import { logDebug, toErrorMessage } from './support/debug';
@@ -21,100 +20,10 @@ import type {
   DbQueryTaskThen,
   DbTaskResult,
 } from './support/plugin-types';
-
-// Auto-inicializar interceptor de aserciones Chai de Cypress
-setupChaiExpectInterceptor();
-
-// Silenciar ResizeObserver loop benigno (Chrome) para que no rompa afterEach en producción
-// El fix real está en ScrollArea (sin ResizeObserver, solo MutationObserver childList + rAF), este handler es red de seguridad
-if (
-  typeof Cypress !== 'undefined' &&
-  (Cypress as unknown as { on?: (e: string, h: (err: unknown) => false | void) => void }).on
-) {
-  (Cypress as unknown as { on: (e: string, h: (err: unknown) => false | void) => void }).on(
-    'uncaught:exception',
-    (err: unknown) => {
-      if (String((err as { message?: unknown })?.message ?? err).includes('ResizeObserver')) return false;
-    },
-  );
-}
-
-try {
-  const win = (typeof window !== 'undefined' ? window : undefined) as unknown as Window & typeof globalThis;
-  if (win) {
-    win.addEventListener('error', (e: ErrorEvent) => {
-      if (e.message?.includes('ResizeObserver')) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      }
-    });
-  }
-} catch {
-  // entorno sin window (Node) — ignora
-  void 0;
-}
-
-// ============================================
-// Configuración del plugin
-// ============================================
-function readPluginConfig(): CypressApiPluginConfig {
-  const base = getPluginConfig((key: string) => Cypress.expose(key));
-  const config = mergeConfig(base, getConfigOverrides());
-  // Sincroniza directamente con el store reactivo que App.svelte lee.
-  // Ya no es necesario pasar la configuración por props del componente en cada llamada
-  // — el store se comparte entre este archivo y App.svelte.
-  Object.assign(pluginConfig, config);
-  return config;
-}
-
-// ============================================
-// UN contenedor persistente por documento activo — se crea una vez y NUNCA se
-// limpia. Cada llamada se añade como su propia entrada por App.svelte (identificada
-// por el `id` estable de esa llamada), de modo que un Cypress.log().snapshot() tomado
-// para la llamada #1 sigue apuntando al elemento de la llamada #1 incluso después de
-// que ocurran las llamadas #2, #3, ... Reutilizar y limpiar un único elemento
-// compartido (el enfoque anterior) fue exactamente lo que rompió la visualización
-// de snapshots.
-//
-// La recreación ocurre automáticamente: si el documento AUT se recargó
-// (Cypress reiniciando la página antes de un test nuevo, o un cy.visit() real),
-// el contenedor anterior ya no existe en el documento nuevo, por lo que
-// getElementById devuelve null y creamos y (re)montamos desde cero.
-// ============================================
-function getOrCreateContainer(doc: Document): HTMLElement {
-  let container = doc.getElementById('cypress-api-plugin-container') as HTMLElement | null;
-  if (!container) {
-    container = doc.createElement('div');
-    container.id = 'cypress-api-plugin-container';
-    doc.body.appendChild(container);
-  }
-  ensurePluginMounted(container, doc);
-  return container;
-}
-
-function applySnapshotOnly(container: HTMLElement, config: CypressApiPluginConfig) {
-  container.classList.toggle('cypress-plugin-collapsed', config.snapshotOnly);
-}
-
-function scrollToEntry(doc: Document, id: string) {
-  doc.getElementById(id)?.scrollIntoView({ block: 'end' });
-}
-
-// Almacenamiento por test — delimitado por el ID del test de Cypress. Se conserva
-// para los tests que leen esto directamente (p. ej. aserciones personalizadas sobre
-// el historial crudo de llamadas/consultas); la UI del plugin ya no depende de él,
-// lee los stores compartidos apiCalls/dbQueries en su lugar.
-function getTestStore() {
-  const testId = cy.state('runnable')?.id || 'unknown';
-  const win = cy.state('window') as Window;
-  if (!win.__cypress_backend_tool__) {
-    win.__cypress_backend_tool__ = {};
-  }
-  if (!win.__cypress_backend_tool__[testId]) {
-    win.__cypress_backend_tool__[testId] = { apiCalls: [], dbQueries: [] };
-  }
-  return win.__cypress_backend_tool__[testId];
-}
+import { readPluginConfig } from './support/plugin-config';
+import { getTestStore } from './support/test-store';
+import { applySnapshotOnly, getOrCreateContainer, showApiUi, showDbQueryUi } from './support/plugin-ui';
+import './support/runtime-guards';
 
 // Exportado para pruebas unitarias (se mantiene el nombre antiguo para evitar
 // cambios innecesarios en cualquier test existente que lo importe).
@@ -123,52 +32,9 @@ export { getOrCreateContainer as createFreshContainer };
 // API pública re-exportada
 export { configure };
 
-function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
-  // Failure entries (H1 transport rejection) may carry response: null with only
-  // call.error set. ResponsePanel already renders a null response as its empty
-  // state without crashing, so mount unconditionally and let the panel show the
-  // request side. Dedicated error display belongs to FCU-03.
-  const config = readPluginConfig();
-  const win = cy.state('window') as Window;
-  const doc = win.document;
-  const container = getOrCreateContainer(doc);
-  applySnapshotOnly(container, config);
-  // Monta la entrada y luego actualiza el log con el DOM poblado. El log se
-  // creó al INICIO del comando cy.http() (antes de cy.request), de modo que
-  // Cypress rastrea su ciclo de vida correctamente. Establecemos $el en el contenedor
-  // estable del plugin (NO el div por entrada, que se recrea al restaurar un snapshot)
-  // y tomamos un snapshot explícito para que la vista del AUT restaure la entrada
-  // poblada al pasar el cursor sobre este log.
-  mountEntry(call, doc);
-  // Guardar log en el registry para re-snapshot con coloreo chai tras refreshEntry
-  EntryRegistry.setLog(call.id, log as unknown as { snapshot: (name?: string) => unknown });
-  const elementId = `cabt-entry-${call.id}`;
-  scrollToEntry(doc, elementId);
-  const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
-  log.set({ $el }).snapshot('response').end();
-  return call.response as ApiResponse;
-}
-
-function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
-  const config = readPluginConfig();
-  const win = cy.state('window') as Window;
-  const doc = win.document;
-  const container = getOrCreateContainer(doc);
-  applySnapshotOnly(container, config);
-  // Monta la entrada y luego actualiza el log con el DOM poblado — misma
-  // lógica que showApiUi. El log se creó al INICIO del comando cy.query(),
-  // de modo que Cypress rastrea su ciclo de vida correctamente.
-  mountEntry(query, doc);
-  EntryRegistry.setLog(query.id, log as unknown as { snapshot: (name?: string) => unknown });
-  const elementId = `cabt-entry-${query.id}`;
-  scrollToEntry(doc, elementId);
-  const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
-  log.set({ $el }).snapshot('response').end();
-  logDebug('DB Query UI rendered (id:', query.id, ')');
-}
-
 // ============================================
 // Registro de comandos — auto-inicialización al importar
+// (interceptor Chai + runtime guards corren vía ./support/runtime-guards)
 // ============================================
 Cypress.Commands.add('http', (urlOrOptions: string | ApiRequestOptions, maybeOptions?: ApiRequestOptions) => {
   const options: ApiRequestOptions =
