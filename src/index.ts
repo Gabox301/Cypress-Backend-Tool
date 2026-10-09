@@ -27,3 +27,6 @@ export { getOrCreateContainer as createFreshContainer };
 
 // API pública re-exportada
 export { configure };
+
+// Public types (type-only re-export: erased at build, no runtime trace).
+export type { ApiRequestOptions, DbConnectionOptions, DbQueryResponse } from './support/plugin-types';

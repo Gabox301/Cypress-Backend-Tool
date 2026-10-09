@@ -18,7 +18,12 @@ export default defineConfig({
     }),
     dts({
       insertTypesEntry: true,
-      include: ['src/index.ts', 'src/node/tasks.ts'],
+      // Emit sibling declarations (support/* + lib types/config) so the
+      // entry d.ts imports resolve for consumers instead of dangling.
+      // clearPureImport is off so the side-effect import of the Cypress
+      // global augmentation survives in the emitted entry types.
+      clearPureImport: false,
+      include: ['src/index.ts', 'src/node/tasks.ts', 'src/support/*.ts', 'src/lib/config.ts', 'src/lib/types/index.ts'],
     }),
   ],
   build: {
