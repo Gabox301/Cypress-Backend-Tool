@@ -16,28 +16,22 @@ vi.mock('../src/node/tasks', () => ({
 }));
 
 describe('cypress.config setupNodeEvents', () => {
-  it('merges task-prefix metadata into expose without dropping existing values', async () => {
-    setupDatabaseTasksMock.mockReturnValue({ dbTaskPrefix: 'myapp_' });
+  it('passes config through setupDatabaseTasks and returns the merged config', async () => {
+    setupDatabaseTasksMock.mockImplementation((_on: unknown, config: unknown) => config);
 
     const configModule = await import('../cypress.config');
     const setupNodeEvents = (configModule.default as unknown as {
       e2e: {
-        setupNodeEvents: (
-          on: unknown,
-          config: { expose: Record<string, unknown> },
-        ) => { expose: Record<string, unknown> };
+        setupNodeEvents: (on: unknown, config: { expose: Record<string, unknown> }) => unknown;
       };
     }).e2e.setupNodeEvents;
     const on = vi.fn();
     const existingExpose = { snapshotOnly: false, existingValue: 'preserved' };
+    const config = { expose: existingExpose };
 
-    const result = setupNodeEvents(on, { expose: existingExpose });
+    const result = setupNodeEvents(on, config);
 
-    expect(setupDatabaseTasksMock).toHaveBeenCalledWith(on);
-    expect(result.expose).toEqual({
-      snapshotOnly: false,
-      existingValue: 'preserved',
-      dbTaskPrefix: 'myapp_',
-    });
+    expect(setupDatabaseTasksMock).toHaveBeenCalledWith(on, config);
+    expect(result).toBe(config);
   });
 });

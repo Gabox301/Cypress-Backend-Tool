@@ -71,14 +71,7 @@ process.loadEnvFile(); // carga .env automáticamente (cargador nativo de Node >
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      const dbTaskMetadata = setupDatabaseTasks(on);
-      return {
-        ...config,
-        expose: {
-          ...config.expose,
-          ...dbTaskMetadata,
-        },
-      };
+      return setupDatabaseTasks(on, config);
     },
     expose: {
       snapshotOnly: false,
@@ -97,7 +90,9 @@ export default defineConfig({
 
 Las credenciales predeterminadas se configuran mediante variables de entorno (ver [Variables de entorno](#variables-de-entorno)) y permanecen en el proceso Node de Cypress.
 
-`setupDatabaseTasks()` devuelve `{ dbTaskPrefix }`, un metadato no secreto. Se debe combinar con `config.expose` en `setupNodeEvents`; `cy.query()` lee el mismo prefijo mediante `Cypress.expose()`. El prefijo predeterminado es una cadena vacía.
+`setupDatabaseTasks(on, config)` registra `db:getConfig` y `db:query` y devuelve el mismo `config` con una instantánea no secreta combinada en `config.expose` (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`); `cy.query()` la lee de forma síncrona mediante `Cypress.expose()`. Las claves existentes nunca se sobrescriben. El patrón anterior sin `config` (`setupDatabaseTasks(on)` + combinación manual del metadato `{ dbTaskPrefix }` devuelto) sigue soportado, pero sin la instantánea las consultas sin `connectionOptions` fallan en cerrado con `unknown` en lugar de adivinar un endpoint.
+
+El plugin lee las variables de entorno de BD en Node al configurar (instantánea) y al consultar (gestor). Si tus credenciales viven en un archivo, TU cargador (p. ej. `process.loadEnvFile()`) debe ejecutarse tanto en lanzamientos con `process.env` como con la bandera `--env` — ese cableado es tuyo, no del plugin.
 
 > **Valor seguro predeterminado:** la interfaz, los registros de Cypress y el cURL generado ocultan los valores sensibles. Puede ser necesario restaurar credenciales en el cURL antes de reproducirlo.
 
@@ -198,7 +193,7 @@ import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      const dbTaskMetadata = setupDatabaseTasks(on, {
+      return setupDatabaseTasks(on, config, {
         defaultPrefix: 'myapp_', // tareas → myapp_db:getConfig, myapp_db:query
         envPrefix: 'MY_DB_', // lee MY_DB_HOST en lugar de CYPRESS_DB_HOST
         defaults: {
@@ -212,19 +207,12 @@ export default defineConfig({
           idleTimeoutMillis: 10000,
         },
       });
-      return {
-        ...config,
-        expose: {
-          ...config.expose,
-          ...dbTaskMetadata,
-        },
-      };
     },
   },
 });
 ```
 
-Al usar un prefijo personalizado, se debe combinar el metadato devuelto por `setupDatabaseTasks()` con `config.expose`. Así, `cy.query()` utiliza los mismos nombres de tarea registrados sin agregar una opción de prefijo por consulta.
+La instantánea (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) se combina en `config.expose` sin sobrescribir tus claves. Así, `cy.query()` utiliza los mismos nombres de tarea registrados sin agregar una opción de prefijo por consulta.
 
 | Opción                             | Tipo                | Default         | Descripción                                                              |
 | ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------------------ |

@@ -71,14 +71,7 @@ process.loadEnvFile(); // loads .env automatically (native Node >=22 loader)
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      const dbTaskMetadata = setupDatabaseTasks(on);
-      return {
-        ...config,
-        expose: {
-          ...config.expose,
-          ...dbTaskMetadata,
-        },
-      };
+      return setupDatabaseTasks(on, config);
     },
     expose: {
       snapshotOnly: false,
@@ -97,7 +90,9 @@ export default defineConfig({
 
 Credentials are configured via environment variables (see [Environment variables](#environment-variables)); the default user and password remain in the Cypress Node process.
 
-`setupDatabaseTasks()` returns `{ dbTaskPrefix }`. Merge this non-secret metadata into the `expose` object returned by `setupNodeEvents`; `cy.query()` reads the same prefix from `Cypress.expose()`. The default prefix is an empty string.
+`setupDatabaseTasks(on, config)` registers `db:getConfig` and `db:query` and returns the same `config` with a non-secret snapshot merged into `config.expose` (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`); `cy.query()` reads it synchronously via `Cypress.expose()`. Existing keys are never overwritten. The legacy no-`config` pattern (`setupDatabaseTasks(on)` + manually merging the returned `{ dbTaskPrefix }` metadata) is still supported, but without the snapshot, queries without `connectionOptions` fail closed with `unknown` instead of guessing an endpoint.
+
+The plugin reads DB env vars in Node at setup (snapshot) and at query time (handler). If your credentials live in a file, YOUR loader (e.g. `process.loadEnvFile()`) must run for both `process.env` launches and `--env` flag launches — that wiring is yours, not the plugin's.
 
 > **Secure default:** request and response values are redacted in the plugin panels, Cypress log text and console properties, and generated cURL output. The cURL command may need credentials restored before replay.
 
@@ -198,7 +193,7 @@ import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      const dbTaskMetadata = setupDatabaseTasks(on, {
+      return setupDatabaseTasks(on, config, {
         defaultPrefix: 'myapp_', // tasks → myapp_db:getConfig, myapp_db:query
         envPrefix: 'MY_DB_', // reads MY_DB_HOST instead of CYPRESS_DB_HOST
         defaults: {
@@ -212,19 +207,12 @@ export default defineConfig({
           idleTimeoutMillis: 10000,
         },
       });
-      return {
-        ...config,
-        expose: {
-          ...config.expose,
-          ...dbTaskMetadata,
-        },
-      };
     },
   },
 });
 ```
 
-Always merge the returned `dbTaskPrefix` into `config.expose` when using a custom prefix. This keeps `cy.query()` aligned with the registered task names without adding a per-query prefix option.
+The snapshot (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) merges into `config.expose` without overwriting your keys. This keeps `cy.query()` aligned with the registered task names without adding a per-query prefix option.
 
 | Option                             | Type                | Default         | Description                                                              |
 | ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------------------ |

@@ -43,6 +43,22 @@ export interface DbTaskOptions {
   defaults?: Partial<DbTaskConfig>;
 }
 
+/**
+ * Cypress config shape accepted by the one-line setup. Only `expose` is
+ * touched; every other key passes through untouched.
+ */
+export interface DbSetupConfig {
+  expose?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** A second argument carrying any of these keys is task options, not a Cypress config. */
+function isDbTaskOptions(value: unknown): value is DbTaskOptions {
+  if (typeof value !== 'object' || value === null) return false;
+  const keys = Object.keys(value);
+  return keys.length === 0 || keys.some((key) => key === 'defaultPrefix' || key === 'envPrefix' || key === 'defaults');
+}
+
 // ============================================
 // setupDatabaseTasks
 // ============================================
@@ -69,37 +85,62 @@ export interface DbTaskOptions {
  *   No hardcoded host checks such as `host.includes('neon.tech')` or `supabase` are used.
  *
  * @param on - Cypress PluginEvents from setupNodeEvents
- * @param options - Optional configuration
+ * @param configOrOptions - Cypress config for the one-line setup
+ *   (`setupDatabaseTasks(on, config)`), or task options for the legacy
+ *   pattern (`setupDatabaseTasks(on, options?)`)
+ * @param maybeOptions - Task options for the three-arg form
+ *   (`setupDatabaseTasks(on, config, options)`)
+ *
+ * One-line setup (canonical): pass the Cypress `config` through and return
+ * it with the setup-time snapshot merged into `config.expose` —
+ * `{dbTaskPrefix, dbHost, dbPort, dbDatabase}` — so `cy.query()` resolves
+ * host/port/database synchronously without calling `db:getConfig`. Existing
+ * expose keys are never clobbered: only absent-or-undefined entries are
+ * filled. Empty-string snapshot values are falsy-but-present — still merged
+ * when the key is missing, so `cy.query` can tell "setup ran, env empty"
+ * apart from "no setup".
+ *
+ * Legacy pattern (still supported): omit `config` and merge the returned
+ * `{dbTaskPrefix}` metadata into `config.expose` yourself. Per-query
+ * connectionOptions keep working either way.
  *
  * @example
  * ```ts
- * // cypress.config.ts
+ * // cypress.config.ts — one line, return the config
  * import { defineConfig } from 'cypress';
  * import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
  *
  * export default defineConfig({
  *   e2e: {
  *     setupNodeEvents(on, config) {
- *       const dbTaskMetadata = setupDatabaseTasks(on, {
- *         // defaultPrefix: 'myapp_',
- *         // defaults: { ssl: { rejectUnauthorized: false } },
- *       });
- *       return {
- *         ...config,
- *         expose: {
- *           ...config.expose,
- *           ...dbTaskMetadata,
- *         },
- *       };
+ *       return setupDatabaseTasks(on, config);
  *     },
  *   },
  * });
  * ```
  */
+export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOptions): { dbTaskPrefix: string };
+export function setupDatabaseTasks<C extends object>(
+  on: Cypress.PluginEvents,
+  config: C,
+  options?: DbTaskOptions,
+): C;
 export function setupDatabaseTasks(
   on: Cypress.PluginEvents,
-  options?: DbTaskOptions,
-): { dbTaskPrefix: string } {
+  configOrOptions?: unknown,
+  maybeOptions?: DbTaskOptions,
+): unknown {
+  // Three-arg form: the second argument is always the config. Two-arg form:
+  // options-shaped values (any of defaultPrefix/envPrefix/defaults, or {})
+  // stay legacy; anything else object-like is a config.
+  const asRecord =
+    typeof configOrOptions === 'object' && configOrOptions !== null
+      ? (configOrOptions as Record<string, unknown>)
+      : undefined;
+  const config: Record<string, unknown> | undefined =
+    maybeOptions !== undefined ? asRecord : isDbTaskOptions(configOrOptions) ? undefined : asRecord;
+  const options: DbTaskOptions | undefined =
+    maybeOptions ?? (config === undefined ? (configOrOptions as DbTaskOptions | undefined) : undefined);
   const prefix = options?.defaultPrefix ?? '';
   const envPrefix = options?.envPrefix ?? 'CYPRESS_DB_';
   const readEnv = (
@@ -230,5 +271,23 @@ export function setupDatabaseTasks(
     },
   });
 
-  return { dbTaskPrefix: prefix };
+  if (config === undefined) {
+    return { dbTaskPrefix: prefix };
+  }
+  // One-line setup: merge the setup-time snapshot into config.expose without
+  // clobbering consumer keys — fill only absent-or-undefined entries.
+  const snapshot: Record<string, string> = {
+    dbTaskPrefix: prefix,
+    dbHost: readEnv('HOST'),
+    dbPort: readEnv('PORT'),
+    dbDatabase: readEnv('NAME', 'database'),
+  };
+  const expose = (config.expose ?? {}) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (!(key in expose) || expose[key] === undefined) {
+      expose[key] = value;
+    }
+  }
+  config.expose = expose;
+  return config;
 }

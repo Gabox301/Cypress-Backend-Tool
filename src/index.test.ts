@@ -99,6 +99,10 @@ beforeEach(() => {
   cypressExposeMock.mockImplementation((key: string) => {
     if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
     if (key === 'snapshotOnly') return false;
+    if (key === 'dbTaskPrefix') return '';
+    if (key === 'dbHost') return 'localhost';
+    if (key === 'dbPort') return '5432';
+    if (key === 'dbDatabase') return 'test_db';
     if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
     return undefined;
   });
@@ -394,19 +398,23 @@ describe('manejo de cuerpo de respuesta vacío', () => {
 });
 
 describe('query task prefix', () => {
-  it('uses the task prefix exposed by Cypress for both database tasks', async () => {
+  function exposeWithPrefix(prefix: string) {
     cypressExposeMock.mockImplementation((key: string) => {
-      if (key === 'dbTaskPrefix') return 'myapp_';
+      if (key === 'dbTaskPrefix') return prefix;
+      if (key === 'dbHost') return 'localhost';
+      if (key === 'dbPort') return '5432';
+      if (key === 'dbDatabase') return 'test_db';
       if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
       if (key === 'snapshotOnly') return false;
       if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
       return undefined;
     });
+  }
+
+  it('calls exactly one task with the exposed prefix and no getConfig hop', async () => {
+    exposeWithPrefix('myapp_');
 
     const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
-      if (taskName === 'myapp_db:getConfig') {
-        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
-      }
       if (taskName === 'myapp_db:query') {
         return Promise.resolve({ rows: [{ value: 1 }], rowCount: 1 });
       }
@@ -417,8 +425,9 @@ describe('query task prefix', () => {
     const queryHandler = capturedCommands['query'] as (query: string) => Promise<unknown>;
     await queryHandler('SELECT 1');
 
-    expect(task.mock.calls.map(([taskName]) => taskName)).toEqual(['myapp_db:getConfig', 'myapp_db:query']);
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1' });
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(task.mock.calls.map(([taskName]) => taskName)).toEqual(['myapp_db:query']);
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1' });
   });
 
   it('keeps default credentials out of query task arguments and redacts query logs by default', async () => {
@@ -440,8 +449,8 @@ describe('query task prefix', () => {
     const log = (globalThis.Cypress as unknown as { log: ReturnType<typeof vi.fn> }).log;
     const logOptions = log.mock.calls[0]?.[0] as { message: string; consoleProps: () => unknown };
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query });
-    expect(task.mock.calls[1]?.[2]).toEqual({ log: false });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query });
+    expect(task.mock.calls[0]?.[2]).toEqual({ log: false });
     expect(logOptions.message).not.toContain('sql-secret');
     expect(JSON.stringify(logOptions.consoleProps())).not.toContain('sql-secret');
     expect(JSON.stringify(logOptions.consoleProps())).not.toContain('database-result-secret');
@@ -470,8 +479,8 @@ describe('query task prefix', () => {
     const queryHandler = capturedCommands['query'] as (query: string, options: unknown) => Promise<unknown>;
     await queryHandler('SELECT 1', connectionOptions);
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
-    expect(task.mock.calls[1]?.[2]).toEqual({ log: false });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
+    expect(task.mock.calls[0]?.[2]).toEqual({ log: false });
   });
 });
 
@@ -538,7 +547,7 @@ describe('query bind values (QBV-02)', () => {
 
     const result = await queryHandler('SELECT $1::int AS id', [1]);
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int AS id', values: [1] });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT $1::int AS id', values: [1] });
     expect(result.values).toEqual([1]);
   });
 
@@ -552,7 +561,7 @@ describe('query bind values (QBV-02)', () => {
 
     const result = await queryHandler('SELECT $1 AS token', [secret]);
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1 AS token', values: [secret] });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT $1 AS token', values: [secret] });
     const logOptions = lastLogOptions();
     const logged = JSON.stringify(logOptions.consoleProps());
     expect(logged).not.toContain(secret);
@@ -566,8 +575,8 @@ describe('query bind values (QBV-02)', () => {
 
     const result = await queryHandler('SELECT 1');
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1' });
-    expect(task.mock.calls[1]?.[1]).not.toHaveProperty('values');
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1' });
+    expect(task.mock.calls[0]?.[1]).not.toHaveProperty('values');
     expect(result.values).toBeUndefined();
   });
 
@@ -587,8 +596,8 @@ describe('query bind values (QBV-02)', () => {
 
     const result = await queryHandler('SELECT 1', connectionOptions);
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
-    expect(task.mock.calls[1]?.[1]).not.toHaveProperty('values');
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
+    expect(task.mock.calls[0]?.[1]).not.toHaveProperty('values');
     expect(result.values).toBeUndefined();
   });
 
@@ -609,7 +618,7 @@ describe('query bind values (QBV-02)', () => {
 
     const result = await queryHandler('SELECT $1::int', [42], connectionOptions);
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
     expect(result.values).toEqual([42]);
   });
 });
@@ -882,18 +891,8 @@ describe('DB failure entries (FCU-02)', () => {
     return win.__cypress_backend_tool__?.['test-1']?.dbQueries ?? [];
   }
 
-  function mockDbTasks(options: {
-    getConfig?: unknown;
-    getConfigError?: unknown;
-    queryResult?: unknown;
-    queryError?: unknown;
-  }) {
+  function mockDbTasks(options: { queryResult?: unknown; queryError?: unknown }) {
     const task = vi.fn((taskName: string, _args?: Record<string, unknown>, _options?: { log?: boolean }) => {
-      if (taskName === 'db:getConfig') {
-        return options.getConfigError !== undefined
-          ? Promise.reject(options.getConfigError)
-          : Promise.resolve(options.getConfig ?? { host: 'localhost', port: 5432, database: 'test_db' });
-      }
       if (taskName === 'db:query') {
         return options.queryError !== undefined
           ? Promise.reject(options.queryError)
@@ -903,6 +902,15 @@ describe('DB failure entries (FCU-02)', () => {
     });
     (globalThis.cy as unknown as Record<string, unknown>).task = task;
     return task;
+  }
+
+  function mockExposeWithoutSnapshot() {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
+      if (key === 'snapshotOnly') return false;
+      if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
+      return undefined;
+    });
   }
 
   it('D2: db:query rejection renders an entry with connectionId + error and rethrows the original', async () => {
@@ -951,7 +959,7 @@ describe('DB failure entries (FCU-02)', () => {
     }
 
     expect(caught).toBe(dbError);
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT $1::int', values: [42], ...connectionOptions });
     expect(dbQueriesStore).toHaveLength(1);
     const entry = dbQueriesStore[0] as Record<string, any>;
     expect(entry.connectionId).toBe('override.example.test:5544/override_db');
@@ -959,9 +967,9 @@ describe('DB failure entries (FCU-02)', () => {
     expect(entry.error).toContain('connection refused');
   });
 
-  it('D1: db:getConfig rejection renders a degraded entry with unknown connectionId and rethrows the original', async () => {
-    const configError = new Error('db:getConfig failed: missing DATABASE_URL');
-    const task = mockDbTasks({ getConfigError: configError });
+  it('sync-degraded: absent snapshot + no overrides renders an unknown entry and throws without calling any task', async () => {
+    mockExposeWithoutSnapshot();
+    const task = mockDbTasks({});
     const historyBefore = windowDbHistory().length;
 
     let caught: unknown;
@@ -971,23 +979,25 @@ describe('DB failure entries (FCU-02)', () => {
       caught = e;
     }
 
-    expect(caught).toBe(configError);
-    expect(task).toHaveBeenCalledTimes(1);
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('cy.query failed');
+    expect((caught as Error).message).toContain('unknown');
+    expect(task).not.toHaveBeenCalled();
     expect(dbQueriesStore).toHaveLength(1);
     const entry = dbQueriesStore[0] as Record<string, any>;
     expect(entry.connectionId).toBe('unknown');
     expect(entry.query).toBe('SELECT 1');
     expect(entry.result).toBeNull();
     expect(entry.rowCount).toBe(0);
-    expect(entry.error).toContain('missing DATABASE_URL');
+    expect(entry.database).toBe('unknown');
     expect(windowDbHistory()).toHaveLength(historyBefore + 1);
     expect(cypressLogMock()).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
   });
 
-  it('D1: uses per-query overrides for the degraded connectionId when supplied', async () => {
-    const configError = new Error('db:getConfig failed');
-    mockDbTasks({ getConfigError: configError });
+  it('sync-degraded: per-query overrides proceed without a snapshot', async () => {
+    mockExposeWithoutSnapshot();
+    const task = mockDbTasks({});
     const connectionOptions = {
       host: 'override.example.test',
       port: 5544,
@@ -996,23 +1006,27 @@ describe('DB failure entries (FCU-02)', () => {
       password: 'override_password',
     };
 
-    await expect(queryHandler()('SELECT 1', connectionOptions)).rejects.toBe(configError);
+    await queryHandler()('SELECT 1', connectionOptions);
 
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(task.mock.calls[0]?.[0]).toBe('db:query');
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1', ...connectionOptions });
     expect(dbQueriesStore).toHaveLength(1);
     const entry = dbQueriesStore[0] as Record<string, any>;
     expect(entry.connectionId).toBe('override.example.test:5544/override_db');
     expect(entry.database).toBe('override_db');
   });
 
-  it('D1: falls back per segment for partial overrides without undefined segments', async () => {
-    const configError = new Error('db:getConfig failed');
-    mockDbTasks({ getConfigError: configError });
+  it('sync-degraded: partial overrides without a snapshot fall back per segment without undefined segments', async () => {
+    mockExposeWithoutSnapshot();
+    const task = mockDbTasks({});
 
-    await expect(queryHandler()('SELECT 1', { database: 'partial_db' })).rejects.toBe(configError);
+    await queryHandler()('SELECT 1', { database: 'partial_db' });
 
+    expect(task).toHaveBeenCalledTimes(1);
     expect(dbQueriesStore).toHaveLength(1);
     const entry = dbQueriesStore[0] as Record<string, any>;
-    expect(entry.connectionId).toBe('unknown:unknown/partial_db');
+    expect(entry.connectionId).toBe('localhost:5432/partial_db');
     expect(entry.connectionId).not.toContain('undefined');
     expect(entry.database).toBe('partial_db');
   });
@@ -1204,8 +1218,8 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
 
   it('linked single-arg: caller sends {query} only and the handler Pool-hit returns {rows,rowCount}', async () => {
     // Signals-like env on both layers: the caller resolves its connectionId
-    // from db:getConfig while the Node handler resolves the same endpoint
-    // from CYPRESS_DB_* so the pooled path is hit.
+    // from the expose snapshot while the Node handler resolves the same
+    // endpoint from CYPRESS_DB_* so the pooled path is hit.
     vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
     vi.stubEnv('CYPRESS_DB_PORT', '5432');
     vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
@@ -1239,7 +1253,7 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
     const result = (await queryHandler()('SELECT 1')) as { rows: unknown[]; rowCount: number };
 
     // Caller layer: single-arg sends {query} only.
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1' });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1' });
     // Handler layer: pooled single-arg pool.query hit returns the shape.
     expect(pgRefs.mockPoolQuery).toHaveBeenCalledWith('SELECT 1');
     expect(result.rows).toEqual([{ value: 1 }]);
@@ -1253,7 +1267,7 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
 
     const result = (await queryHandler()('SELECT 1', [])) as { rows: unknown[]; values?: unknown[] };
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1', values: [] });
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: 'SELECT 1', values: [] });
     expect(result.rows).toEqual([{ value: 1 }]);
     expect(result.values).toEqual([]);
     expect(dbQueriesStore).toHaveLength(1);
@@ -1274,7 +1288,7 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
 
     await queryHandler()('SELECT 1', [], poisonous);
 
-    expect(task.mock.calls[1]?.[1]).toEqual({
+    expect(task.mock.calls[0]?.[1]).toEqual({
       host: 'override.example.test',
       port: 5544,
       database: 'override_db',
@@ -1290,8 +1304,8 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
 
     await queryHandler()('SELECT 1', { database: 'partial_db', query: 'SELECT evil', values: ['evil'] });
 
-    expect(task.mock.calls[1]?.[1]).toEqual({ database: 'partial_db', query: 'SELECT 1' });
-    expect(task.mock.calls[1]?.[1]).not.toHaveProperty('values');
+    expect(task.mock.calls[0]?.[1]).toEqual({ database: 'partial_db', query: 'SELECT 1' });
+    expect(task.mock.calls[0]?.[1]).not.toHaveProperty('values');
   });
 
   it('QIR failure evidence carries task name, connectionId, arg keys, typeof and received', async () => {
@@ -1316,15 +1330,15 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
   it('QIR failure evidence carries the prefixed task name when dbTaskPrefix is set', async () => {
     cypressExposeMock.mockImplementation((key: string) => {
       if (key === 'dbTaskPrefix') return 'myapp_';
+      if (key === 'dbHost') return 'localhost';
+      if (key === 'dbPort') return '5432';
+      if (key === 'dbDatabase') return 'test_db';
       if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
       if (key === 'snapshotOnly') return false;
       if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
       return undefined;
     });
     const task = vi.fn((taskName: string) => {
-      if (taskName === 'myapp_db:getConfig') {
-        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
-      }
       if (taskName === 'myapp_db:query') {
         return Promise.resolve(null);
       }
@@ -1337,5 +1351,116 @@ describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
     expect((caught as Error).message).toContain('myapp_db:query');
     expect((caught as Error).message).toContain('typeof result: object');
     expect((caught as Error).message).toContain('got null');
+  });
+});
+
+// ===========================================================================
+// cy.query flattened chain (FL-1)
+// ===========================================================================
+describe('cy.query flattened chain (FL-1)', () => {
+  let dbQueriesStore: unknown[];
+  let clearDbStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    dbQueriesStore = stores.dbQueries as unknown[];
+    clearDbStore = stores.clearDbQueries;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+  });
+
+  function queryHandler() {
+    return capturedCommands['query'] as (...args: unknown[]) => Promise<Record<string, any>>;
+  }
+
+  function mockExposeSnapshot(host: string, port: string, database: string) {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key === 'dbHost') return host;
+      if (key === 'dbPort') return port;
+      if (key === 'dbDatabase') return database;
+      if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
+      if (key === 'snapshotOnly') return false;
+      if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
+      return undefined;
+    });
+  }
+
+  function mockSingleQuery(resolved: unknown) {
+    const task = vi.fn((taskName: string) => {
+      if (taskName === 'db:query') return Promise.resolve(resolved);
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  it('minimal SELECT yields a defined DbQueryResponse through exactly one task', async () => {
+    const task = mockSingleQuery({ rows: [{ one: 1 }], rowCount: 1 });
+
+    const result = await queryHandler()('SELECT 1 AS one');
+
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(task.mock.calls[0]?.[0]).toBe('db:query');
+    expect(result).toBeDefined();
+    expect(result.rows).toEqual([{ one: 1 }]);
+    expect(result.rowCount).toBe(1);
+    expect(result.query).toBe('SELECT 1 AS one');
+    expect(typeof result.duration).toBe('number');
+  });
+
+  it('wide SELECT yields every row and column', async () => {
+    const rows = [
+      { id: 1, email: 'a@example.test', active: true },
+      { id: 2, email: 'b@example.test', active: false },
+    ];
+    mockSingleQuery({ rows, rowCount: rows.length });
+
+    const result = await queryHandler()('SELECT id, email, active FROM users');
+
+    expect(result.rows).toEqual(rows);
+    expect(result.rowCount).toBe(2);
+  });
+
+  it('sync resolution prefers overrides over the expose snapshot', async () => {
+    mockExposeSnapshot('snapshot.example.test', '5433', 'snapshot_db');
+    mockSingleQuery({ rows: [], rowCount: 0 });
+
+    await queryHandler()('SELECT 1', {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+    });
+
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('override.example.test:5544/override_db');
+    expect(entry.database).toBe('override_db');
+  });
+
+  it('sync resolution uses the expose snapshot when no overrides are supplied', async () => {
+    mockExposeSnapshot('snapshot.example.test', '5433', 'snapshot_db');
+    const task = mockSingleQuery({ rows: [], rowCount: 0 });
+
+    await queryHandler()('SELECT 1');
+
+    expect(task).toHaveBeenCalledTimes(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('snapshot.example.test:5433/snapshot_db');
+    expect(entry.database).toBe('snapshot_db');
+  });
+
+  it('present-but-empty snapshot segments fall back to localhost/5432/test_db', async () => {
+    mockExposeSnapshot('', '', '');
+    mockSingleQuery({ rows: [], rowCount: 0 });
+
+    await queryHandler()('SELECT 1');
+
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe('localhost:5432/test_db');
+    expect(entry.database).toBe('test_db');
   });
 });

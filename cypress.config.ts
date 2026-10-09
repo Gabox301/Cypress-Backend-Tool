@@ -10,14 +10,7 @@ try {
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
-      const dbTaskMetadata = setupDatabaseTasks(on);
-      return {
-        ...config,
-        expose: {
-          ...config.expose,
-          ...dbTaskMetadata,
-        },
-      };
+      return setupDatabaseTasks(on, config);
     },
     supportFile: 'cypress/support/e2e.ts',
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
