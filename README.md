@@ -29,9 +29,9 @@ Plugin de Cypress para testing de APIs HTTP y consultas a bases de datos Postgre
 
 ## Stack
 
-- **Svelte 5.56.10** con runes (`$state`, `$derived.by`, `$effect`, `$props`) — 100% runes, `svelte.config.js: { runes: true }` y `vite.config.ts` alineado. Sin `onMount`, sin `$:` ni `svelte/store` legacy.
-- **Vite 8.2.2** + `@sveltejs/vite-plugin-svelte 7.3.0` y `vite-plugin-dts` para build de librería (`dist/index.js` + `dist/tasks.js`).
-- **TypeScript 6.0.3**, `svelte-check` (0 errores) y `eslint-plugin-svelte` para validación.
+- **Svelte 5** con runes (`$state`, `$derived.by`, `$effect`, `$props`) — 100% runes, `svelte.config.js: { runes: true }` y `vite.config.ts` alineado. Sin `onMount`, sin `$:` ni `svelte/store` legacy.
+- **Vite 8** + `@sveltejs/vite-plugin-svelte 7` y `vite-plugin-dts` para build de librería (`dist/index.js` + `dist/tasks.js`).
+- **TypeScript 6**, `svelte-check` (0 errores) y `eslint-plugin-svelte` para validación.
 
 ## Requisitos
 
@@ -500,7 +500,7 @@ npm run build
 # Todos los tests (unit + E2E)
 npm test
 
-# Solo unit (vitest, 263 tests)
+# Solo unit (vitest, 333 tests)
 npm run unit
 
 # Watch
