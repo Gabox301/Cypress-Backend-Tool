@@ -528,10 +528,15 @@ Cypress.Commands.add(
         const host = connectionOptions?.host || defaultConfig?.host || 'localhost';
         const port = connectionOptions?.port || defaultConfig?.port || 5432;
         const database = connectionOptions?.database || defaultConfig?.database || 'test_db';
+        const safeOverrides: Record<string, unknown> = { ...(connectionOptions as Record<string, unknown> | undefined) };
+        // GUA-1: clobber-proof — a foreign `query`/`values` key inside
+        // connectionOptions must never override the positional arguments.
+        delete safeOverrides.query;
+        delete safeOverrides.values;
         const queryArgs = {
+          ...safeOverrides,
           query,
           ...(values !== undefined ? { values } : {}),
-          ...(connectionOptions ? { ...connectionOptions } : {}),
         };
         const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
         return (
@@ -556,12 +561,18 @@ Cypress.Commands.add(
                   received = String(rawResult);
                 }
               }
-              renderDbFailure(
-                `${host}:${port}/${database}`,
-                database,
-                `db:query returned invalid result (expected {rows,rowCount}, got ${received}) for query: ${query}`,
-              );
-              throw new Error('cy.query failed: invalid db:query result (rows missing)');
+              // GUA-2: enriched diagnostics — the panel entry and the rethrown
+              // error carry the same evidence so H1 (stale/foreign handler or
+              // transport edge) vs H2 is decidable without re-running.
+              const taskName = `${dbTaskPrefix}db:query`;
+              const connectionId = `${host}:${port}/${database}`;
+              const queryArgKeys = Object.keys(queryArgs).join(', ');
+              const detail =
+                `invalid ${taskName} result (expected {rows,rowCount}, got ${received}) ` +
+                `— connectionId: ${connectionId}, queryArgs keys: [${queryArgKeys}], ` +
+                `typeof result: ${typeof rawResult} — for query: ${query}`;
+              renderDbFailure(connectionId, database, detail);
+              throw new Error(`cy.query failed: ${detail}`);
             }
             const queryRows = resultRows as unknown[];
             const dbResponse: DbQueryResponse = {

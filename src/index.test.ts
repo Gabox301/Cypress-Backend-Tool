@@ -20,6 +20,37 @@ const { capturedCommands, cyStateMock, cypressExposeMock } = vi.hoisted(() => {
   };
 });
 
+// Mock de pg solo para el test enlazado GUA (src/index.ts no importa pg —
+// el mock solo lo consume la importación perezosa de ./node/tasks).
+const { pgRefs } = vi.hoisted(() => {
+  const mockPoolQuery = vi.fn();
+  const mockClientQuery = vi.fn();
+  const mockClientConnect = vi.fn();
+  const mockClientEnd = vi.fn();
+  const mockPoolCtor = vi.fn(function MockPool(opts?: Record<string, unknown>) {
+    return { query: mockPoolQuery, options: opts };
+  });
+  const mockClientCtor = vi.fn(function MockClient() {
+    return { query: mockClientQuery, connect: mockClientConnect, end: mockClientEnd };
+  });
+  return {
+    pgRefs: {
+      mockPoolQuery,
+      mockClientQuery,
+      mockClientConnect,
+      mockClientEnd,
+      mockPoolCtor,
+      mockClientCtor,
+    },
+  };
+});
+
+vi.mock('pg', () => ({
+  default: { Pool: pgRefs.mockPoolCtor, Client: pgRefs.mockClientCtor },
+  Pool: pgRefs.mockPoolCtor,
+  Client: pgRefs.mockClientCtor,
+}));
+
 // ---------------------------------------------------------------------------
 // Stub de los globales de Cypress ANTES de cualquier import de src/index.ts
 // ---------------------------------------------------------------------------
@@ -1068,7 +1099,7 @@ describe('DB invalid result guard (QIR-1..QIR-3)', () => {
     expect(entry.connectionId).toBe('localhost:5432/test_db');
     expect(entry.query).toBe(queryText);
     expect(entry.result).toBeNull();
-    expect(entry.error).toContain('invalid result');
+    expect(entry.error).toContain('invalid db:query result');
     expect(entry.database).toBe('test_db');
     expect(cypressLogMock()).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
@@ -1118,5 +1149,193 @@ describe('DB invalid result guard (QIR-1..QIR-3)', () => {
     expect(entry.rowCount).toBe(0);
     expect(document.body.textContent).toContain('(no rows returned)');
     expect(document.body.textContent).toContain('0 rows');
+  });
+});
+
+// ===========================================================================
+// cy.query guard hardening (GUA-1..GUA-3)
+// ===========================================================================
+describe('cy.query guard hardening (GUA-1..GUA-3)', () => {
+  let dbQueriesStore: unknown[];
+  let clearDbStore: () => void;
+
+  beforeAll(async () => {
+    await import('./index');
+    const stores = await import('./lib/stores.svelte');
+    dbQueriesStore = stores.dbQueries as unknown[];
+    clearDbStore = stores.clearDbQueries;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function queryHandler() {
+    return capturedCommands['query'] as (...args: unknown[]) => Promise<any>;
+  }
+
+  function mockQueryTasks(resolvedQuery: (args?: Record<string, unknown>) => unknown) {
+    const task = vi.fn((taskName: string, args?: Record<string, unknown>) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return Promise.resolve(resolvedQuery(args));
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  async function catchQuery(...args: unknown[]) {
+    let caught: unknown;
+    try {
+      await queryHandler()(...args);
+    } catch (e) {
+      caught = e;
+    }
+    return caught;
+  }
+
+  it('linked single-arg: caller sends {query} only and the handler Pool-hit returns {rows,rowCount}', async () => {
+    // Signals-like env on both layers: the caller resolves its connectionId
+    // from db:getConfig while the Node handler resolves the same endpoint
+    // from CYPRESS_DB_* so the pooled path is hit.
+    vi.stubEnv('CYPRESS_DB_HOST', 'localhost');
+    vi.stubEnv('CYPRESS_DB_PORT', '5432');
+    vi.stubEnv('CYPRESS_DB_NAME', 'test_db');
+    vi.stubEnv('CYPRESS_DB_USER', 'postgres');
+    vi.stubEnv('CYPRESS_DB_PASSWORD', '');
+    const { setupDatabaseTasks } = (await import('./node/tasks')) as unknown as {
+      setupDatabaseTasks: (
+        on: Record<string, unknown>,
+        options?: Record<string, unknown>,
+      ) => { dbTaskPrefix: string };
+    };
+    const on = vi.fn();
+    setupDatabaseTasks(on as unknown as Record<string, unknown>);
+    const tasks = on.mock.calls.find(([event]) => event === 'task')?.[1] as Record<
+      string,
+      (args: Record<string, unknown>) => Promise<unknown>
+    >;
+    pgRefs.mockPoolQuery.mockResolvedValue({ rows: [{ value: 1 }], rowCount: 1 });
+
+    const task = vi.fn((taskName: string, args?: Record<string, unknown>) => {
+      if (taskName === 'db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'db:query') {
+        return tasks['db:query'](args ?? {});
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const result = (await queryHandler()('SELECT 1')) as { rows: unknown[]; rowCount: number };
+
+    // Caller layer: single-arg sends {query} only.
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1' });
+    // Handler layer: pooled single-arg pool.query hit returns the shape.
+    expect(pgRefs.mockPoolQuery).toHaveBeenCalledWith('SELECT 1');
+    expect(result.rows).toEqual([{ value: 1 }]);
+    expect(result.rowCount).toBe(1);
+    expect(dbQueriesStore).toHaveLength(1);
+    expect((dbQueriesStore[0] as Record<string, unknown>).error).toBeUndefined();
+  });
+
+  it('values=[] on a placeholder-less SELECT still succeeds', async () => {
+    const task = mockQueryTasks(() => ({ rows: [{ value: 1 }], rowCount: 1 }));
+
+    const result = (await queryHandler()('SELECT 1', [])) as { rows: unknown[]; values?: unknown[] };
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ query: 'SELECT 1', values: [] });
+    expect(result.rows).toEqual([{ value: 1 }]);
+    expect(result.values).toEqual([]);
+    expect(dbQueriesStore).toHaveLength(1);
+    expect((dbQueriesStore[0] as Record<string, unknown>).error).toBeUndefined();
+  });
+
+  it('connectionOptions query/values keys do not clobber the positional arguments', async () => {
+    const task = mockQueryTasks(() => ({ rows: [], rowCount: 0 }));
+    const poisonous = {
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+      query: 'SELECT evil',
+      values: ['evil'],
+    };
+
+    await queryHandler()('SELECT 1', [], poisonous);
+
+    expect(task.mock.calls[1]?.[1]).toEqual({
+      host: 'override.example.test',
+      port: 5544,
+      database: 'override_db',
+      user: 'override_user',
+      password: 'override_password',
+      query: 'SELECT 1',
+      values: [],
+    });
+  });
+
+  it('object second-arg with query/values keys keeps the positional query and sends no values', async () => {
+    const task = mockQueryTasks(() => ({ rows: [{ value: 1 }], rowCount: 1 }));
+
+    await queryHandler()('SELECT 1', { database: 'partial_db', query: 'SELECT evil', values: ['evil'] });
+
+    expect(task.mock.calls[1]?.[1]).toEqual({ database: 'partial_db', query: 'SELECT 1' });
+    expect(task.mock.calls[1]?.[1]).not.toHaveProperty('values');
+  });
+
+  it('QIR failure evidence carries task name, connectionId, arg keys, typeof and received', async () => {
+    mockQueryTasks(() => undefined);
+
+    const caught = await catchQuery('SELECT 1');
+
+    const message = (caught as Error).message;
+    expect(message).toContain('cy.query failed');
+    expect(message).toContain('db:query');
+    expect(message).toContain('localhost:5432/test_db');
+    expect(message).toContain('queryArgs keys: [query]');
+    expect(message).toContain('typeof result: undefined');
+    expect(message).toContain('got undefined');
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.error).toContain('db:query');
+    expect(entry.error).toContain('localhost:5432/test_db');
+    expect(entry.error).toContain('queryArgs keys: [query]');
+  });
+
+  it('QIR failure evidence carries the prefixed task name when dbTaskPrefix is set', async () => {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key === 'dbTaskPrefix') return 'myapp_';
+      if (key === 'CYPRESS_PLUGIN_DEBUG') return false;
+      if (key === 'snapshotOnly') return false;
+      if (key === 'hideCredentialsOptions') return { headers: true, auth: true, body: true, query: true };
+      return undefined;
+    });
+    const task = vi.fn((taskName: string) => {
+      if (taskName === 'myapp_db:getConfig') {
+        return Promise.resolve({ host: 'localhost', port: 5432, database: 'test_db' });
+      }
+      if (taskName === 'myapp_db:query') {
+        return Promise.resolve(null);
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+
+    const caught = await catchQuery('SELECT 1');
+
+    expect((caught as Error).message).toContain('myapp_db:query');
+    expect((caught as Error).message).toContain('typeof result: object');
+    expect((caught as Error).message).toContain('got null');
   });
 });
