@@ -5,6 +5,16 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.5] - 2026-10-09
+
+### Changed
+
+- **Split de `src/index.ts` en barrel + módulos (sin cambio de comportamiento):** la entrada queda como barrel delgado (`src/index.ts`) con los comandos en `src/commands/http.ts` y `src/commands/query.ts` más los presenters de `src/support/` (config/store/UI); se preserva el orden de registro y el setup en una línea sigue intacto.
+
+### Fixed
+
+- **Superficie pública `d.ts` restaurada:** el barrel re-exporta los tipos públicos (`ApiRequestOptions`, `DbConnectionOptions`, `DbQueryResponse`) y la ampliación `Cypress.Chainable` vuelve a viajar en los tipos publicados; el bundle runtime es idéntico.
+
 ## [1.2.4] - 2026-10-09
 
 ### Fixed
