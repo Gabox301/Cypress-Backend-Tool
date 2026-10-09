@@ -39,9 +39,9 @@ vi.mock('pg', () => {
   };
 });
 
-vi.mock('dotenv', () => ({
-  default: { config: vi.fn() },
-}));
+// Stub native .env loader: the guard in tasks.ts skips loading under Vitest,
+// this spy guarantees no real `.env` is read if the guard ever changes.
+vi.spyOn(process, 'loadEnvFile').mockImplementation(() => {});
 
 let setupDatabaseTasks: (
   on: Record<string, unknown>,

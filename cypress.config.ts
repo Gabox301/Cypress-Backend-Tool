@@ -1,8 +1,11 @@
 import { defineConfig } from 'cypress';
-import dotenv from 'dotenv';
 import { setupDatabaseTasks } from './src/node/tasks';
 
-dotenv.config();
+try {
+  process.loadEnvFile();
+} catch (error) {
+  if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+}
 
 export default defineConfig({
   e2e: {

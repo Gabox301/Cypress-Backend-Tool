@@ -64,10 +64,9 @@ The simplest way to configure database tasks is with `setupDatabaseTasks()`, whi
 ```typescript
 // cypress.config.ts
 import { defineConfig } from 'cypress';
-import dotenv from 'dotenv';
 import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
 
-dotenv.config(); // loads .env automatically
+process.loadEnvFile(); // loads .env automatically (native Node >=22 loader)
 
 export default defineConfig({
   e2e: {
@@ -175,7 +174,7 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
-Create a `.env` file at the root — `cypress.config.ts` and `src/node/tasks.ts` load it automatically via `dotenv` (no manual `fs` needed). Example `.env` for Neon:
+Create a `.env` file at the root — `cypress.config.ts` and `src/node/tasks.ts` load it automatically via the native Node loader (`process.loadEnvFile()`, no dependencies) (no manual `fs` needed). Example `.env` for Neon:
 
 ```env
 CYPRESS_DB_HOST=ep-xxx.neon.tech
