@@ -5,6 +5,12 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.3] - 2026-10-09
+
+### Fixed
+
+- **Guardia fail-closed para resultados inválidos de `db:query`:** cuando la tarea `db:query` devuelve un `rows` ausente o que no es arreglo, `cy.query()` ahora falla de forma cerrada con una entrada de fallo visible en el historial del panel (igual que los errores HTTP), en lugar de romperse o pasar en silencio. Un resultado válido de cero filas sigue siendo un éxito visible. `QueryPanel` también refuerza la entrada de filas no-arreglo para renderizar de forma segura.
+
 ## [1.2.2] - 2026-10-09
 
 ### Changed

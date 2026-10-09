@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] - 2026-10-09
+
+### Fixed
+
+- **Fail-closed guard for invalid `db:query` results:** when the `db:query` task returns a missing or non-array `rows` payload, `cy.query()` now fails closed with a visible failure entry in the panel history (same evidence behavior as HTTP errors) instead of crashing or silently passing. A valid zero-row result stays a visible success. `QueryPanel` also hardens non-array row input so it renders safely.
+
 ## [1.2.2] - 2026-10-09
 
 ### Changed
