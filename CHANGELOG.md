@@ -5,6 +5,14 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.6] - 2026-10-22
+
+### Changed
+
+- **Migración del toolchain a Vite+ (`vp`):** scripts (`build`/`lint`/`unit`/`test`/`watch`/`coverage`), pins (`vite`, `vitest`), `overrides` y `devEngines` gestionados por `vp`; `eslint.config.js` eliminado a favor de `vp lint`.
+- **TypeScript 7 en paralelo (sin cambio de comportamiento):** `@typescript/native` (TS 7.0.2 nativo) alimenta `tsc --noEmit`; `typescript` queda en 6.0 para la API que usan Svelte y `vite-plugin-dts`. Superficie pública y bundles idénticos.
+- **Formato unificado con oxfmt:** comillas dobles y ancho 120 en `src`/`cypress`; solo formato, sin cambios de lógica.
+
 ## [1.2.5] - 2026-10-09
 
 ### Changed
