@@ -33,25 +33,25 @@ export function registerLiveUrlElement(node: HTMLElement): { destroy: () => void
 export function ensureTooltipDelegation(doc: Document = document): void {
   if (registeredDoc === doc) return;
   if (registeredDoc) {
-    registeredDoc.removeEventListener('mouseover', handleTooltipOver);
-    registeredDoc.removeEventListener('mouseout', handleTooltipOut);
+    registeredDoc.removeEventListener("mouseover", handleTooltipOver);
+    registeredDoc.removeEventListener("mouseout", handleTooltipOut);
   }
   hideFallback();
   registeredDoc = doc;
-  doc.addEventListener('mouseover', handleTooltipOver);
-  doc.addEventListener('mouseout', handleTooltipOut);
+  doc.addEventListener("mouseover", handleTooltipOver);
+  doc.addEventListener("mouseout", handleTooltipOut);
 }
 
 function isElement(target: EventTarget | null): target is Element {
   // Duck-typing agnóstico al realm: el bundle puede correr en el realm del
   // runner mientras los nodos pertenecen al document del iframe del AUT, donde
   // `instanceof Element` es siempre falso. Igual que en copy-delegation.
-  return target !== null && typeof (target as Element).closest === 'function';
+  return target !== null && typeof (target as Element).closest === "function";
 }
 
 function findUrlTarget(target: EventTarget | null): HTMLElement | null {
   if (!isElement(target)) return null;
-  return target.closest<HTMLElement>('.url-origin, .url-path');
+  return target.closest<HTMLElement>(".url-origin, .url-path");
 }
 
 /**
@@ -59,11 +59,11 @@ function findUrlTarget(target: EventTarget | null): HTMLElement | null {
  * visual — el textContent del clon conserva el texto completo.
  */
 function resolveFullUrl(element: HTMLElement): string {
-  const scope = element.closest('.title-panel') ?? element.parentElement;
-  if (!scope) return element.textContent ?? '';
-  const origin = scope.querySelector('.url-origin')?.textContent ?? '';
-  const path = scope.querySelector('.url-path')?.textContent ?? '';
-  return origin + path || (element.textContent ?? '');
+  const scope = element.closest(".title-panel") ?? element.parentElement;
+  if (!scope) return element.textContent ?? "";
+  const origin = scope.querySelector(".url-origin")?.textContent ?? "";
+  const path = scope.querySelector(".url-path")?.textContent ?? "";
+  return origin + path || (element.textContent ?? "");
 }
 
 function handleTooltipOver(event: MouseEvent): void {
@@ -103,8 +103,8 @@ function showFallback(anchor: HTMLElement, text: string): void {
   const doc = anchor.ownerDocument;
   if (!fallbackHost || fallbackDoc !== doc) {
     hideFallback();
-    fallbackHost = doc.createElement('div');
-    fallbackHost.dataset.testid = 'title-panel-tooltip-fallback';
+    fallbackHost = doc.createElement("div");
+    fallbackHost.dataset.testid = "title-panel-tooltip-fallback";
     fallbackDoc = doc;
   }
   if (!fallbackHost.isConnected) {
@@ -112,10 +112,10 @@ function showFallback(anchor: HTMLElement, text: string): void {
   }
   // Reutiliza la clase global `.custom-tooltip` (mismos estilos del portal
   // vivo). Se asigna vía textContent — sin HTML crudo.
-  const tip = doc.createElement('div');
-  tip.className = 'custom-tooltip';
+  const tip = doc.createElement("div");
+  tip.className = "custom-tooltip";
   const rect = anchor.getBoundingClientRect();
-  tip.setAttribute('style', `left:${rect.left}px;top:${rect.bottom + 4}px;`);
+  tip.setAttribute("style", `left:${rect.left}px;top:${rect.bottom + 4}px;`);
   tip.textContent = text;
   fallbackHost.replaceChildren(tip);
 }

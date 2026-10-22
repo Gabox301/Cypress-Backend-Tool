@@ -1,6 +1,6 @@
-import { clearApiCalls, clearDbQueries } from '$lib/stores.svelte';
-import { teardownPluginUI } from '$lib/ui';
-import { EntryRegistry } from '$lib/ui/entry-registry';
+import { clearApiCalls, clearDbQueries } from "$lib/stores.svelte";
+import { teardownPluginUI } from "$lib/ui";
+import { EntryRegistry } from "$lib/ui/entry-registry";
 
 // ============================================
 // Reconexión automática: Cypress destruye el DOM del AUT durante la reproducción
@@ -25,9 +25,11 @@ beforeEach(() => {
   // obsoleta del intento fallido para que el reintento se monte de forma determinista.
   // Se omite cuando _currentRetry no está disponible — el fallback del MutationObserver
   // sigue siendo la ruta de degradación.
-  const runnable = cy.state('runnable') as { _currentRetry?: unknown } | undefined;
-  if (runnable && typeof runnable._currentRetry === 'number' && runnable._currentRetry > 0) {
+  const runnable = cy.state("runnable") as { _currentRetry?: unknown } | undefined;
+  if (runnable && typeof runnable._currentRetry === "number" && runnable._currentRetry > 0) {
     teardownPluginUI(); // restablece mountedInstance/mountedDocument, desconecta el observer
-    (cy.state('window') as Window | undefined)?.document.getElementById('cypress-api-plugin-container')?.remove();
+    (cy.state("window") as Window | undefined)?.document
+      .getElementById("cypress-api-plugin-container")
+      ?.remove();
   }
 });

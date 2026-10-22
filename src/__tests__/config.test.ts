@@ -1,5 +1,5 @@
-import { getPluginConfig } from '$lib/config';
-import { describe, expect, it } from 'vitest';
+import { getPluginConfig } from "$lib/config";
+import { describe, expect, it } from "vite-plus/test";
 
 // ---------------------------------------------------------------------------
 // getPluginConfig ahora se exporta desde $lib/config como función pura.
@@ -10,11 +10,11 @@ function mockReader(values: Record<string, unknown> = {}) {
   return (key: string) => values[key];
 }
 
-describe('getPluginConfig — lógica de resolución de configuración', () => {
+describe("getPluginConfig — lógica de resolución de configuración", () => {
   // -----------------------------------------------------------------------
   // Valores por defecto — cuando no hay valores configurados
   // -----------------------------------------------------------------------
-  it('retorna valores seguros por defecto cuando no hay valores configurados', () => {
+  it("retorna valores seguros por defecto cuando no hay valores configurados", () => {
     const config = getPluginConfig(mockReader());
     expect(config.snapshotOnly).toBe(false);
     expect(config.hideCredentials).toBe(true);
@@ -30,7 +30,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
   // -----------------------------------------------------------------------
   // Valores configurados
   // -----------------------------------------------------------------------
-  it('respeta valores booleanos configurados', () => {
+  it("respeta valores booleanos configurados", () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: true,
@@ -46,7 +46,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
   // -----------------------------------------------------------------------
   // Overrides parciales — algunas claves definidas, otras con el valor por defecto
   // -----------------------------------------------------------------------
-  it('fusiona configuración parcial con valores por defecto', () => {
+  it("fusiona configuración parcial con valores por defecto", () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: true,
@@ -60,7 +60,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
   // -----------------------------------------------------------------------
   // hideCredentialsOptions
   // -----------------------------------------------------------------------
-  it('respeta hideCredentialsOptions personalizado', () => {
+  it("respeta hideCredentialsOptions personalizado", () => {
     const config = getPluginConfig(
       mockReader({
         hideCredentialsOptions: {
@@ -79,7 +79,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     });
   });
 
-  it('fills unspecified redaction categories with secure defaults', () => {
+  it("fills unspecified redaction categories with secure defaults", () => {
     const config = getPluginConfig(mockReader({ hideCredentialsOptions: { headers: false } }));
 
     expect(config.hideCredentialsOptions).toEqual({
@@ -90,7 +90,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     });
   });
 
-  it('usa valores por defecto para hideCredentialsOptions cuando no está definido', () => {
+  it("usa valores por defecto para hideCredentialsOptions cuando no está definido", () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: true,
@@ -107,7 +107,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
   // -----------------------------------------------------------------------
   // Casos límite
   // -----------------------------------------------------------------------
-  it('trata correctamente valores falsy pero definidos (false ≠ undefined)', () => {
+  it("trata correctamente valores falsy pero definidos (false ≠ undefined)", () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: false,
@@ -121,7 +121,7 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
     expect(config.CYPRESS_PLUGIN_DEBUG).toBe(false);
   });
 
-  it('maneja valores nulos/indefinidos como valores por defecto', () => {
+  it("maneja valores nulos/indefinidos como valores por defecto", () => {
     const config = getPluginConfig(
       mockReader({
         snapshotOnly: null,
@@ -136,26 +136,31 @@ describe('getPluginConfig — lógica de resolución de configuración', () => {
 // ---------------------------------------------------------------------------
 // configure() / mergeConfig — capa de overrides sobre getPluginConfig
 // ---------------------------------------------------------------------------
-describe('configure() — capa de overrides de configuración', () => {
+describe("configure() — capa de overrides de configuración", () => {
   let _configure: (overrides: Record<string, unknown>) => void;
-  let mergeConfig: (base: Record<string, unknown>, overrides: Record<string, unknown>) => Record<string, unknown>;
+  let mergeConfig: (
+    base: Record<string, unknown>,
+    overrides: Record<string, unknown>,
+  ) => Record<string, unknown>;
   let resetConfig: () => void;
 
   beforeAll(async () => {
-    const mod = await import('$lib/config');
-    _configure = (mod as unknown as Record<string, unknown>).configure as (overrides: Record<string, unknown>) => void;
+    const mod = await import("$lib/config");
+    _configure = (mod as unknown as Record<string, unknown>).configure as (
+      overrides: Record<string, unknown>,
+    ) => void;
     mergeConfig = (mod as unknown as Record<string, unknown>).mergeConfig as (
       base: Record<string, unknown>,
       overrides: Record<string, unknown>,
     ) => Record<string, unknown>;
     // resetConfig puede no existir aún (fase RED — se agregará con GREEN)
     const maybeReset = (mod as unknown as Record<string, unknown>).resetConfig;
-    resetConfig = (typeof maybeReset === 'function' ? maybeReset : () => {}) as () => void;
+    resetConfig = (typeof maybeReset === "function" ? maybeReset : () => {}) as () => void;
   });
 
   beforeEach(() => {
     // Reinicia los overrides de configuración antes de cada test
-    if (typeof resetConfig === 'function') {
+    if (typeof resetConfig === "function") {
       resetConfig();
     }
   });
@@ -163,7 +168,7 @@ describe('configure() — capa de overrides de configuración', () => {
   // -----------------------------------------------------------------------
   // Pruebas de la función pura mergeConfig
   // -----------------------------------------------------------------------
-  it('mergeConfig fusiona superficialmente escalares de nivel superior', () => {
+  it("mergeConfig fusiona superficialmente escalares de nivel superior", () => {
     const base = {
       snapshotOnly: false,
       hideCredentials: false,
@@ -175,7 +180,7 @@ describe('configure() — capa de overrides de configuración', () => {
     expect(result.hideCredentials).toBe(false); // sin cambios
   });
 
-  it('mergeConfig fusiona profundamente hideCredentialsOptions', () => {
+  it("mergeConfig fusiona profundamente hideCredentialsOptions", () => {
     const base = {
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
     };
@@ -194,7 +199,7 @@ describe('configure() — capa de overrides de configuración', () => {
   // -----------------------------------------------------------------------
   // Integración de configure() — retrocompatibilidad (sin llamada a configure)
   // -----------------------------------------------------------------------
-  it('retrocompatibilidad: solo expose retorna valores de expose sin cambios', () => {
+  it("retrocompatibilidad: solo expose retorna valores de expose sin cambios", () => {
     // En el uso real, readPluginConfig() llama a getPluginConfig con Cypress.expose
     // y luego lo mezcla con configOverrides. Cuando configure() nunca se llama,
     // configOverrides está vacío, por lo que los valores de expose pasan sin cambios.
@@ -215,7 +220,7 @@ describe('configure() — capa de overrides de configuración', () => {
   // -----------------------------------------------------------------------
   // Reglas de fusión de configure()
   // -----------------------------------------------------------------------
-  it('configure sobrescribe el valor de expose cuando ambos están definidos', () => {
+  it("configure sobrescribe el valor de expose cuando ambos están definidos", () => {
     const exposeValues = { snapshotOnly: false };
     const configureValues = { snapshotOnly: true };
     const base = { ...exposeValues };
@@ -223,7 +228,7 @@ describe('configure() — capa de overrides de configuración', () => {
     expect(result.snapshotOnly).toBe(true); // configure gana sobre expose
   });
 
-  it('configure no afecta campos no definidos', () => {
+  it("configure no afecta campos no definidos", () => {
     const exposeValues = {
       snapshotOnly: false,
       hideCredentials: false,
@@ -235,7 +240,7 @@ describe('configure() — capa de overrides de configuración', () => {
     expect(result.snapshotOnly).toBe(false); // sin cambios
   });
 
-  it('configure parcial hideCredentialsOptions — fusión profunda con valores de expose', () => {
+  it("configure parcial hideCredentialsOptions — fusión profunda con valores de expose", () => {
     const exposeValues = {
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
     };
@@ -255,7 +260,7 @@ describe('configure() — capa de overrides de configuración', () => {
   // -----------------------------------------------------------------------
   // Casos límite
   // -----------------------------------------------------------------------
-  it('configure con overrides vacíos es un no-op', () => {
+  it("configure con overrides vacíos es un no-op", () => {
     const exposeValues = {
       snapshotOnly: true,
       hideCredentials: false,
@@ -266,7 +271,7 @@ describe('configure() — capa de overrides de configuración', () => {
     expect(result).toEqual(exposeValues);
   });
 
-  it('configure maneja hideCredentialsOptions no presente en los overrides', () => {
+  it("configure maneja hideCredentialsOptions no presente en los overrides", () => {
     const exposeValues = {
       hideCredentialsOptions: { headers: true, auth: true, body: true, query: true },
     };

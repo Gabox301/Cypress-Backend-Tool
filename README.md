@@ -30,8 +30,8 @@ Plugin de Cypress para testing de APIs HTTP y consultas a bases de datos Postgre
 ## Stack
 
 - **Svelte 5** con runes (`$state`, `$derived.by`, `$effect`, `$props`) — 100% runes, `svelte.config.js: { runes: true }` y `vite.config.ts` alineado. Sin `onMount`, sin `$:` ni `svelte/store` legacy.
-- **Vite 8** + `@sveltejs/vite-plugin-svelte 7` y `vite-plugin-dts` para build de librería (`dist/index.js` + `dist/tasks.js`).
-- **TypeScript 6**, `svelte-check` (0 errores) y `eslint-plugin-svelte` para validación.
+- **Vite+ 1.3** (toolchain unificado de VoidZero: Vite 8, Vitest 5, Oxlint, Oxfmt) + `@sveltejs/vite-plugin-svelte 7` y `vite-plugin-dts` para build de librería (`dist/index.js` + `dist/tasks.js`).
+- **TypeScript 6** y `vp check` (formato + lint + tipos, 0 errores, 0 warnings); `eslint-plugin-svelte` como plugin de lint.
 
 ## Requisitos
 
@@ -52,7 +52,7 @@ yarn add cypress-backend-tool
 
 ```typescript
 // cypress/support/e2e.ts
-import 'cypress-backend-tool'; // Auto-init: registra cy.http() y cy.query()
+import "cypress-backend-tool"; // Auto-init: registra cy.http() y cy.query()
 ```
 
 Sin `init()`, sin configuración adicional. El plugin se auto-inicializa al importarlo.
@@ -63,8 +63,8 @@ La forma más simple de configurar las tareas de base de datos es con `setupData
 
 ```typescript
 // cypress.config.ts
-import { defineConfig } from 'cypress';
-import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
+import { defineConfig } from "cypress";
+import { setupDatabaseTasks } from "cypress-backend-tool/tasks";
 
 process.loadEnvFile(); // carga .env automáticamente (cargador nativo de Node >=22)
 
@@ -187,21 +187,21 @@ No se deben incluir credenciales de base de datos en `e2e.env`, `Cypress.expose(
 ### setupDatabaseTasks() — Opciones
 
 ```typescript
-import { defineConfig } from 'cypress';
-import { setupDatabaseTasks } from 'cypress-backend-tool/tasks';
+import { defineConfig } from "cypress";
+import { setupDatabaseTasks } from "cypress-backend-tool/tasks";
 
 export default defineConfig({
   e2e: {
     setupNodeEvents(on, config) {
       return setupDatabaseTasks(on, config, {
-        defaultPrefix: 'myapp_', // tareas → myapp_db:getConfig, myapp_db:query
-        envPrefix: 'MY_DB_', // lee MY_DB_HOST en lugar de CYPRESS_DB_HOST
+        defaultPrefix: "myapp_", // tareas → myapp_db:getConfig, myapp_db:query
+        envPrefix: "MY_DB_", // lee MY_DB_HOST en lugar de CYPRESS_DB_HOST
         defaults: {
-          host: 'localhost',
+          host: "localhost",
           port: 5432,
-          database: 'test_db',
-          user: 'postgres',
-          password: '',
+          database: "test_db",
+          user: "postgres",
+          password: "",
           ssl: { rejectUnauthorized: false }, // o true, false o { ca: '...' }
           connectionTimeoutMillis: 5000,
           idleTimeoutMillis: 10000,
@@ -265,49 +265,49 @@ setupDatabaseTasks(on, {
 ```typescript
 // Request básico
 cy.http({
-  url: 'https://api.example.com/users',
-  method: 'GET',
+  url: "https://api.example.com/users",
+  method: "GET",
 }).then((response) => {
   expect(response.status).to.eq(200);
 });
 
 // Con headers y body
 cy.http({
-  url: 'https://api.example.com/users',
-  method: 'POST',
+  url: "https://api.example.com/users",
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json',
-    Authorization: 'Bearer tu_token',
+    "Content-Type": "application/json",
+    Authorization: "Bearer tu_token",
   },
   body: {
-    name: 'John Doe',
-    email: 'john@example.com',
+    name: "John Doe",
+    email: "john@example.com",
   },
 }).then((response) => {
-  expect(response.body).to.have.property('id');
+  expect(response.body).to.have.property("id");
 });
 
 // Coloreo automático — cada expect colorea el panel y el snapshot
-cy.http('https://jsonplaceholder.typicode.com/users/1').then((r) => {
+cy.http("https://jsonplaceholder.typicode.com/users/1").then((r) => {
   expect(r.status).to.eq(200); // → status verde + snapshot con verde
-  expect(r.body.name).to.eq('Leanne Graham'); // → línea verde en CodeBlock
-  expect(r.body.email).to.not.eq('otro@test.com'); // → línea roja
+  expect(r.body.name).to.eq("Leanne Graham"); // → línea verde en CodeBlock
+  expect(r.body.email).to.not.eq("otro@test.com"); // → línea roja
   expect(r.body.website).to.not.be.null; // → verde (no amarillo, porque el real es string)
 });
 
 // Amarillo real — solo si el dato de la API es null/undefined (verificado sin mock)
 // jsonplaceholder no tiene null en GET, pero POST con title:null sí devuelve null real:
 cy.http({
-  url: 'https://jsonplaceholder.typicode.com/posts',
-  method: 'POST',
-  body: { title: null, body: 'test', userId: 1 },
+  url: "https://jsonplaceholder.typicode.com/posts",
+  method: "POST",
+  body: { title: null, body: "test", userId: 1 },
 }).then((r) => {
   expect(r.body.title).to.eq(null); // → línea amarilla (real es null)
 });
 
 // Aserciones de cookies — se registran como mapa nombre→valor (igual que los headers)
-cy.http('https://example.com/login').then((r) => {
-  expect(r.cookies).to.have.property('session', 'abc123'); // → fila verde si coincide, roja si no
+cy.http("https://example.com/login").then((r) => {
+  expect(r.cookies).to.have.property("session", "abc123"); // → fila verde si coincide, roja si no
 });
 ```
 
@@ -317,40 +317,42 @@ Firma: `cy.query(text, values?, connectionOptions?)`. Los valores se pasan como 
 
 ```typescript
 // Sin opciones explícitas: Node resuelve variables de entorno, defaults o valores de compatibilidad.
-cy.query('SELECT * FROM users LIMIT 10').then((result) => {
+cy.query("SELECT * FROM users LIMIT 10").then((result) => {
   expect(result.rows).to.have.length.greaterThan(0);
   console.log(result.rows);
 });
 
 // Consulta parametrizada: los valores se reenvían a la tarea db:query como parámetros bind de pg.
-cy.query('SELECT * FROM users WHERE id = $1 AND status = $2', [42, 'active']).then((result) => {
+cy.query("SELECT * FROM users WHERE id = $1 AND status = $2", [42, "active"]).then((result) => {
   expect(result.rows).to.have.length.greaterThan(0);
-  expect(result.values).to.deep.eq([42, 'active']); // los valores originales siguen disponibles para las aserciones
+  expect(result.values).to.deep.eq([42, "active"]); // los valores originales siguen disponibles para las aserciones
 });
 
 // Valores combinados con opciones de conexión explícitas
-cy.query('SELECT * FROM users WHERE id = $1', [42], {
-  host: 'localhost',
+cy.query("SELECT * FROM users WHERE id = $1", [42], {
+  host: "localhost",
   port: 5432,
-  database: 'mydb',
-  user: 'postgres',
-  password: 'secret',
+  database: "mydb",
+  user: "postgres",
+  password: "secret",
 }).then((result) => {
   console.log(result.rows);
 });
 
 // Valor dinámico de una llamada previa: sin interpolación de strings.
-cy.http({ url: '.../users', method: 'POST', body: { name: 'Ada' } }).then((response) => {
-  cy.query('SELECT * FROM users WHERE id = $1', [response.body.id]).then((result) => {
+cy.http({ url: ".../users", method: "POST", body: { name: "Ada" } }).then((response) => {
+  cy.query("SELECT * FROM users WHERE id = $1", [response.body.id]).then((result) => {
     expect(result.rows).to.have.length(1);
   });
 });
 
 // INSERT con RETURNING: valores vinculados junto al conteo de filas afectadas.
-cy.query('INSERT INTO users(name, status) VALUES ($1, $2) RETURNING id', ['Ada', 'active']).then((result) => {
-  expect(result.rowCount).to.eq(1);
-  expect(result.values).to.deep.eq(['Ada', 'active']);
-});
+cy.query("INSERT INTO users(name, status) VALUES ($1, $2) RETURNING id", ["Ada", "active"]).then(
+  (result) => {
+    expect(result.rowCount).to.eq(1);
+    expect(result.values).to.deep.eq(["Ada", "active"]);
+  },
+);
 ```
 
 Los valores siguen la bandera de enmascaramiento existente del texto SQL (`hideCredentials` + `hideCredentialsOptions.query`): se enmascaran en los registros de Cypress donde se enmascara el texto SQL, mientras que `result.values` conserva los valores originales para las aserciones. Los valores no se muestran en el panel de consultas.
@@ -398,7 +400,7 @@ De forma predeterminada, los paneles, el texto y las propiedades de los registro
 Como alternativa a `Cypress.expose()`, es posible utilizar `configure()` desde cualquier lugar con acceso al bundle del navegador (por ejemplo, `setupNodeEvents`, hooks de test o el spec):
 
 ```typescript
-import { configure } from 'cypress-backend-tool';
+import { configure } from "cypress-backend-tool";
 
 // En setupNodeEvents o beforeEach:
 configure({ snapshotOnly: true });
@@ -470,9 +472,9 @@ beforeEach(() => {
   Cypress.expose({ snapshotOnly: true }); // Colapsar UI en todos los tests
 });
 
-it('test específico', () => {
+it("test específico", () => {
   Cypress.expose({ hideCredentials: false }); // Mostrar valores sin enmascarar solo en esta prueba
-  cy.http({ url: '...', method: 'GET' });
+  cy.http({ url: "...", method: "GET" });
 });
 ```
 
@@ -482,13 +484,13 @@ it('test específico', () => {
 # Instalar dependencias
 npm install
 
-# Build del paquete (check + lint + unit + vite build)
+# Build del paquete (check + lint + unit + vp build)
 npm run build
 
 # Todos los tests (unit + E2E)
 npm test
 
-# Solo unit (vitest, 333 tests)
+# Solo unit (vp test, 356 tests)
 npm run unit
 
 # Watch
@@ -497,10 +499,10 @@ npm run watch
 # Coverage
 npm run coverage
 
-# Linter (eslint + eslint-plugin-svelte)
+# Linter (vp lint: oxlint + eslint-plugin-svelte)
 npm run lint
 
-# Type check (tsc + svelte-check, 0 errores)
+# Type check (tsc, 0 errores)
 npm run check
 
 # Abrir Cypress runner

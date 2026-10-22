@@ -1,25 +1,25 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const { setupDatabaseTasksMock } = vi.hoisted(() => ({
   setupDatabaseTasksMock: vi.fn(),
 }));
 
-vi.mock('cypress', () => ({
+vi.mock("cypress", () => ({
   defineConfig: (config: unknown) => config,
 }));
 
 // Stub native .env loader so importing cypress.config.ts never reads a real `.env`.
-vi.spyOn(process, 'loadEnvFile').mockImplementation(() => {});
+vi.spyOn(process, "loadEnvFile").mockImplementation(() => {});
 
-vi.mock('../src/node/tasks', () => ({
+vi.mock("../src/node/tasks", () => ({
   setupDatabaseTasks: setupDatabaseTasksMock,
 }));
 
-describe('cypress.config setupNodeEvents', () => {
-  it('passes config through setupDatabaseTasks and returns the merged config', async () => {
+describe("cypress.config setupNodeEvents", () => {
+  it("passes config through setupDatabaseTasks and returns the merged config", async () => {
     setupDatabaseTasksMock.mockImplementation((_on: unknown, config: unknown) => config);
 
-    const configModule = await import('../cypress.config');
+    const configModule = await import("../cypress.config");
     const setupNodeEvents = (
       configModule.default as unknown as {
         e2e: {
@@ -28,7 +28,7 @@ describe('cypress.config setupNodeEvents', () => {
       }
     ).e2e.setupNodeEvents;
     const on = vi.fn();
-    const existingExpose = { snapshotOnly: false, existingValue: 'preserved' };
+    const existingExpose = { snapshotOnly: false, existingValue: "preserved" };
     const config = { expose: existingExpose };
 
     const result = setupNodeEvents(on, config);

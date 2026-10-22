@@ -1,30 +1,27 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import {
-  ensureTooltipDelegation,
-  registerLiveUrlElement,
-} from './tooltip-delegation';
+import { ensureTooltipDelegation, registerLiveUrlElement } from "./tooltip-delegation";
 
-const FULL_URL = 'https://api.example.com/users/42';
-const ORIGIN = 'https://api.example.com';
-const PATH = '/users/42';
+const FULL_URL = "https://api.example.com/users/42";
+const ORIGIN = "https://api.example.com";
+const PATH = "/users/42";
 
 function mockOverflow(element: HTMLElement, overflow: boolean) {
-  Object.defineProperty(element, 'scrollWidth', { configurable: true, value: overflow ? 9999 : 0 });
-  Object.defineProperty(element, 'clientWidth', { configurable: true, value: 100 });
+  Object.defineProperty(element, "scrollWidth", { configurable: true, value: overflow ? 9999 : 0 });
+  Object.defineProperty(element, "clientWidth", { configurable: true, value: 100 });
 }
 
 /** Clone-like inert DOM: plain nodes without Svelte listeners or live registration. */
 function buildCloneDom(): { origin: HTMLElement; path: HTMLElement } {
-  const panel = document.createElement('div');
-  panel.className = 'title-panel';
-  const container = document.createElement('div');
-  container.className = 'url-container';
-  const origin = document.createElement('span');
-  origin.className = 'url-origin';
+  const panel = document.createElement("div");
+  panel.className = "title-panel";
+  const container = document.createElement("div");
+  container.className = "url-container";
+  const origin = document.createElement("span");
+  origin.className = "url-origin";
   origin.textContent = ORIGIN;
-  const path = document.createElement('span');
-  path.className = 'url-path';
+  const path = document.createElement("span");
+  path.className = "url-path";
   path.textContent = PATH;
   container.appendChild(origin);
   container.appendChild(path);
@@ -34,24 +31,24 @@ function buildCloneDom(): { origin: HTMLElement; path: HTMLElement } {
 }
 
 function hover(element: HTMLElement) {
-  element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+  element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, cancelable: true }));
 }
 
 function unhover(element: HTMLElement) {
-  element.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, cancelable: true }));
+  element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, cancelable: true }));
 }
 
 function fallbackTooltip(): HTMLElement | null {
   return document.querySelector('[data-testid="title-panel-tooltip-fallback"] .custom-tooltip');
 }
 
-describe('ensureTooltipDelegation', () => {
+describe("ensureTooltipDelegation", () => {
   beforeEach(() => {
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
     ensureTooltipDelegation(document);
   });
 
-  it('muestra el texto completo al pasar el cursor sobre una ruta truncada en un clon inerte', () => {
+  it("muestra el texto completo al pasar el cursor sobre una ruta truncada en un clon inerte", () => {
     const { path } = buildCloneDom();
     mockOverflow(path, true);
 
@@ -60,7 +57,7 @@ describe('ensureTooltipDelegation', () => {
     expect(fallbackTooltip()?.textContent).toBe(FULL_URL);
   });
 
-  it('muestra el texto completo al pasar el cursor sobre el origen truncado en un clon inerte', () => {
+  it("muestra el texto completo al pasar el cursor sobre el origen truncado en un clon inerte", () => {
     const { origin } = buildCloneDom();
     mockOverflow(origin, true);
 
@@ -69,7 +66,7 @@ describe('ensureTooltipDelegation', () => {
     expect(fallbackTooltip()?.textContent).toBe(FULL_URL);
   });
 
-  it('permanece oculto cuando el elemento no tiene overflow', () => {
+  it("permanece oculto cuando el elemento no tiene overflow", () => {
     const { path } = buildCloneDom();
     mockOverflow(path, false);
 
@@ -78,7 +75,7 @@ describe('ensureTooltipDelegation', () => {
     expect(fallbackTooltip()).toBeNull();
   });
 
-  it('omite los elementos Svelte vivos registrados (el portal vivo es el dueño)', () => {
+  it("omite los elementos Svelte vivos registrados (el portal vivo es el dueño)", () => {
     const { path } = buildCloneDom();
     registerLiveUrlElement(path);
     mockOverflow(path, true);
@@ -88,7 +85,7 @@ describe('ensureTooltipDelegation', () => {
     expect(fallbackTooltip()).toBeNull();
   });
 
-  it('oculta el fallback al salir el cursor', () => {
+  it("oculta el fallback al salir el cursor", () => {
     const { path } = buildCloneDom();
     mockOverflow(path, true);
 
@@ -99,8 +96,8 @@ describe('ensureTooltipDelegation', () => {
     expect(fallbackTooltip()).toBeNull();
   });
 
-  it('muestra el fallback para nodos de otro realm (iframe del AUT)', () => {
-    const iframe = document.createElement('iframe');
+  it("muestra el fallback para nodos de otro realm (iframe del AUT)", () => {
+    const iframe = document.createElement("iframe");
     document.body.appendChild(iframe);
     try {
       const iframeDoc = iframe.contentDocument;
@@ -110,19 +107,19 @@ describe('ensureTooltipDelegation', () => {
       if (!iframeDoc || !iframeWindow) return;
       // Sanity: nodo genuinamente cross-realm — el guard `instanceof Element`
       // del realm del bundle lo rechaza.
-      expect(iframeDoc.createElement('span') instanceof Element).toBe(false);
+      expect(iframeDoc.createElement("span") instanceof Element).toBe(false);
 
       ensureTooltipDelegation(iframeDoc);
 
-      const panel = iframeDoc.createElement('div');
-      panel.className = 'title-panel';
-      const container = iframeDoc.createElement('div');
-      container.className = 'url-container';
-      const origin = iframeDoc.createElement('span');
-      origin.className = 'url-origin';
+      const panel = iframeDoc.createElement("div");
+      panel.className = "title-panel";
+      const container = iframeDoc.createElement("div");
+      container.className = "url-container";
+      const origin = iframeDoc.createElement("span");
+      origin.className = "url-origin";
       origin.textContent = ORIGIN;
-      const path = iframeDoc.createElement('span');
-      path.className = 'url-path';
+      const path = iframeDoc.createElement("span");
+      path.className = "url-path";
       path.textContent = PATH;
       container.appendChild(origin);
       container.appendChild(path);
@@ -131,10 +128,10 @@ describe('ensureTooltipDelegation', () => {
       mockOverflow(path, true);
 
       path.dispatchEvent(
-        new (iframeWindow as unknown as { MouseEvent: typeof MouseEvent }).MouseEvent(
-          'mouseover',
-          { bubbles: true, cancelable: true },
-        ),
+        new (iframeWindow as unknown as { MouseEvent: typeof MouseEvent }).MouseEvent("mouseover", {
+          bubbles: true,
+          cancelable: true,
+        }),
       );
 
       const tip = iframeDoc.querySelector(

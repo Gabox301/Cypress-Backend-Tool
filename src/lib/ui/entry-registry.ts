@@ -1,5 +1,5 @@
-import type { ApiCall, DbQuery } from '$lib/types';
-import { unmount } from 'svelte';
+import type { ApiCall, DbQuery } from "$lib/types";
+import { unmount } from "svelte";
 
 // ───────────────────────────────────────────────────────────────────────────
 // EntryRecord — registra un montaje Svelte persistente, su elemento DOM y los
@@ -44,7 +44,7 @@ export const EntryRegistry = {
   },
 
   /** Asocia/asocia un Cypress.Log a una entrada para re-snapshot tras chai. */
-  setLog(id: string, log: EntryRecord['log']): void {
+  setLog(id: string, log: EntryRecord["log"]): void {
     const entry = _entries.get(id);
     if (!entry) return;
     entry.log = log;
@@ -74,7 +74,7 @@ export const EntryRegistry = {
   unmount(id: string): void {
     const entry = _entries.get(id);
     if (!entry) return;
-    unmount(entry.component);
+    void unmount(entry.component);
     entry.element.remove();
     _entries.delete(id);
   },
@@ -89,12 +89,12 @@ export const EntryRegistry = {
     const entry = _entries.get(id);
     if (!entry) return;
     try {
-      unmount(entry.component);
+      void unmount(entry.component);
     } catch {
       // ignore
     }
     // Vacía el contenido del div pero no lo elimina del DOM
-    entry.element.innerHTML = '';
+    entry.element.innerHTML = "";
     _entries.delete(id);
   },
 

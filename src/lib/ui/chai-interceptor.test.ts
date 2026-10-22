@@ -1,57 +1,62 @@
-import { apiCalls, clearApiCalls } from '$lib/stores.svelte';
-import type { ApiCall } from '$lib/types';
-import { beforeEach, describe, it, vi, expect as vitestExpect } from 'vitest';
-import { findPathInObject, recordAssertionOnApiCall, setDeepValue, setupChaiExpectInterceptor } from './chai-interceptor';
+import { apiCalls, clearApiCalls } from "$lib/stores.svelte";
+import type { ApiCall } from "$lib/types";
+import { beforeEach, describe, it, vi, expect as vitestExpect } from "vite-plus/test";
+import {
+  findPathInObject,
+  recordAssertionOnApiCall,
+  setDeepValue,
+  setupChaiExpectInterceptor,
+} from "./chai-interceptor";
 
 // Mock de entry-refresh para aislar el cableado del schedule del refresh real
 const entryRefreshMocks = vi.hoisted(() => ({
   scheduleEntryRefresh: vi.fn(),
 }));
 
-vi.mock('./entry-refresh', () => entryRefreshMocks);
+vi.mock("./entry-refresh", () => entryRefreshMocks);
 
-describe('chai-interceptor — findPathInObject y setDeepValue', () => {
-  it('findPathInObject encuentra claves planas y anidadas', () => {
+describe("chai-interceptor — findPathInObject y setDeepValue", () => {
+  it("findPathInObject encuentra claves planas y anidadas", () => {
     const obj = {
-      name: 'John',
-      address: { city: 'New York', zip: 10001 },
-      tags: ['admin', 'dev'],
+      name: "John",
+      address: { city: "New York", zip: 10001 },
+      tags: ["admin", "dev"],
     };
 
-    vitestExpect(findPathInObject(obj, 'John')).toEqual(['name']);
-    vitestExpect(findPathInObject(obj, 'New York')).toEqual(['address', 'city']);
-    vitestExpect(findPathInObject(obj, 10001)).toEqual(['address', 'zip']);
-    vitestExpect(findPathInObject(obj, 'dev')).toEqual(['tags', '1']);
-    vitestExpect(findPathInObject(obj, 'notfound')).toBeNull();
+    vitestExpect(findPathInObject(obj, "John")).toEqual(["name"]);
+    vitestExpect(findPathInObject(obj, "New York")).toEqual(["address", "city"]);
+    vitestExpect(findPathInObject(obj, 10001)).toEqual(["address", "zip"]);
+    vitestExpect(findPathInObject(obj, "dev")).toEqual(["tags", "1"]);
+    vitestExpect(findPathInObject(obj, "notfound")).toBeNull();
   });
 
-  it('setDeepValue crea correctamente la estructura anidada', () => {
+  it("setDeepValue crea correctamente la estructura anidada", () => {
     const target: Record<string, unknown> = {};
-    setDeepValue(target, ['user', 'profile', 'name'], 'Alice');
+    setDeepValue(target, ["user", "profile", "name"], "Alice");
     vitestExpect(target).toEqual({
       user: {
         profile: {
-          name: 'Alice',
+          name: "Alice",
         },
       },
     });
   });
 });
 
-describe('chai-interceptor — recordAssertionOnApiCall', () => {
+describe("chai-interceptor — recordAssertionOnApiCall", () => {
   beforeEach(() => {
     clearApiCalls();
   });
 
-  it('registra la aserción de estado en la última ApiCall', () => {
+  it("registra la aserción de estado en la última ApiCall", () => {
     const call: ApiCall = {
-      id: '1',
-      request: { url: 'https://example.com', method: 'GET' },
+      id: "1",
+      request: { url: "https://example.com", method: "GET" },
       response: {
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
-        body: { id: 1, name: 'Alice' },
+        body: { id: 1, name: "Alice" },
         duration: 10,
         size: 20,
       },
@@ -64,15 +69,15 @@ describe('chai-interceptor — recordAssertionOnApiCall', () => {
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.status).toBe(200);
   });
 
-  it('registra aserciones de propiedades en response.body', () => {
+  it("registra aserciones de propiedades en response.body", () => {
     const call: ApiCall = {
-      id: '1',
-      request: { url: 'https://example.com', method: 'GET' },
+      id: "1",
+      request: { url: "https://example.com", method: "GET" },
       response: {
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
-        body: { id: 1, name: 'Alice', role: 'admin' },
+        body: { id: 1, name: "Alice", role: "admin" },
         duration: 10,
         size: 20,
       },
@@ -81,29 +86,29 @@ describe('chai-interceptor — recordAssertionOnApiCall', () => {
     apiCalls.push(call);
 
     // expect(response.body.name).to.eq('Alice') -> target = 'Alice', expected = 'Alice'
-    recordAssertionOnApiCall('Alice', 'Alice', 'Alice');
+    recordAssertionOnApiCall("Alice", "Alice", "Alice");
 
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.body).toEqual({
-      name: 'Alice',
+      name: "Alice",
     });
   });
 });
 
-describe('chai-interceptor — cableado del refresh de entrada', () => {
+describe("chai-interceptor — cableado del refresh de entrada", () => {
   beforeEach(() => {
     clearApiCalls();
     entryRefreshMocks.scheduleEntryRefresh.mockClear();
   });
 
-  it('programa un refresh cuando se registra una aserción de status', () => {
+  it("programa un refresh cuando se registra una aserción de status", () => {
     const call: ApiCall = {
-      id: 'refresh-1',
-      request: { url: 'https://example.com', method: 'GET' },
+      id: "refresh-1",
+      request: { url: "https://example.com", method: "GET" },
       response: {
         status: 200,
-        statusText: 'OK',
+        statusText: "OK",
         headers: {},
-        body: { id: 1, name: 'Alice' },
+        body: { id: 1, name: "Alice" },
         duration: 10,
         size: 20,
       },
@@ -113,35 +118,35 @@ describe('chai-interceptor — cableado del refresh de entrada', () => {
 
     recordAssertionOnApiCall(200, 200, 200);
 
-    vitestExpect(entryRefreshMocks.scheduleEntryRefresh).toHaveBeenCalledWith('refresh-1');
+    vitestExpect(entryRefreshMocks.scheduleEntryRefresh).toHaveBeenCalledWith("refresh-1");
   });
 
-  it('no programa refresh cuando no hay llamadas API', () => {
+  it("no programa refresh cuando no hay llamadas API", () => {
     recordAssertionOnApiCall(200, 200, 200);
 
     vitestExpect(entryRefreshMocks.scheduleEntryRefresh).not.toHaveBeenCalled();
   });
 });
 
-describe('chai-interceptor — ACM-01 aserciones de cookies', () => {
+describe("chai-interceptor — ACM-01 aserciones de cookies", () => {
   beforeEach(() => {
     clearApiCalls();
   });
 
   function pushCallWithCookies(): void {
     const call: ApiCall = {
-      id: 'cookies-1',
-      request: { url: 'https://example.com', method: 'GET' },
+      id: "cookies-1",
+      request: { url: "https://example.com", method: "GET" },
       response: {
         status: 200,
-        statusText: 'OK',
-        headers: { 'content-type': 'application/json' },
-        body: { id: 1, name: 'Alice' },
+        statusText: "OK",
+        headers: { "content-type": "application/json" },
+        body: { id: 1, name: "Alice" },
         duration: 10,
         size: 20,
         cookies: [
-          { name: 'session', value: 'abc-cookie-secret' },
-          { name: 'theme', value: 'dark-cookie-value' },
+          { name: "session", value: "abc-cookie-secret" },
+          { name: "theme", value: "dark-cookie-value" },
         ],
       },
       timestamp: Date.now(),
@@ -149,7 +154,7 @@ describe('chai-interceptor — ACM-01 aserciones de cookies', () => {
     apiCalls.push(call);
   }
 
-  it('registra la aserción sobre el objeto cookies completo como mapa nombre→valor', () => {
+  it("registra la aserción sobre el objeto cookies completo como mapa nombre→valor", () => {
     pushCallWithCookies();
     const cookies = apiCalls[0].response?.cookies;
     vitestExpect(cookies).toBeDefined();
@@ -159,30 +164,30 @@ describe('chai-interceptor — ACM-01 aserciones de cookies', () => {
     recordAssertionOnApiCall(
       cookies,
       [
-        { name: 'session', value: 'abc-cookie-secret' },
-        { name: 'theme', value: 'dark-cookie-value' },
+        { name: "session", value: "abc-cookie-secret" },
+        { name: "theme", value: "dark-cookie-value" },
       ],
       cookies,
     );
 
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.cookies).toEqual({
-      session: 'abc-cookie-secret',
-      theme: 'dark-cookie-value',
+      session: "abc-cookie-secret",
+      theme: "dark-cookie-value",
     });
   });
 
-  it('registra la aserción sobre el valor de una cookie nombrada', () => {
+  it("registra la aserción sobre el valor de una cookie nombrada", () => {
     pushCallWithCookies();
 
     // expect(response.cookies[0].value).to.eq('abc-cookie-secret')
-    recordAssertionOnApiCall('abc-cookie-secret', 'abc-cookie-secret', 'abc-cookie-secret');
+    recordAssertionOnApiCall("abc-cookie-secret", "abc-cookie-secret", "abc-cookie-secret");
 
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.cookies).toEqual({
-      session: 'abc-cookie-secret',
+      session: "abc-cookie-secret",
     });
   });
 
-  it('registra el estilo .property() sobre response.cookies', () => {
+  it("registra el estilo .property() sobre response.cookies", () => {
     pushCallWithCookies();
     const cookies = apiCalls[0].response?.cookies;
     vitestExpect(cookies).toBeDefined();
@@ -194,11 +199,14 @@ describe('chai-interceptor — ACM-01 aserciones de cookies', () => {
       assert(this: unknown, ..._args: unknown[]) {
         return true;
       },
-      property(this: { _obj?: unknown; assert: (...args: unknown[]) => unknown }, ...args: unknown[]) {
+      property(
+        this: { _obj?: unknown; assert: (...args: unknown[]) => unknown },
+        ...args: unknown[]
+      ) {
         const targetBefore = this._obj;
         const expectedVal = args.length > 1 ? args[1] : undefined;
         const actualVal = (targetBefore as Record<string, unknown>)[args[0] as string];
-        this.assert(true, '', '', expectedVal, actualVal, false);
+        this.assert(true, "", "", expectedVal, actualVal, false);
         return this;
       },
     };
@@ -207,30 +215,30 @@ describe('chai-interceptor — ACM-01 aserciones de cookies', () => {
       setupChaiExpectInterceptor();
       // expect(response.cookies).to.have.property('session', 'abc-cookie-secret')
       (fakeProto.property as (this: unknown, ...args: unknown[]) => unknown).call(
-        { _obj: cookies, assert: fakeProto.assert },
-        'session',
-        'abc-cookie-secret',
+        { _obj: cookies, assert: (...args: unknown[]) => fakeProto.assert(...args) },
+        "session",
+        "abc-cookie-secret",
       );
     } finally {
       delete (globalThis as Record<string, unknown>).chai;
     }
 
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.cookies).toEqual({
-      session: 'abc-cookie-secret',
+      session: "abc-cookie-secret",
     });
   });
 
-  it('no altera el comportamiento de status/body/headers cuando hay cookies', () => {
+  it("no altera el comportamiento de status/body/headers cuando hay cookies", () => {
     pushCallWithCookies();
 
     recordAssertionOnApiCall(200, 200, 200);
-    recordAssertionOnApiCall('Alice', 'Alice', 'Alice');
-    recordAssertionOnApiCall('application/json', 'application/json', 'application/json');
+    recordAssertionOnApiCall("Alice", "Alice", "Alice");
+    recordAssertionOnApiCall("application/json", "application/json", "application/json");
 
     vitestExpect(apiCalls[0].expect).toEqual({
       status: 200,
-      body: { name: 'Alice' },
-      headers: { 'content-type': 'application/json' },
+      body: { name: "Alice" },
+      headers: { "content-type": "application/json" },
     });
   });
 });

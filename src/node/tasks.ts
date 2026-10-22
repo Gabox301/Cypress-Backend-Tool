@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-import pg from 'pg';
+import pg from "pg";
 
 // No cargar .env durante tests (Vitest) y evitar doble carga si cypress.config.ts ya lo hizo
 if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST) {
@@ -8,7 +8,7 @@ if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST)
   try {
     process.loadEnvFile();
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
   }
 }
 
@@ -54,9 +54,12 @@ export interface DbSetupConfig {
 
 /** A second argument carrying any of these keys is task options, not a Cypress config. */
 function isDbTaskOptions(value: unknown): value is DbTaskOptions {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const keys = Object.keys(value);
-  return keys.length === 0 || keys.some((key) => key === 'defaultPrefix' || key === 'envPrefix' || key === 'defaults');
+  return (
+    keys.length === 0 ||
+    keys.some((key) => key === "defaultPrefix" || key === "envPrefix" || key === "defaults")
+  );
 }
 
 // ============================================
@@ -119,8 +122,15 @@ function isDbTaskOptions(value: unknown): value is DbTaskOptions {
  * });
  * ```
  */
-export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOptions): { dbTaskPrefix: string };
-export function setupDatabaseTasks<C extends object>(on: Cypress.PluginEvents, config: C, options?: DbTaskOptions): C;
+export function setupDatabaseTasks(
+  on: Cypress.PluginEvents,
+  options?: DbTaskOptions,
+): { dbTaskPrefix: string };
+export function setupDatabaseTasks<C extends object>(
+  on: Cypress.PluginEvents,
+  config: C,
+  options?: DbTaskOptions,
+): C;
 export function setupDatabaseTasks(
   on: Cypress.PluginEvents,
   configOrOptions?: unknown,
@@ -130,38 +140,46 @@ export function setupDatabaseTasks(
   // options-shaped values (any of defaultPrefix/envPrefix/defaults, or {})
   // stay legacy; anything else object-like is a config.
   const asRecord =
-    typeof configOrOptions === 'object' && configOrOptions !== null
+    typeof configOrOptions === "object" && configOrOptions !== null
       ? (configOrOptions as Record<string, unknown>)
       : undefined;
   const config: Record<string, unknown> | undefined =
     maybeOptions !== undefined ? asRecord : isDbTaskOptions(configOrOptions) ? undefined : asRecord;
   const options: DbTaskOptions | undefined =
-    maybeOptions ?? (config === undefined ? (configOrOptions as DbTaskOptions | undefined) : undefined);
-  const prefix = options?.defaultPrefix ?? '';
-  const envPrefix = options?.envPrefix ?? 'CYPRESS_DB_';
-  const readEnv = (key: string, defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig): string => {
+    maybeOptions ??
+    (config === undefined ? (configOrOptions as DbTaskOptions | undefined) : undefined);
+  const prefix = options?.defaultPrefix ?? "";
+  const envPrefix = options?.envPrefix ?? "CYPRESS_DB_";
+  const readEnv = (
+    key: string,
+    defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig,
+  ): string => {
     const fromDefaults = options?.defaults?.[defaultKey];
     return (
       process.env[envPrefix + key] ??
-      process.env['DB_' + key] ??
-      (fromDefaults != null ? String(fromDefaults) : undefined) ??
-      ''
+      process.env["DB_" + key] ??
+      (fromDefaults != null
+        ? typeof fromDefaults === "object"
+          ? JSON.stringify(fromDefaults)
+          : String(fromDefaults)
+        : undefined) ??
+      ""
     );
   };
 
   const readSslEnv = (): boolean | Record<string, unknown> | undefined => {
-    const raw = process.env[envPrefix + 'SSL'] ?? process.env['DB_SSL'];
+    const raw = process.env[envPrefix + "SSL"] ?? process.env["DB_SSL"];
     if (raw !== undefined) {
       const trimmed = raw.trim();
-      if (trimmed === '') return undefined;
+      if (trimmed === "") return undefined;
       const lower = trimmed.toLowerCase();
-      if (lower === 'true' || lower === '1' || lower === 'yes') {
+      if (lower === "true" || lower === "1" || lower === "yes") {
         return { rejectUnauthorized: false };
       }
-      if (lower === 'false' || lower === '0' || lower === 'no' || lower === 'disable') {
+      if (lower === "false" || lower === "0" || lower === "no" || lower === "disable") {
         return false;
       }
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         try {
           return JSON.parse(trimmed) as Record<string, unknown>;
         } catch {
@@ -178,24 +196,24 @@ export function setupDatabaseTasks(
     return undefined;
   };
 
-  const defaultHost = readEnv('HOST');
+  const defaultHost = readEnv("HOST");
   const sslValue = readSslEnv();
   const pool = new pg.Pool({
     max: 1,
     host: defaultHost,
-    port: parseInt(readEnv('PORT'), 10),
-    database: readEnv('NAME', 'database'),
-    user: readEnv('USER'),
-    password: readEnv('PASSWORD'),
+    port: parseInt(readEnv("PORT"), 10),
+    database: readEnv("NAME", "database"),
+    user: readEnv("USER"),
+    password: readEnv("PASSWORD"),
     connectionTimeoutMillis: options?.defaults?.connectionTimeoutMillis ?? 2000,
     idleTimeoutMillis: options?.defaults?.idleTimeoutMillis ?? 2000,
     ...(sslValue !== undefined ? { ssl: sslValue } : {}),
   });
-  on('task', {
-    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, 'host' | 'port' | 'database'> => ({
-      host: readEnv('HOST'),
-      port: parseInt(readEnv('PORT'), 10),
-      database: readEnv('NAME', 'database'),
+  on("task", {
+    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, "host" | "port" | "database"> => ({
+      host: readEnv("HOST"),
+      port: parseInt(readEnv("PORT"), 10),
+      database: readEnv("NAME", "database"),
     }),
     [`${prefix}db:query`]: async (args: {
       query: string;
@@ -208,16 +226,16 @@ export function setupDatabaseTasks(
       ssl?: boolean | Record<string, unknown>;
       connectionTimeoutMillis?: number;
     }): Promise<DbTaskResult> => {
-      const defaultPort = parseInt(readEnv('PORT'), 10);
-      const host = args.host || readEnv('HOST') || 'localhost';
+      const defaultPort = parseInt(readEnv("PORT"), 10);
+      const host = args.host || readEnv("HOST") || "localhost";
       const port = args.port || (Number.isNaN(defaultPort) ? 5432 : defaultPort);
-      const database = args.database || readEnv('NAME', 'database') || 'test_db';
-      const user = args.user || readEnv('USER') || 'postgres';
-      const password = args.password ?? readEnv('PASSWORD');
+      const database = args.database || readEnv("NAME", "database") || "test_db";
+      const user = args.user || readEnv("USER") || "postgres";
+      const password = args.password ?? readEnv("PASSWORD");
       const effectiveSsl = args.ssl ?? readSslEnv();
       const values = Array.isArray(args.values) ? args.values : undefined;
       const poolOpts = pool.options as unknown as Record<string, unknown>;
-      const poolSsl = poolOpts['ssl'] as unknown;
+      const poolSsl = poolOpts["ssl"] as unknown;
 
       // Comparar ssl vía JSON stringify para detectar diferencias de config (undefined vs false vs object)
       const sslMismatch =
@@ -247,7 +265,10 @@ export function setupDatabaseTasks(
         });
         try {
           await client.connect();
-          const result = values !== undefined ? await client.query(args.query, values) : await client.query(args.query);
+          const result =
+            values !== undefined
+              ? await client.query(args.query, values)
+              : await client.query(args.query);
           return { rows: result.rows, rowCount: result.rowCount ?? 0 };
         } finally {
           try {
@@ -257,7 +278,8 @@ export function setupDatabaseTasks(
           }
         }
       }
-      const result = values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
+      const result =
+        values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
   });
@@ -269,9 +291,9 @@ export function setupDatabaseTasks(
   // clobbering consumer keys — fill only absent-or-undefined entries.
   const snapshot: Record<string, string> = {
     dbTaskPrefix: prefix,
-    dbHost: readEnv('HOST'),
-    dbPort: readEnv('PORT'),
-    dbDatabase: readEnv('NAME', 'database'),
+    dbHost: readEnv("HOST"),
+    dbPort: readEnv("PORT"),
+    dbDatabase: readEnv("NAME", "database"),
   };
   const expose = (config.expose ?? {}) as Record<string, unknown>;
   for (const [key, value] of Object.entries(snapshot)) {

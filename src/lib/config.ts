@@ -1,4 +1,4 @@
-import type { CypressApiPluginConfig } from '$lib/types';
+import type { CypressApiPluginConfig } from "$lib/types";
 
 /**
  * Resuelve la configuración del plugin desde un lector clave-valor (Cypress.expose).
@@ -6,11 +6,13 @@ import type { CypressApiPluginConfig } from '$lib/types';
  */
 export function getPluginConfig(read: (key: string) => unknown): CypressApiPluginConfig {
   const hideCredentialsOptions =
-    (read('hideCredentialsOptions') as Partial<CypressApiPluginConfig['hideCredentialsOptions']> | null | undefined) ??
-    {};
+    (read("hideCredentialsOptions") as
+      | Partial<CypressApiPluginConfig["hideCredentialsOptions"]>
+      | null
+      | undefined) ?? {};
   return {
-    snapshotOnly: (read('snapshotOnly') as boolean) ?? false,
-    hideCredentials: (read('hideCredentials') as boolean) ?? true,
+    snapshotOnly: (read("snapshotOnly") as boolean) ?? false,
+    hideCredentials: (read("hideCredentials") as boolean) ?? true,
     hideCredentialsOptions: {
       headers: true,
       auth: true,
@@ -18,7 +20,7 @@ export function getPluginConfig(read: (key: string) => unknown): CypressApiPlugi
       query: true,
       ...hideCredentialsOptions,
     },
-    CYPRESS_PLUGIN_DEBUG: (read('CYPRESS_PLUGIN_DEBUG') as boolean) ?? false,
+    CYPRESS_PLUGIN_DEBUG: (read("CYPRESS_PLUGIN_DEBUG") as boolean) ?? false,
   };
 }
 
@@ -46,7 +48,7 @@ export function mergeConfig(
     ...overrides,
     hideCredentialsOptions: {
       ...base.hideCredentialsOptions,
-      ...(overrides.hideCredentialsOptions ?? {}),
+      ...overrides.hideCredentialsOptions,
     },
   };
 }

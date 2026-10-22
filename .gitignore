@@ -38,3 +38,4 @@ cypress/screenshots/
 *.temp
 .cache/
 coverage
+.vitest/

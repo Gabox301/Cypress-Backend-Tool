@@ -5,7 +5,7 @@
 // ============================================
 export interface ApiRequestOptions {
   url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
   headers?: Record<string, string>;
   body?: unknown;
   qs?: Record<string, string>;

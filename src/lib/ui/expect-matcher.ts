@@ -1,4 +1,4 @@
-export type MatchStatus = 'match' | 'mismatch' | 'nullish' | null;
+export type MatchStatus = "match" | "mismatch" | "nullish" | null;
 
 export interface ExpectSummary {
   match: number;
@@ -18,7 +18,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
   if (a === null || b === null || a === undefined || b === undefined) return a === b;
-  if (typeof a !== 'object') return a === b;
+  if (typeof a !== "object") return a === b;
 
   if (Array.isArray(a) !== Array.isArray(b)) return false;
 
@@ -54,7 +54,7 @@ export function hasPath(obj: unknown, path: (string | number)[]): boolean {
 
   let curr: unknown = obj;
   for (const segment of path) {
-    if (curr === null || curr === undefined || typeof curr !== 'object') return false;
+    if (curr === null || curr === undefined || typeof curr !== "object") return false;
     if (!(segment in (curr as Record<string, unknown>))) return false;
     curr = (curr as Record<string, unknown>)[segment as string];
   }
@@ -70,7 +70,7 @@ export function getPath(obj: unknown, path: (string | number)[]): unknown {
 
   let curr: unknown = obj;
   for (const segment of path) {
-    if (curr === null || curr === undefined || typeof curr !== 'object') return undefined;
+    if (curr === null || curr === undefined || typeof curr !== "object") return undefined;
     curr = (curr as Record<string, unknown>)[segment as string];
   }
   return curr;
@@ -87,26 +87,30 @@ interface StackItem {
  * Analiza un JSON formateado línea por línea y evalúa el estado de coincidencia
  * contra el objeto/valor `expected`.
  */
-export function computeJsonLineStatuses(formattedData: string, rawData: unknown, expected: unknown): ExpectResult {
-  const lines = formattedData.split('\n');
-  const statuses: MatchStatus[] = new Array(lines.length).fill(null);
+export function computeJsonLineStatuses(
+  formattedData: string,
+  rawData: unknown,
+  expected: unknown,
+): ExpectResult {
+  const lines = formattedData.split("\n");
+  const statuses: MatchStatus[] = Array.from({ length: lines.length }, () => null);
   const summary: ExpectSummary = { match: 0, mismatch: 0, nullish: 0 };
 
-  if (expected === undefined || expected === '') {
+  if (expected === undefined || expected === "") {
     return { statuses, summary };
   }
 
   // Si data es un valor escalar directo (una sola línea)
   // Amarillo solo si el valor REAL es null/undefined (no por expected)
-  if (lines.length === 1 && (typeof rawData !== 'object' || rawData === null)) {
+  if (lines.length === 1 && (typeof rawData !== "object" || rawData === null)) {
     if (rawData === null || rawData === undefined) {
-      statuses[0] = 'nullish';
+      statuses[0] = "nullish";
       summary.nullish++;
     } else if (deepEqual(rawData, expected)) {
-      statuses[0] = 'match';
+      statuses[0] = "match";
       summary.match++;
     } else {
-      statuses[0] = 'mismatch';
+      statuses[0] = "mismatch";
       summary.mismatch++;
     }
     return { statuses, summary };
@@ -117,10 +121,10 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
-    if (!trimmed || trimmed === '{' || trimmed === '[') {
-      if (trimmed === '{') {
+    if (!trimmed || trimmed === "{" || trimmed === "[") {
+      if (trimmed === "{") {
         stack.push({ depth: 0, isArray: false });
-      } else if (trimmed === '[') {
+      } else if (trimmed === "[") {
         stack.push({ depth: 0, isArray: true, index: 0 });
       }
       continue;
@@ -141,7 +145,7 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
     }
 
     // Líneas de cierre
-    if (trimmed === '}' || trimmed === '},' || trimmed === ']' || trimmed === '],') {
+    if (trimmed === "}" || trimmed === "}," || trimmed === "]" || trimmed === "],") {
       continue;
     }
 
@@ -158,32 +162,32 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
       }
       currentPath.push(key);
 
-      if (rest.startsWith('{')) {
+      if (rest.startsWith("{")) {
         stack.push({ depth, key, isArray: false });
         if (hasPath(expected, currentPath)) {
           const actVal = getPath(rawData, currentPath);
           if (actVal === null || actVal === undefined) {
-            statuses[i] = 'nullish';
+            statuses[i] = "nullish";
             summary.nullish++;
           } else {
             const expVal = getPath(expected, currentPath);
-            if (expVal !== null && expVal !== undefined && typeof expVal !== 'object') {
-              statuses[i] = 'mismatch';
+            if (expVal !== null && expVal !== undefined && typeof expVal !== "object") {
+              statuses[i] = "mismatch";
               summary.mismatch++;
             }
           }
         }
-      } else if (rest.startsWith('[')) {
+      } else if (rest.startsWith("[")) {
         stack.push({ depth, key, isArray: true, index: 0 });
         if (hasPath(expected, currentPath)) {
           const actVal = getPath(rawData, currentPath);
           if (actVal === null || actVal === undefined) {
-            statuses[i] = 'nullish';
+            statuses[i] = "nullish";
             summary.nullish++;
           } else {
             const expVal = getPath(expected, currentPath);
             if (expVal !== null && expVal !== undefined && !Array.isArray(expVal)) {
-              statuses[i] = 'mismatch';
+              statuses[i] = "mismatch";
               summary.mismatch++;
             }
           }
@@ -195,13 +199,13 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
           const actVal = getPath(rawData, currentPath);
 
           if (actVal === null || actVal === undefined) {
-            statuses[i] = 'nullish';
+            statuses[i] = "nullish";
             summary.nullish++;
           } else if (deepEqual(actVal, expVal)) {
-            statuses[i] = 'match';
+            statuses[i] = "match";
             summary.match++;
           } else {
-            statuses[i] = 'mismatch';
+            statuses[i] = "mismatch";
             summary.mismatch++;
           }
         }
@@ -221,9 +225,9 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
       }
       currentPath.push(currentIndex);
 
-      if (trimmed.startsWith('{')) {
+      if (trimmed.startsWith("{")) {
         stack.push({ depth, isArray: false, index: currentIndex });
-      } else if (trimmed.startsWith('[')) {
+      } else if (trimmed.startsWith("[")) {
         stack.push({ depth, isArray: true, index: 0 });
       } else {
         // Elemento escalar en array — amarillo solo si valor REAL es null/undefined
@@ -232,13 +236,13 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
           const actVal = getPath(rawData, currentPath);
 
           if (actVal === null || actVal === undefined) {
-            statuses[i] = 'nullish';
+            statuses[i] = "nullish";
             summary.nullish++;
           } else if (deepEqual(actVal, expVal)) {
-            statuses[i] = 'match';
+            statuses[i] = "match";
             summary.match++;
           } else {
-            statuses[i] = 'mismatch';
+            statuses[i] = "mismatch";
             summary.mismatch++;
           }
         }

@@ -19,7 +19,7 @@ export function registerLiveCopyButton(button: HTMLButtonElement): { destroy: ()
  * equivocado. El `navigator` del ownerDocument es el que corresponde al usuario.
  */
 export async function copyTextToClipboard(text: string, doc: Document): Promise<boolean> {
-  const view = doc.defaultView ?? (typeof window !== 'undefined' ? window : undefined);
+  const view = doc.defaultView ?? (typeof window !== "undefined" ? window : undefined);
   const clipboard = view?.navigator.clipboard;
   if (clipboard?.writeText) {
     try {
@@ -50,41 +50,41 @@ export async function copyTextToClipboard(text: string, doc: Document): Promise<
 export function ensureCopyDelegation(doc: Document = document): void {
   if (registeredDoc === doc) return;
   if (registeredDoc) {
-    registeredDoc.removeEventListener('click', handleCopyClick);
+    registeredDoc.removeEventListener("click", handleCopyClick);
   }
   registeredDoc = doc;
-  doc.addEventListener('click', handleCopyClick);
+  doc.addEventListener("click", handleCopyClick);
 }
 
 async function handleCopyClick(event: MouseEvent): Promise<void> {
   const target = event.target as HTMLElement | null;
-  const button = target?.closest<HTMLButtonElement>('[data-copy]');
+  const button = target?.closest<HTMLButtonElement>("[data-copy]");
   if (!button) return;
   // El DOM vivo conserva el handler de Svelte; solo los clones de snapshots
   // llegan hasta este listener delegado.
   if (liveCopyButtons.has(button)) return;
-  const container = button.closest<HTMLElement>('.code-container');
-  const codeContent = container?.querySelector<HTMLElement>('.code-content');
+  const container = button.closest<HTMLElement>(".code-container");
+  const codeContent = container?.querySelector<HTMLElement>(".code-content");
   // Reconstruir el texto desde las líneas <pre> (el textContent del contenedor
   // incluiría el whitespace del template entre líneas).
   const text =
     button.dataset.copyText ??
     (codeContent
-      ? Array.from(codeContent.querySelectorAll('.code-line pre'))
-          .map((pre) => pre.textContent ?? '')
-          .join('\n')
-      : '');
+      ? Array.from(codeContent.querySelectorAll(".code-line pre"))
+          .map((pre) => pre.textContent ?? "")
+          .join("\n")
+      : "");
   if (!text) return;
   const copied = await copyTextToClipboard(text, button.ownerDocument);
   // Feedback visual directo sobre el nodo cliqueado (el clon no tiene
   // reactividad de Svelte, así que se muta el DOM explícitamente).
   const original = button.textContent;
-  button.textContent = copied ? '✓ copied' : 'copy failed';
-  button.classList.toggle('done', copied);
-  button.classList.toggle('failed', !copied);
+  button.textContent = copied ? "✓ copied" : "copy failed";
+  button.classList.toggle("done", copied);
+  button.classList.toggle("failed", !copied);
   window.setTimeout(() => {
     button.textContent = original;
-    button.classList.remove('done');
-    button.classList.remove('failed');
+    button.classList.remove("done");
+    button.classList.remove("failed");
   }, 2000);
 }

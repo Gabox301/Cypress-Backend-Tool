@@ -1,9 +1,9 @@
-import { fireEvent, render } from '@testing-library/svelte';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { createRawSnippet, tick } from 'svelte';
-import { afterEach, describe, expect, it } from 'vitest';
-import ScrollArea from './ScrollArea.svelte';
+import { fireEvent, render } from "@testing-library/svelte";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { createRawSnippet, tick } from "svelte";
+import { afterEach, describe, expect, it } from "vite-plus/test";
+import ScrollArea from "./ScrollArea.svelte";
 
 // ---------------------------------------------------------------------------
 // Ayudantes
@@ -19,17 +19,17 @@ function mockLayout(
   track: HTMLElement,
   opts: { clientHeight: number; scrollHeight: number; trackHeight: number; scrollTop?: number },
 ) {
-  Object.defineProperty(viewport, 'clientHeight', {
+  Object.defineProperty(viewport, "clientHeight", {
     value: opts.clientHeight,
     configurable: true,
     writable: true,
   });
-  Object.defineProperty(viewport, 'scrollHeight', {
+  Object.defineProperty(viewport, "scrollHeight", {
     value: opts.scrollHeight,
     configurable: true,
     writable: true,
   });
-  Object.defineProperty(track, 'clientHeight', {
+  Object.defineProperty(track, "clientHeight", {
     value: opts.trackHeight,
     configurable: true,
     writable: true,
@@ -39,88 +39,88 @@ function mockLayout(
 
 afterEach(() => {
   // Reinicia el userSelect del body que tocan los manejadores de arrastre
-  document.body.style.userSelect = '';
+  document.body.style.userSelect = "";
 });
 
 // ---------------------------------------------------------------------------
 // Renderizado — id/class/children/track/thumb
 // ---------------------------------------------------------------------------
-describe('ScrollArea — renderizado', () => {
-  it('redirige el id al viewport, no al root', () => {
+describe("ScrollArea — renderizado", () => {
+  it("redirige el id al viewport, no al root", () => {
     const { container } = render(ScrollArea, {
       props: {
-        id: 'my-id',
+        id: "my-id",
         children: makeSnippet('<span data-testid="inner">child</span>'),
       },
     });
 
-    const viewport = container.querySelector('#my-id');
+    const viewport = container.querySelector("#my-id");
     expect(viewport).not.toBeNull();
-    expect(viewport!.classList.contains('viewport')).toBe(true);
+    expect(viewport!.classList.contains("viewport")).toBe(true);
 
     // el root NO debe tener el id
-    const root = container.querySelector('.scroll-root') as HTMLElement;
+    const root = container.querySelector(".scroll-root") as HTMLElement;
     expect(root).not.toBeNull();
-    expect(root.id).not.toBe('my-id');
+    expect(root.id).not.toBe("my-id");
 
     // los hijos deben estar dentro del viewport, no como hermanos
     expect(viewport!.querySelector('[data-testid="inner"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="inner"]')).not.toBeNull();
   });
 
-  it('renderiza el contenido hijo', () => {
+  it("renderiza el contenido hijo", () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>hello scroll</span>'),
+        children: makeSnippet("<span>hello scroll</span>"),
       },
     });
-    expect(container.textContent).toContain('hello scroll');
+    expect(container.textContent).toContain("hello scroll");
   });
 
-  it('renderiza los elementos de pista y pulgar', () => {
+  it("renderiza los elementos de pista y pulgar", () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>x</span>'),
+        children: makeSnippet("<span>x</span>"),
       },
     });
     expect(container.querySelector('[data-testid="scroll-track"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="scroll-thumb"]')).not.toBeNull();
-    expect(container.querySelector('.track')).not.toBeNull();
-    expect(container.querySelector('.thumb')).not.toBeNull();
+    expect(container.querySelector(".track")).not.toBeNull();
+    expect(container.querySelector(".thumb")).not.toBeNull();
   });
 
-  it('redirige la prop class al scroll-root', () => {
+  it("redirige la prop class al scroll-root", () => {
     const { container } = render(ScrollArea, {
       props: {
-        class: 'custom-class another',
-        children: makeSnippet('<span>x</span>'),
+        class: "custom-class another",
+        children: makeSnippet("<span>x</span>"),
       },
     });
-    const root = container.querySelector('.scroll-root') as HTMLElement;
-    expect(root.classList.contains('custom-class')).toBe(true);
-    expect(root.classList.contains('another')).toBe(true);
+    const root = container.querySelector(".scroll-root") as HTMLElement;
+    expect(root.classList.contains("custom-class")).toBe(true);
+    expect(root.classList.contains("another")).toBe(true);
   });
 
-  it('el pulgar tiene al menos 40px de altura por defecto (jsdom)', () => {
+  it("el pulgar tiene al menos 40px de altura por defecto (jsdom)", () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>x</span>'),
+        children: makeSnippet("<span>x</span>"),
       },
     });
     const thumb = container.querySelector('[data-testid="scroll-thumb"]') as HTMLElement;
     // En jsdom trackHeight es 0 así que el componente mantiene los 40px iniciales
-    expect(thumb.style.height).toBe('40px');
+    expect(thumb.style.height).toBe("40px");
   });
 });
 
 // ---------------------------------------------------------------------------
 // Dimensionado del pulgar — layout simulado
 // ---------------------------------------------------------------------------
-describe('ScrollArea — dimensionado del pulgar', () => {
-  it('calcula la altura del pulgar proporcional al viewport (400/1000 -> 160px)', async () => {
+describe("ScrollArea — dimensionado del pulgar", () => {
+  it("calcula la altura del pulgar proporcional al viewport (400/1000 -> 160px)", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -133,13 +133,13 @@ describe('ScrollArea — dimensionado del pulgar', () => {
     await tick();
 
     // calculado = (400*400)/1000 = 160, limitado entre 40 y trackHeight
-    expect(thumb.style.height).toBe('160px');
+    expect(thumb.style.height).toBe("160px");
   });
 
-  it('limita el pulgar a un mínimo de 40px cuando el contenido es muy largo', async () => {
+  it("limita el pulgar a un mínimo de 40px cuando el contenido es muy largo", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>x</span>'),
+        children: makeSnippet("<span>x</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -151,13 +151,13 @@ describe('ScrollArea — dimensionado del pulgar', () => {
     await fireEvent.scroll(viewport);
     await tick();
 
-    expect(thumb.style.height).toBe('40px');
+    expect(thumb.style.height).toBe("40px");
   });
 
-  it('ocupa toda la pista cuando el contenido cabe (scrollHeight <= clientHeight)', async () => {
+  it("ocupa toda la pista cuando el contenido cabe (scrollHeight <= clientHeight)", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>x</span>'),
+        children: makeSnippet("<span>x</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -169,14 +169,14 @@ describe('ScrollArea — dimensionado del pulgar', () => {
     await tick();
 
     // rama: scrollHeight <= clientHeight => thumbHeight = trackHeight
-    expect(thumb.style.height).toBe('300px');
-    expect(thumb.style.transform).toBe('translateY(0px)');
+    expect(thumb.style.height).toBe("300px");
+    expect(thumb.style.transform).toBe("translateY(0px)");
   });
 
-  it('actualiza el pulgar mediante el listener de redimensionado de ventana', async () => {
+  it("actualiza el pulgar mediante el listener de redimensionado de ventana", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>x</span>'),
+        children: makeSnippet("<span>x</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -185,21 +185,21 @@ describe('ScrollArea — dimensionado del pulgar', () => {
 
     mockLayout(viewport, track, { clientHeight: 400, scrollHeight: 1000, trackHeight: 400 });
     // el listener de resize llama a updateThumb — no se necesita scroll
-    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new Event("resize"));
     await tick();
 
-    expect(thumb.style.height).toBe('160px');
+    expect(thumb.style.height).toBe("160px");
   });
 });
 
 // ---------------------------------------------------------------------------
 // Sincronización de desplazamiento — posición del pulgar
 // ---------------------------------------------------------------------------
-describe('ScrollArea — sincronización de desplazamiento', () => {
-  it('actualiza la posición del pulgar cuando se desplaza el viewport', async () => {
+describe("ScrollArea — sincronización de desplazamiento", () => {
+  it("actualiza la posición del pulgar cuando se desplaza el viewport", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -215,13 +215,13 @@ describe('ScrollArea — sincronización de desplazamiento', () => {
     await tick();
 
     // ratio 150/600=0.25 => 0.25*240=60
-    expect(thumb.style.transform).toBe('translateY(60px)');
+    expect(thumb.style.transform).toBe("translateY(60px)");
   });
 
-  it('mantiene el pulgar en 0 cuando está desplazado arriba del todo', async () => {
+  it("mantiene el pulgar en 0 cuando está desplazado arriba del todo", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -233,18 +233,18 @@ describe('ScrollArea — sincronización de desplazamiento', () => {
     await fireEvent.scroll(viewport);
     await tick();
 
-    expect(thumb.style.transform).toBe('translateY(0px)');
+    expect(thumb.style.transform).toBe("translateY(0px)");
   });
 });
 
 // ---------------------------------------------------------------------------
 // Interacción de arrastre
 // ---------------------------------------------------------------------------
-describe('ScrollArea — arrastre del pulgar', () => {
-  it('mousedown en el pulgar + mousemove en window actualiza viewport.scrollTop', async () => {
+describe("ScrollArea — arrastre del pulgar", () => {
+  it("mousedown en el pulgar + mousemove en window actualiza viewport.scrollTop", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -257,25 +257,25 @@ describe('ScrollArea — arrastre del pulgar', () => {
     // iniciar arrastre en Y 100
     await fireEvent.mouseDown(thumb, { clientY: 100 });
     // tras mousedown, el body debe tener userSelect none
-    expect(document.body.style.userSelect).toBe('none');
+    expect(document.body.style.userSelect).toBe("none");
 
     // mover 50px hacia abajo
-    window.dispatchEvent(new MouseEvent('mousemove', { clientY: 150, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mousemove", { clientY: 150, bubbles: true }));
     await tick();
 
     // delta 50, maxThumbTop 240, newTop 50 => ratio 50/240 => scrollTop 125
     expect(viewport.scrollTop).toBeGreaterThan(0);
-    expect(thumb.style.transform).toBe('translateY(50px)');
+    expect(thumb.style.transform).toBe("translateY(50px)");
 
-    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     await tick();
-    expect(document.body.style.userSelect).toBe('');
+    expect(document.body.style.userSelect).toBe("");
   });
 
-  it('el arrastre respeta los límites de la pista (se limita entre 0 y el máximo)', async () => {
+  it("el arrastre respeta los límites de la pista (se limita entre 0 y el máximo)", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -287,19 +287,19 @@ describe('ScrollArea — arrastre del pulgar', () => {
 
     await fireEvent.mouseDown(thumb, { clientY: 100 });
     // arrastrar mucho más allá del máximo
-    window.dispatchEvent(new MouseEvent('mousemove', { clientY: 1000, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mousemove", { clientY: 1000, bubbles: true }));
     await tick();
     // maxThumbTop 240 => el pulgar debe limitarse a 240, scrollTop al máximo 600
-    expect(thumb.style.transform).toBe('translateY(240px)');
+    expect(thumb.style.transform).toBe("translateY(240px)");
     expect(viewport.scrollTop).toBe(600);
 
     // arrastrar muy negativo
-    window.dispatchEvent(new MouseEvent('mousemove', { clientY: -500, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mousemove", { clientY: -500, bubbles: true }));
     await tick();
-    expect(thumb.style.transform).toBe('translateY(0px)');
+    expect(thumb.style.transform).toBe("translateY(0px)");
     expect(viewport.scrollTop).toBe(0);
 
-    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     await tick();
   });
 });
@@ -307,11 +307,11 @@ describe('ScrollArea — arrastre del pulgar', () => {
 // ---------------------------------------------------------------------------
 // Clic en la pista
 // ---------------------------------------------------------------------------
-describe('ScrollArea — clic en la pista', () => {
-  it('hacer clic en la pista (no en el pulgar) mueve el pulgar y actualiza scrollTop', async () => {
+describe("ScrollArea — clic en la pista", () => {
+  it("hacer clic en la pista (no en el pulgar) mueve el pulgar y actualiza scrollTop", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -340,13 +340,13 @@ describe('ScrollArea — clic en la pista', () => {
     await tick();
 
     expect(viewport.scrollTop).toBe(300);
-    expect(thumb.style.transform).toBe('translateY(120px)');
+    expect(thumb.style.transform).toBe("translateY(120px)");
   });
 
-  it('hacer clic directamente en el pulgar no dispara el manejador de clic de la pista', async () => {
+  it("hacer clic directamente en el pulgar no dispara el manejador de clic de la pista", async () => {
     const { container } = render(ScrollArea, {
       props: {
-        children: makeSnippet('<span>content</span>'),
+        children: makeSnippet("<span>content</span>"),
       },
     });
     const viewport = container.querySelector('[data-testid="scroll-area-viewport"]') as HTMLElement;
@@ -380,7 +380,7 @@ describe('ScrollArea — clic en la pista', () => {
     await tick();
     expect(viewport.scrollTop).toBe(0);
 
-    window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     await tick();
   });
 });
@@ -388,64 +388,66 @@ describe('ScrollArea — clic en la pista', () => {
 // ---------------------------------------------------------------------------
 // Hybrid C — geometría exterior (UI-RENDER-05 / UI-MOUNT-11)
 // ---------------------------------------------------------------------------
-describe('ScrollArea — geometría exterior Hybrid C UI-RENDER-05 / UI-MOUNT-11', () => {
-  const src = readFileSync(resolve('src/lib/components/ScrollArea.svelte'), 'utf8');
-  const appSrc = readFileSync(resolve('src/lib/components/App.svelte'), 'utf8');
+describe("ScrollArea — geometría exterior Hybrid C UI-RENDER-05 / UI-MOUNT-11", () => {
+  const src = readFileSync(resolve("src/lib/components/ScrollArea.svelte"), "utf8");
+  const appSrc = readFileSync(resolve("src/lib/components/App.svelte"), "utf8");
 
-  it('UI-RENDER-05: scroll-root tiene overflow:visible y no hidden', () => {
+  it("UI-RENDER-05: scroll-root tiene overflow:visible y no hidden", () => {
     // el bloque scroll-root debe contener visible y NO debe contener hidden
-    const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? '';
-    expect(rootBlock).toContain('overflow: visible');
-    expect(rootBlock).not.toContain('overflow: hidden');
+    const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(rootBlock).toContain("overflow: visible");
+    expect(rootBlock).not.toContain("overflow: hidden");
   });
 
-  it('UI-RENDER-05: scroll-root no establece height:100% y preserva flex/min-height', () => {
-    const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? '';
-    expect(rootBlock).not.toContain('height: 100%');
-    expect(rootBlock).toContain('flex: 1');
-    expect(rootBlock).toContain('min-height: 0');
+  it("UI-RENDER-05: scroll-root no establece height:100% y preserva flex/min-height", () => {
+    const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(rootBlock).not.toContain("height: 100%");
+    expect(rootBlock).toContain("flex: 1");
+    expect(rootBlock).toContain("min-height: 0");
   });
 
-  it('UI-MOUNT-11 / UI-RENDER-05: viewport es flex:1 1 0 con min-height:0, overscroll-behavior y container query sin doble contain', () => {
-    const vpBlock = src.match(/\.viewport\s*\{[^}]*\}/s)?.[0] ?? '';
-    const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? '';
-    expect(vpBlock).toContain('flex: 1 1 0');
-    expect(vpBlock).toContain('min-height: 0');
-    expect(vpBlock).not.toContain('contain: layout');
-    expect(vpBlock).toContain('overscroll-behavior: contain');
-    expect(vpBlock).toContain('contain: none');
-    expect(vpBlock).not.toContain('container-type: inline-size');
-    expect(vpBlock).not.toContain('container-name: cabt-scroll');
+  it("UI-MOUNT-11 / UI-RENDER-05: viewport es flex:1 1 0 con min-height:0, overscroll-behavior y container query sin doble contain", () => {
+    const vpBlock = src.match(/\.viewport\s*\{[^}]*\}/s)?.[0] ?? "";
+    const rootBlock = src.match(/\.scroll-root\s*\{[^}]*\}/s)?.[0] ?? "";
+    expect(vpBlock).toContain("flex: 1 1 0");
+    expect(vpBlock).toContain("min-height: 0");
+    expect(vpBlock).not.toContain("contain: layout");
+    expect(vpBlock).toContain("overscroll-behavior: contain");
+    expect(vpBlock).toContain("contain: none");
+    expect(vpBlock).not.toContain("container-type: inline-size");
+    expect(vpBlock).not.toContain("container-name: cabt-scroll");
     // container-type movido a scroll-root para evitar el colapso por doble contain
-    expect(rootBlock).toContain('container-type: inline-size');
-    expect(rootBlock).toContain('container-name: cabt-scroll');
+    expect(rootBlock).toContain("container-type: inline-size");
+    expect(rootBlock).toContain("container-name: cabt-scroll");
   });
 
-  it('UI-MOUNT-11: viewport es el objetivo de montaje con id en el elemento viewport', () => {
+  it("UI-MOUNT-11: viewport es el objetivo de montaje con id en el elemento viewport", () => {
     // En la plantilla Svelte el viewport debe tener bind + {id} + clase viewport
     expect(src).toContain('class="viewport"');
-    expect(src).toContain('{id}');
+    expect(src).toContain("{id}");
     expect(src).toContain('data-testid="scroll-area-viewport"');
   });
 
-  it('UI-MOUNT-11 / UI-RENDER-05: App.svelte conserva :has nth-last-child(2) para relleno de entrada única', () => {
+  it("UI-MOUNT-11 / UI-RENDER-05: App.svelte conserva :has nth-last-child(2) para relleno de entrada única", () => {
     expect(appSrc).toContain(":has(> [id^='cabt-entry-']:first-child:nth-last-child(2))");
-    expect(appSrc).not.toMatch(/:only-child[^)]*\)\s*>\s*\[id\^='cabt-entry-'\]\s*\)\s*\{[^}]*flex: 1 1 0/);
+    expect(appSrc).not.toMatch(
+      /:only-child[^)]*\)\s*>\s*\[id\^='cabt-entry-'\]\s*\)\s*\{[^}]*flex: 1 1 0/,
+    );
     // Asegurar que bottom-anchor permanezca con 1px y flex-shrink:0
-    expect(appSrc).toContain('.bottom-anchor');
-    expect(appSrc).toContain('flex-shrink: 0');
+    expect(appSrc).toContain(".bottom-anchor");
+    expect(appSrc).toContain("flex-shrink: 0");
   });
 
-  it('UI-RENDER-05: updateThumb está limitado mediante requestAnimationFrame', () => {
-    expect(src).toContain('requestAnimationFrame');
+  it("UI-RENDER-05: updateThumb está limitado mediante requestAnimationFrame", () => {
+    expect(src).toContain("requestAnimationFrame");
   });
 });
 
 // ---------------------------------------------------------------------------
 // Resiliencia — observers faltantes
 // ---------------------------------------------------------------------------
-describe('ScrollArea — resiliencia', () => {
-  it('renderiza sin lanzar errores cuando ResizeObserver y MutationObserver no están definidos', () => {
+describe("ScrollArea — resiliencia", () => {
+  it("renderiza sin lanzar errores cuando ResizeObserver y MutationObserver no están definidos", () => {
     const savedRO = (globalThis as unknown as Record<string, unknown>).ResizeObserver;
     const savedMO = (globalThis as unknown as Record<string, unknown>).MutationObserver;
     // @ts-expect-error sobrescritura para el test
@@ -456,19 +458,21 @@ describe('ScrollArea — resiliencia', () => {
     expect(() => {
       render(ScrollArea, {
         props: {
-          children: makeSnippet('<span>no observers</span>'),
+          children: makeSnippet("<span>no observers</span>"),
         },
       });
     }).not.toThrow();
 
-    if (savedRO !== undefined) (globalThis as unknown as Record<string, unknown>).ResizeObserver = savedRO;
+    if (savedRO !== undefined)
+      (globalThis as unknown as Record<string, unknown>).ResizeObserver = savedRO;
     else delete (globalThis as unknown as Record<string, unknown>).ResizeObserver;
 
-    if (savedMO !== undefined) (globalThis as unknown as Record<string, unknown>).MutationObserver = savedMO;
+    if (savedMO !== undefined)
+      (globalThis as unknown as Record<string, unknown>).MutationObserver = savedMO;
     else delete (globalThis as unknown as Record<string, unknown>).MutationObserver;
   });
 
-  it('maneja con gracia la falta de ResizeObserver pero con MutationObserver presente', () => {
+  it("maneja con gracia la falta de ResizeObserver pero con MutationObserver presente", () => {
     const savedRO = (globalThis as unknown as Record<string, unknown>).ResizeObserver;
     // @ts-expect-error sobrescritura
     globalThis.ResizeObserver = undefined;
@@ -476,12 +480,13 @@ describe('ScrollArea — resiliencia', () => {
     expect(() => {
       render(ScrollArea, {
         props: {
-          children: makeSnippet('<span>only MO</span>'),
+          children: makeSnippet("<span>only MO</span>"),
         },
       });
     }).not.toThrow();
 
-    if (savedRO !== undefined) (globalThis as unknown as Record<string, unknown>).ResizeObserver = savedRO;
+    if (savedRO !== undefined)
+      (globalThis as unknown as Record<string, unknown>).ResizeObserver = savedRO;
     else delete (globalThis as unknown as Record<string, unknown>).ResizeObserver;
   });
 });

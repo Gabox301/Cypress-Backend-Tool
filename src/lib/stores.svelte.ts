@@ -1,4 +1,4 @@
-import type { ApiCall, CypressApiPluginConfig, DbConnection, DbQuery } from './types';
+import type { ApiCall, CypressApiPluginConfig, DbConnection, DbQuery } from "./types";
 
 // Estados globales reactivos usando Svelte 5 runes
 export const apiCalls = $state<ApiCall[]>([]);

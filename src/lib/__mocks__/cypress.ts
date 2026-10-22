@@ -1,5 +1,5 @@
-import type { CypressApiPluginConfig } from '$lib/types';
-import { vi } from 'vitest';
+import type { CypressApiPluginConfig } from "$lib/types";
+import { vi } from "vite-plus/test";
 
 /**
  * Crea un objeto global mock de Cypress para pruebas unitarias.
