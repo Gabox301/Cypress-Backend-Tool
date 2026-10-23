@@ -597,3 +597,73 @@ describe("setupDatabaseTasks", () => {
     });
   });
 });
+
+// -----------------------------------------------------------------------
+// SSL hardening (AUDIT-T1): warning ante TLS inseguro, CA vía env, keywords seguras
+// -----------------------------------------------------------------------
+describe("SSL hardening (AUDIT-T1)", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("warns once when CYPRESS_DB_SSL=true maps to insecure TLS", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "true");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ ssl: { rejectUnauthorized: false } }),
+    );
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(String(warnSpy.mock.calls[0]?.[0])).toMatch(/insecure|rejectUnauthorized/i);
+  });
+
+  it("maps require to verified TLS without warning", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "require");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(expect.objectContaining({ ssl: true }));
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("supports CYPRESS_DB_SSL_CA alongside SSL=true", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "true");
+    vi.stubEnv("CYPRESS_DB_SSL_CA", "-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ssl: expect.objectContaining({
+          rejectUnauthorized: false,
+          ca: expect.stringContaining("BEGIN CERTIFICATE"),
+        }),
+      }),
+    );
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it("enables verified TLS with custom CA when only SSL_CA is set", () => {
+    vi.stubEnv("CYPRESS_DB_SSL_CA", "my-ca-pem");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ ssl: expect.objectContaining({ ca: "my-ca-pem" }) }),
+    );
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("explicit SSL=false wins over SSL_CA", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "false");
+    vi.stubEnv("CYPRESS_DB_SSL_CA", "my-ca-pem");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(expect.objectContaining({ ssl: false }));
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
