@@ -26,8 +26,16 @@ export function registerHttpCommand(): void {
         options.redact === false
           ? { ...baseRedactionSettings, hideCredentials: false }
           : baseRedactionSettings;
-      const { redact: _redactFlag, ...transportOptions } = options;
-      void _redactFlag;
+      // T3: whitelist de transporte — solo campos documentados de cy.request.
+      // Los internos del plugin (expect, retry, redact) nunca llegan al transporte.
+      const transportOptions = {
+        url: options.url,
+        method: options.method,
+        headers: options.headers,
+        body: options.body,
+        qs: options.qs,
+        auth: options.auth,
+      };
       const callId = crypto.randomUUID();
       const retry = options.retry;
       const maxAttempts = (retry?.retries ?? 0) + 1;
