@@ -40,26 +40,102 @@ export function redactUrl(url: string, settings: CredentialRedactionSettings): s
   return hasFragment ? `${base}#${fragment ? REDACTED_VALUE : ""}` : base;
 }
 
-export function redactValue(value: unknown, seen = new WeakSet<object>()): unknown {
-  if (value === null || value === undefined) return value;
-  if (typeof value !== "object") return REDACTED_VALUE;
-  if (seen.has(value)) return REDACTED_VALUE;
+/** Tokens de nombres de campo que indican secreto (match por token, case-insensitive). */
+const SENSITIVE_TOKENS = new Set([
+  "password",
+  "passwd",
+  "pwd",
+  "passcode",
+  "secret",
+  "secrets",
+  "token",
+  "tokens",
+  "auth",
+  "authorization",
+  "credential",
+  "credentials",
+  "cookie",
+  "cookies",
+  "key",
+  "apikey",
+  "apisecret",
+  "accesstoken",
+  "refreshtoken",
+  "sessiontoken",
+  "privatekey",
+  "clientsecret",
+]);
 
-  seen.add(value);
-  if (Array.isArray(value)) {
-    const redacted = value.map((item) => redactValue(item, seen));
-    seen.delete(value);
-    return redacted;
+/** Compuestos que el tokenizado parte pero siguen indicando secreto (p. ej. `api_key`). */
+const SENSITIVE_COMPOUNDS = [
+  "password",
+  "passwd",
+  "apikey",
+  "apisecret",
+  "accesstoken",
+  "refreshtoken",
+  "sessiontoken",
+  "privatekey",
+  "clientsecret",
+];
+
+function tokenizeKey(key: string): string[] {
+  return key
+    .split(/[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])/)
+    .map((t) => t.toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * `true` cuando el nombre de campo sugiere secreto. Tokenizado (no substring)
+ * para no confundir `author` con `auth`; `email`/`username` quedan visibles.
+ */
+export function isSensitiveKey(key: string): boolean {
+  const tokens = tokenizeKey(key);
+  if (tokens.some((t) => SENSITIVE_TOKENS.has(t))) return true;
+  const joined = tokens.join("");
+  return SENSITIVE_COMPOUNDS.some((c) => joined.includes(c));
+}
+
+/**
+ * Redacción con contexto de clave: bajo clave sensible (o forzado, o sin clave
+ * como escalares sueltos y bind-values) enmascara; bajo clave no sensible
+ * preserva el valor con su tipo. Los objetos siempre evalúan sus propias claves.
+ */
+function redactWithKey(
+  node: unknown,
+  key: string | undefined,
+  forced: boolean,
+  seen: WeakSet<object>,
+): unknown {
+  if (node === null || node === undefined) return node;
+  if (typeof node !== "object") {
+    return forced || key === undefined || isSensitiveKey(key) ? REDACTED_VALUE : node;
   }
+  if (seen.has(node)) return REDACTED_VALUE;
+  seen.add(node);
+  let out: unknown;
+  if (Array.isArray(node)) {
+    const childForced = forced || (key !== undefined && isSensitiveKey(key));
+    // Los items heredan la clave del array: `{ids:[1,2]}` se preserva, los
+    // bind-values top-level (sin clave) y `{passwords:[...]}` se enmascaran.
+    out = node.map((item) => redactWithKey(item, key, childForced, seen));
+  } else {
+    out = Object.fromEntries(
+      Object.entries(node as Record<string, unknown>).map(([k, nested]) => [
+        k,
+        forced || isSensitiveKey(k)
+          ? redactWithKey(nested, k, true, seen)
+          : redactWithKey(nested, k, false, seen),
+      ]),
+    );
+  }
+  seen.delete(node);
+  return out;
+}
 
-  const redacted = Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
-      key,
-      redactValue(nested, seen),
-    ]),
-  );
-  seen.delete(value);
-  return redacted;
+export function redactValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  return redactWithKey(value, undefined, false, seen);
 }
 
 function redactRecordValues(
@@ -74,6 +150,13 @@ export function redactApiRequest<T extends ApiRequest>(
   settings: CredentialRedactionSettings,
 ): T {
   if (!settings.hideCredentials) return request;
+  // Override por request: `redact: false` muestra esta llamada sin enmascarar.
+  // La bandera es interna del plugin y se elimina de la proyección.
+  if ((request as { redact?: unknown }).redact === false) {
+    const { redact: _omit, ...rest } = request as T & { redact?: unknown };
+    void _omit;
+    return rest as T;
+  }
 
   const options = settings.hideCredentialsOptions;
   return {

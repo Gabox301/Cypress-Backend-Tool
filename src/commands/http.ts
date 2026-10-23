@@ -19,7 +19,15 @@ export function registerHttpCommand(): void {
         typeof urlOrOptions === "string"
           ? { url: urlOrOptions, method: maybeOptions?.method || "GET", ...maybeOptions }
           : urlOrOptions;
-      const redactionSettings = readPluginConfig();
+      const baseRedactionSettings = readPluginConfig();
+      // Override por request (T2): `redact: false` muestra esta llamada sin
+      // enmascarar en logs y paneles. La bandera es interna y no va al transporte.
+      const redactionSettings =
+        options.redact === false
+          ? { ...baseRedactionSettings, hideCredentials: false }
+          : baseRedactionSettings;
+      const { redact: _redactFlag, ...transportOptions } = options;
+      void _redactFlag;
       const callId = crypto.randomUUID();
       const retry = options.retry;
       const maxAttempts = (retry?.retries ?? 0) + 1;
@@ -59,6 +67,7 @@ export function registerHttpCommand(): void {
                 qs: options.qs,
                 auth: options.auth,
                 expect: options.expect,
+                ...(options.redact !== undefined ? { redact: options.redact } : {}),
               },
               expect: options.expect,
               response,
@@ -95,10 +104,11 @@ export function registerHttpCommand(): void {
         }
 
         return (
-          cy.request({ ...options, log: false, failOnStatusCode: false } as unknown as Record<
-            string,
-            unknown
-          >) as unknown as Promise<{
+          cy.request({
+            ...transportOptions,
+            log: false,
+            failOnStatusCode: false,
+          } as unknown as Record<string, unknown>) as unknown as Promise<{
             status: number;
             statusText: string;
             headers: Record<string, string>;
@@ -189,6 +199,7 @@ export function registerHttpCommand(): void {
             qs: options.qs,
             auth: options.auth,
             expect: options.expect,
+            ...(options.redact !== undefined ? { redact: options.redact } : {}),
           },
           expect: options.expect,
           response: finalResponse,

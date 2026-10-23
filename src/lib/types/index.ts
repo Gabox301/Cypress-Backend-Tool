@@ -8,6 +8,11 @@ export interface ApiRequest {
   qs?: Record<string, string>;
   auth?: { username: string; password: string };
   expect?: unknown;
+  /**
+   * Override por request del enmascaramiento: `false` muestra esta llamada sin
+   * enmascarar en logs y paneles. Nunca se envía al servidor (interno del plugin).
+   */
+  redact?: boolean;
 }
 
 export interface ApiRequestOptions extends ApiRequest {

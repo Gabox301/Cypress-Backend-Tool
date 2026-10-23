@@ -13,6 +13,14 @@
   }
   let { data, hideCredentials, hideCredentialsOptions, snapshotOnly }: Props = $props();
 
+  // Override por request (T2): `redact: false` en ApiRequest desactiva el
+  // enmascarado de ESTA entrada en ambos paneles. Las entradas DB no tienen
+  // request y siempre usan la config global.
+  let requestRedactOff = $derived(
+    !("query" in data) && (data as ApiCall).request?.redact === false,
+  );
+  let effectiveHideCredentials = $derived(requestRedactOff ? false : hideCredentials);
+
   let database = $derived.by(() => {
     // Referencia dbConnectionsGlobal para que el derivado reaccione a cambios de conexión
     void dbConnectionsGlobal.length;
@@ -50,13 +58,13 @@
 {:else}
   {@const api = data as ApiCall}
   <div class="pair">
-    <RequestPanel request={api.request} {hideCredentials} {hideCredentialsOptions} />
+    <RequestPanel request={api.request} hideCredentials={effectiveHideCredentials} {hideCredentialsOptions} />
     <ResponsePanel
       response={api.response}
       expect={api.request?.expect ?? api.expect}
       error={api.error}
       {snapshotOnly}
-      {hideCredentials}
+      hideCredentials={effectiveHideCredentials}
       {hideCredentialsOptions}
     />
   </div>
