@@ -265,6 +265,16 @@ export function setupDatabaseTasks(
     idleTimeoutMillis: options?.defaults?.idleTimeoutMillis ?? 2000,
     ...(sslValue !== undefined ? { ssl: sslValue } : {}),
   });
+  // Lifecycle (PH3-T2): un error idle del Pool emite 'error' y, sin listener,
+  // tumba el proceso Node de Cypress. Se loguea y se sigue (best-effort).
+  // Sin hooks de salida: la muerte del proceso cierra TCP limpio (FIN) y los
+  // hooks en proceso ajeno (Cypress) no son testeables ni confiables.
+  pool.on("error", (err: unknown) => {
+    console.error(
+      "[cypress-backend-tool] db pool idle error (continuing):",
+      err instanceof Error ? err.message : err,
+    );
+  });
   on("task", {
     [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, "host" | "port" | "database"> => ({
       host: readEnv("HOST"),

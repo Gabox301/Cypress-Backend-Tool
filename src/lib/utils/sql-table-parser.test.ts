@@ -108,4 +108,22 @@ describe("SQL-PARSE-03: extractQueryType — extracción del tipo de consulta", 
   it("SQL-PARSE-03: UNKNOWN para consulta vacía o sin tipo", () => {
     expect(extractQueryType("")).toBe("UNKNOWN");
   });
+
+  it("SQL-PARSE-03: TRUNCATE retorna TRUNCATE", () => {
+    expect(extractQueryType("TRUNCATE users")).toBe("TRUNCATE");
+  });
+
+  it("SQL-PARSE-03: MERGE retorna MERGE", () => {
+    expect(
+      extractQueryType("MERGE INTO users USING src ON users.id = src.id WHEN MATCHED THEN UPDATE"),
+    ).toBe("MERGE");
+  });
+
+  it("SQL-PARSE-03: CALL retorna CALL", () => {
+    expect(extractQueryType("CALL refresh_view()")).toBe("CALL");
+  });
+
+  it("SQL-PARSE-03: WITH ... TRUNCATE resuelve tras el CTE", () => {
+    expect(extractQueryType("WITH x AS (SELECT 1) TRUNCATE users")).toBe("TRUNCATE");
+  });
 });

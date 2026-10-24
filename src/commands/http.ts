@@ -1,12 +1,13 @@
-import { addApiCall } from "$lib/stores.svelte";
+import { addApiCall, pushCapped } from "$lib/stores.svelte";
 import type { ApiCall, ApiResponse } from "$lib/types";
-import { reserveEntry } from "$lib/ui";
 import { setActiveApiCall } from "$lib/ui/chai-interceptor";
+import { bodySizeBytes, newCallId, nowMs } from "$lib/utils/metrics";
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse } from "$lib/utils/redaction";
+import { reserveCallPlaceholder } from "../support/command-ui";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
 import type { ApiRequestOptions } from "../support/plugin-types";
-import { applySnapshotOnly, getOrCreateContainer, showApiUi } from "../support/plugin-ui";
+import { showApiUi } from "../support/plugin-ui";
 import { getTestStore } from "../support/test-store";
 
 /**
@@ -51,29 +52,17 @@ export function registerHttpCommand(): void {
         qs: options.qs,
         auth: options.auth,
       };
-      const callId = crypto.randomUUID();
+      const callId = newCallId();
       const retry = options.retry;
       const maxAttempts = (retry?.retries ?? 0) + 1;
       const attemptDelay = retry?.delay ?? 0;
       const attempts: ApiResponse[] = [];
 
-      // Reserve placeholder EN ORDEN DE LLAMADA before cy.request to preserve
-      // orden visual = orden de llamada (no orden de finalización).
-      try {
-        const winEarly = cy.state("window") as Window | undefined;
-        const docEarly = winEarly?.document;
-        if (docEarly?.getElementById) {
-          const containerEarly = getOrCreateContainer(docEarly);
-          const cfgEarly = readPluginConfig();
-          applySnapshotOnly(containerEarly, cfgEarly);
-          reserveEntry(callId, docEarly);
-        }
-      } catch (e) {
-        logDebug("reserveEntry http early failed", e);
-      }
+      // Placeholder en orden de llamada (no de finalización) — ver command-ui.
+      reserveCallPlaceholder(callId, "http");
 
       function doRequest(attemptNumber: number): Cypress.Chainable<ApiResponse> {
-        const attemptStart = Date.now();
+        const attemptStart = nowMs();
         // Reglas de asimilación del runner real (verificadas V1–V10): solo el
         // .then de Cypress con UN callback asimila Chainables anidados; con dos
         // handlers resuelve undefined (V3/V5), y un custom command no puede
@@ -113,7 +102,7 @@ export function registerHttpCommand(): void {
               ).retryCount = Math.max(0, attempts.length - 1);
             }
             addApiCall(call);
-            getTestStore().apiCalls.push(call);
+            pushCapped(getTestStore().apiCalls, call);
             const logRequest = redactApiRequest(options, redactionSettings);
             const logResponse = redactApiResponse(response, redactionSettings);
             // One-policy redaction mapping for the free-text error: transport
@@ -153,8 +142,8 @@ export function registerHttpCommand(): void {
                 statusText: cyResponse.statusText || "",
                 headers: (cyResponse.headers || {}) as Record<string, string>,
                 body: cyResponse.body,
-                duration: Date.now() - attemptStart,
-                size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
+                duration: nowMs() - attemptStart,
+                size: cyResponse.body ? bodySizeBytes(cyResponse.body) : 0,
                 cookies: cyResponse.cookies || [],
               };
               attempts.push(response);
@@ -231,8 +220,8 @@ export function registerHttpCommand(): void {
                           typeof rejection?.statusText === "string" ? rejection.statusText : "",
                         headers: (rejection?.headers || {}) as Record<string, string>,
                         body: rejection?.body,
-                        duration: Date.now() - attemptStart,
-                        size: rejection?.body ? JSON.stringify(rejection.body).length : 0,
+                        duration: nowMs() - attemptStart,
+                        size: rejection?.body ? bodySizeBytes(rejection.body) : 0,
                         cookies: rejection?.cookies || [],
                       };
                 renderHttpFailure(failureResponse, toErrorMessage(err));
@@ -268,7 +257,7 @@ export function registerHttpCommand(): void {
           ).retryCount = attempts.length - 1;
         }
         addApiCall(call);
-        getTestStore().apiCalls.push(call);
+        pushCapped(getTestStore().apiCalls, call);
         const logRequest = redactApiRequest(options, redactionSettings);
         const logResponse = redactApiResponse(finalResponse, redactionSettings);
         const log = Cypress.log({

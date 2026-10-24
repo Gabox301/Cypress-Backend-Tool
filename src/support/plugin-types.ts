@@ -3,31 +3,11 @@
 // ============================================
 // Tipos
 // ============================================
-export interface ApiRequestOptions {
-  url: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
-  headers?: Record<string, string>;
-  body?: unknown;
-  qs?: Record<string, string>;
-  auth?: { username: string; password: string };
-  failOnStatusCode?: boolean;
-  expect?: unknown;
-  /**
-   * Reintentos ante fallos transitorios (B refinada): con `retry` configurado se
-   * reintentan status 5xx, 408 y 429 con backoff exponencial sobre `delay`
-   * (espera `delay·2^(n-1)` antes del intento n+1), independiente de
-   * `failOnStatusCode` (tras agotar se aplica). Otros 4xx no reintentan; los
-   * rechazos de transporte fallan en el primer intento (entry degradada H1).
-   * Sin `retry`, una sola petición. OJO: vale para todo método — evitá `retry`
-   * en POST no idempotentes (side effects duplicados).
-   */
-  retry?: { retries: number; delay: number };
-  /**
-   * Override por request del enmascaramiento: `false` muestra esta llamada sin
-   * enmascarar en logs y paneles. Nunca se envía al servidor (interno del plugin).
-   */
-  redact?: boolean;
-}
+// Superficie única (PH3-T1): la declaración canónica de ApiRequestOptions vive
+// en `$lib/types` y acá se re-exporta para no romper los imports existentes
+// (commands, augment, index). La duplicación había divergido en silencio: solo
+// lib/ traía gzip/encoding/timeout.
+export type { ApiRequestOptions } from "$lib/types";
 
 /** Forma devuelta por cy.task('db:query') */
 export interface DbTaskResult {
@@ -56,10 +36,15 @@ export interface DbQueryResponse {
   values?: unknown[];
 }
 
+/**
+ * Opciones de conexión por consulta: todo parcial (PH3-T1 honesto). Lo ausente
+ * se resuelve por snapshot de setup (`dbHost`/`dbPort`/`dbDatabase`), env/Node
+ * o fallbacks de compatibilidad — nunca se exige el objeto completo.
+ */
 export interface DbConnectionOptions {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
 }

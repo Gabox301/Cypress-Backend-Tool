@@ -1,7 +1,8 @@
-import { addDbQuery } from "$lib/stores.svelte";
+import { addDbQuery, pushCapped } from "$lib/stores.svelte";
 import type { DbQuery } from "$lib/types";
-import { reserveEntry } from "$lib/ui";
+import { newCallId, nowMs } from "$lib/utils/metrics";
 import { REDACTED_VALUE, redactValue } from "$lib/utils/redaction";
+import { reserveCallPlaceholder } from "../support/command-ui";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
 import type {
@@ -10,7 +11,7 @@ import type {
   DbQueryTaskThen,
   DbTaskResult,
 } from "../support/plugin-types";
-import { applySnapshotOnly, getOrCreateContainer, showDbQueryUi } from "../support/plugin-ui";
+import { showDbQueryUi } from "../support/plugin-ui";
 import { getTestStore } from "../support/test-store";
 
 export function registerQueryCommand(): void {
@@ -27,21 +28,10 @@ export function registerQueryCommand(): void {
       ) as DbConnectionOptions | undefined;
       const dbTaskPrefix = (Cypress.expose("dbTaskPrefix") as string) ?? "";
       const redactionSettings = readPluginConfig();
-      const startTime = Date.now();
-      const queryId = crypto.randomUUID();
-      // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
-      try {
-        const winEarly = cy.state("window") as Window | undefined;
-        const docEarly = winEarly?.document;
-        if (docEarly?.getElementById) {
-          const containerEarly = getOrCreateContainer(docEarly);
-          const cfgEarly = readPluginConfig();
-          applySnapshotOnly(containerEarly, cfgEarly);
-          reserveEntry(queryId, docEarly);
-        }
-      } catch (e) {
-        logDebug("reserveEntry query early failed", e);
-      }
+      const startTime = nowMs();
+      const queryId = newCallId();
+      // Placeholder en orden de llamada — ver command-ui.
+      reserveCallPlaceholder(queryId, "query");
 
       // Renders a failure UI entry (store + log + mount + snapshot) for the
       // sync-degraded/D2/QIR paths below. Never throws: a render problem must
@@ -56,12 +46,12 @@ export function registerQueryCommand(): void {
             result: null,
             rowCount: 0,
             error: errorMessage,
-            duration: Date.now() - startTime,
+            duration: nowMs() - startTime,
             timestamp: Date.now(),
             database,
           };
           addDbQuery(dbCall);
-          getTestStore().dbQueries.push(dbCall);
+          pushCapped(getTestStore().dbQueries, dbCall);
           const logQuery =
             redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
               ? REDACTED_VALUE
@@ -180,7 +170,7 @@ export function registerQueryCommand(): void {
           const dbResponse: DbQueryResponse = {
             rows: queryRows,
             rowCount: result.rowCount || 0,
-            duration: Date.now() - startTime,
+            duration: nowMs() - startTime,
             query,
             ...(values !== undefined ? { values } : {}),
           };
@@ -190,12 +180,12 @@ export function registerQueryCommand(): void {
             query,
             result: queryRows,
             rowCount: result.rowCount ?? queryRows.length,
-            duration: Date.now() - startTime,
+            duration: nowMs() - startTime,
             timestamp: Date.now(),
             database,
           };
           addDbQuery(dbCall);
-          getTestStore().dbQueries.push(dbCall);
+          pushCapped(getTestStore().dbQueries, dbCall);
           // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
           // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
           // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito

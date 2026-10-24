@@ -7,6 +7,7 @@
  * mocks deben existir primero.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { DbConnectionOptions } from "./support/plugin-types";
 
 // ---------------------------------------------------------------------------
 // Fábricas de mocks (hoisted — disponibles antes de la importación del módulo)
@@ -27,8 +28,9 @@ const { pgRefs } = vi.hoisted(() => {
   const mockClientQuery = vi.fn();
   const mockClientConnect = vi.fn();
   const mockClientEnd = vi.fn();
+  const mockPoolOn = vi.fn();
   const mockPoolCtor = vi.fn(function MockPool(opts?: Record<string, unknown>) {
-    return { query: mockPoolQuery, options: opts };
+    return { query: mockPoolQuery, options: opts, on: mockPoolOn };
   });
   const mockClientCtor = vi.fn(function MockClient() {
     return { query: mockClientQuery, connect: mockClientConnect, end: mockClientEnd };
@@ -39,6 +41,7 @@ const { pgRefs } = vi.hoisted(() => {
       mockClientQuery,
       mockClientConnect,
       mockClientEnd,
+      mockPoolOn,
       mockPoolCtor,
       mockClientCtor,
     },
@@ -628,6 +631,19 @@ describe("query bind values (QBV-02)", () => {
     expect(task.mock.calls[0]?.[1]).toEqual({ query: "SELECT 1", ...connectionOptions });
     expect(task.mock.calls[0]?.[1]).not.toHaveProperty("values");
     expect(result.values).toBeUndefined();
+  });
+
+  it("honest partial: 2nd-arg with only host forwards just the override", async () => {
+    const partial: DbConnectionOptions = { host: "override.example.test" };
+    const task = mockQueryTasks([{ value: 1 }]);
+    const queryHandler = capturedCommands["query"] as (
+      query: string,
+      options: unknown,
+    ) => Promise<{ values?: unknown[] }>;
+
+    await queryHandler("SELECT 1", partial);
+
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: "SELECT 1", host: "override.example.test" });
   });
 
   it("preserves explicit per-query overrides when values are supplied as the 2nd arg", async () => {

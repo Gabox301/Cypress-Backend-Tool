@@ -467,6 +467,7 @@ This means:
 - Cypress snapshots (`Cypress.log().snapshot()`) are stable across `it()` blocks. You can navigate to a previous command's log and see exactly its request/response, not the last executed command.
 - No "blank panels" when inspecting previous calls.
 - The DOM accumulates all calls from the current test — each with its own `<section id="cabt-entry-{id}">`.
+- In-memory history is capped at 100 entries per test (oldest evicted first); snapshots already taken are unaffected.
 
 ### Snapshot includes `expect()` coloring
 
@@ -517,7 +518,7 @@ npm run build
 # All tests (unit + E2E)
 npm test
 
-# Unit only (vp test, 387 tests)
+# Unit only (vp test, 405 tests)
 npm run unit
 
 # Watch

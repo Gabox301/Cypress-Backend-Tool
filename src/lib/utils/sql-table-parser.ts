@@ -73,14 +73,22 @@ export function extractTables(sql: string): string[] {
   return tables;
 }
 
-export function extractQueryType(
-  sql: string,
-): "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "UNKNOWN" {
+export type SqlQueryType =
+  | "SELECT"
+  | "INSERT"
+  | "UPDATE"
+  | "DELETE"
+  | "TRUNCATE"
+  | "MERGE"
+  | "CALL"
+  | "UNKNOWN";
+
+export function extractQueryType(sql: string): SqlQueryType {
   const stripped = stripCommentsAndStrings(sql);
   const withoutCTE = removeCTE(stripped).trim();
-  const match = withoutCTE.match(/^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i);
+  const match = withoutCTE.match(/^\s*(SELECT|INSERT|UPDATE|DELETE|TRUNCATE|MERGE|CALL)\b/i);
   if (match && match[1]) {
-    return match[1].toUpperCase() as "SELECT" | "INSERT" | "UPDATE" | "DELETE";
+    return match[1].toUpperCase() as SqlQueryType;
   }
   return "UNKNOWN";
 }

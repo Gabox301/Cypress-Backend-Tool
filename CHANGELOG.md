@@ -12,11 +12,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - **TLS verificado y CA por env (`db`):** `CYPRESS_DB_SSL`/`DB_SSL` aceptan `require`/`verify` (TLS verificado) e `insecure`/`no-verify` (opt-in explícito al modo inseguro); nuevo `CYPRESS_DB_SSL_CA`/`DB_SSL_CA` para CA custom en PEM. El histórico `"true"` sigue funcionando pero emite un warning en Node (no verifica el certificado).
 - **Enmascarado por campo + override por request (`http`):** cuerpos y respuestas enmascaran por nombre de campo sensible y preservan tipos y valores no sensibles; `redact: false` en `cy.http()` desactiva el enmascarado de esa llamada (nunca viaja al servidor).
 - **Reintentos ante transitorios (`http`, B refinada):** con `retry` se reintentan 5xx, 408 y 429 con backoff exponencial, independiente de `failOnStatusCode` (tras agotar se aplica); `attempts`/`retryCount` conservados.
+- **`DbConnectionOptions` parcial honesto (`db`):** todos los campos opcionales; lo ausente se resuelve por snapshot/env/fallbacks (antes el tipo exigía el objeto completo que el runtime no pedía).
+- **Tipos de query `TRUNCATE`/`MERGE`/`CALL` (`db`):** `extractQueryType` los reconoce además de SELECT/INSERT/UPDATE/DELETE.
 
 ### Fixed
 
 - **Whitelist de transporte (`http`):** solo `url/method/headers/body/qs/auth` llegan a `cy.request`; los internos `expect`/`retry`/`redact` nunca salen del plugin.
 - **Atribución de aserciones por llamada (`http`):** los `expect()` tardíos (alias) colorean su llamada original aunque otra haya completado después (activa primero, luego más reciente primero); coloreo sigue HTTP-only.
+- **Pool sobrevive errores idle (`db`):** `pool.on('error')` loguea y continúa en vez de tumbar el proceso Node.
+- **Métricas reales (`http`/`db`):** `size` en bytes UTF-8 (no unidades UTF-16), `duration` monotónica, UUID con fallback sin `randomUUID`.
+- **Historial acotado (`http`/`db`):** stores y per-test stores evictan lo más viejo pasado 100 entradas.
+- **`ApiRequestOptions` single-source:** declaración canónica en `lib/types`, re-exportada (la duplicación había divergido).
+- **Recursión infinita al redactar con `attempts` (`http`):** la respuesta final se incluía a sí misma y el enmascarado cicla sin fin con `retry` configurado; los `attempts` ahora se aplanan.
+- **Matcher de credenciales ampliado (`http`):** `jwt`, `oauth`, `keys`, `passphrase`, `authentication`, `sessionId`, `token2` y acronyms (`APIToken`/`JWTToken`) ahora se enmascaran; `author` sigue visible.
+
+### Changed
+
+- **Helper `reserveCallPlaceholder` (interno):** placeholder en orden de llamada extraído de `cy.http`/`cy.query`; sin cambios visibles.
 
 ### Removed
 
