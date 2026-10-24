@@ -23,6 +23,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - **Métricas reales (`http`/`db`):** `size` en bytes UTF-8 (no unidades UTF-16), `duration` monotónica, UUID con fallback sin `randomUUID`.
 - **Historial acotado (`http`/`db`):** stores y per-test stores evictan lo más viejo pasado 100 entradas.
 - **`ApiRequestOptions` single-source:** declaración canónica en `lib/types`, re-exportada (la duplicación había divergido).
+- **Recursión infinita al redactar con `attempts` (`http`):** la respuesta final se incluía a sí misma y el enmascarado cicla sin fin con `retry` configurado; los `attempts` ahora se aplanan.
+- **Matcher de credenciales ampliado (`http`):** `jwt`, `oauth`, `keys`, `passphrase`, `authentication`, `sessionId`, `token2` y acronyms (`APIToken`/`JWTToken`) ahora se enmascaran; `author` sigue visible.
 
 ### Changed
 
