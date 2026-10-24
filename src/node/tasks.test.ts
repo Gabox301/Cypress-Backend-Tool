@@ -20,14 +20,16 @@ let mockClientCtor: ReturnType<typeof vi.fn>;
 let mockClientQuery: ReturnType<typeof vi.fn>;
 let mockClientConnect: ReturnType<typeof vi.fn>;
 let mockClientEnd: ReturnType<typeof vi.fn>;
+let mockPoolOn: ReturnType<typeof vi.fn>;
 
 vi.mock("pg", () => {
   mockPoolQuery = vi.fn();
   mockClientQuery = vi.fn();
   mockClientConnect = vi.fn();
   mockClientEnd = vi.fn();
+  mockPoolOn = vi.fn();
   mockPoolCtor = vi.fn(function MockPool(opts?: Record<string, unknown>) {
-    return { query: mockPoolQuery, options: opts } as never;
+    return { query: mockPoolQuery, options: opts, on: mockPoolOn } as never;
   });
   mockClientCtor = vi.fn(function MockClient() {
     return { query: mockClientQuery, connect: mockClientConnect, end: mockClientEnd } as never;
@@ -665,5 +667,44 @@ describe("SSL hardening (AUDIT-T1)", () => {
     setupDatabaseTasks(on);
     expect(mockPoolCtor).toHaveBeenCalledWith(expect.objectContaining({ ssl: false }));
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+// -----------------------------------------------------------------------
+// Lifecycle del Pool (PH3-T2): un error idle no puede tumbar el proceso Node
+// -----------------------------------------------------------------------
+describe("pool lifecycle (PH3-T2)", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  function poolErrorHandler(): (err: unknown) => void {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    const poolInstance = mockPoolCtor.mock.results[0]?.value as {
+      on: ReturnType<typeof vi.fn>;
+    };
+    expect(poolInstance.on).toHaveBeenCalledWith("error", expect.any(Function));
+    return poolInstance.on.mock.calls.find(([ev]) => ev === "error")?.[1] as (err: unknown) => void;
+  }
+
+  it("registra un handler de error en el Pool", () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    const poolInstance = mockPoolCtor.mock.results[0]?.value as {
+      on: ReturnType<typeof vi.fn>;
+    };
+    expect(poolInstance.on).toHaveBeenCalledWith("error", expect.any(Function));
+  });
+
+  it("un error idle del Pool se loguea sin tumbar el proceso", () => {
+    const handler = poolErrorHandler();
+    expect(() => handler(new Error("idle client error"))).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledOnce();
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/pool|idle/i);
   });
 });
