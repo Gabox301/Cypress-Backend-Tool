@@ -40,44 +40,39 @@ export function redactUrl(url: string, settings: CredentialRedactionSettings): s
   return hasFragment ? `${base}#${fragment ? REDACTED_VALUE : ""}` : base;
 }
 
-/** Tokens de nombres de campo que indican secreto (match por token, case-insensitive). */
-const SENSITIVE_TOKENS = new Set([
-  "password",
-  "passwd",
-  "pwd",
-  "passcode",
+/**
+ * Política de sensibilidad (R1/R2/R3): biased a enmascarar. Dos reglas, en orden:
+ *
+ * 1. Substring sobre el nombre normalizado (minúsculas, solo alfanumérico):
+ *    `pass`, `secret`, `token`, `jwt`, `oauth`, `cookie`, `cred`, `private`,
+ *    `session`, `key`. Cubre `token2`, `JWTToken`, `userIDToken`, `accesskey`,
+ *    `keys`, `passphrase`, `sessionId`, `api_key`, etc. Falsos positivos
+ *    conocidos y aceptados (dirección segura, nunca fuga): `monkey`,
+ *    `keyboard`, `compass`, `bypass` — sus valores siguen intactos para las
+ *    aserciones y visibles con `redact: false`.
+ * 2. Token exacto (partido por camel/snake/kebab/puntos) solo para la familia
+ *    `auth`: `auth`, `authentication`, `authorization`. Por token y no por
+ *    substring para no confundir `author` con `auth`.
+ *
+ * Identificadores como `author`, `title`, `username`, `email`, `id`, `name`
+ * quedan visibles. Headers, auth, query y URL no usan esto: siguen con
+ * enmascarado total vía `redactRecordValues`/`redactUrl`.
+ */
+const SENSITIVE_SUBSTRINGS = [
+  "pass",
   "secret",
-  "secrets",
   "token",
-  "tokens",
-  "auth",
-  "authorization",
-  "credential",
-  "credentials",
+  "jwt",
+  "oauth",
   "cookie",
-  "cookies",
+  "cred",
+  "private",
+  "session",
   "key",
-  "apikey",
-  "apisecret",
-  "accesstoken",
-  "refreshtoken",
-  "sessiontoken",
-  "privatekey",
-  "clientsecret",
-]);
-
-/** Compuestos que el tokenizado parte pero siguen indicando secreto (p. ej. `api_key`). */
-const SENSITIVE_COMPOUNDS = [
-  "password",
-  "passwd",
-  "apikey",
-  "apisecret",
-  "accesstoken",
-  "refreshtoken",
-  "sessiontoken",
-  "privatekey",
-  "clientsecret",
 ];
+
+/** Familia `auth`: solo match por token exacto (nunca substring: `author` ≠ `auth`). */
+const AUTH_TOKENS = new Set(["auth", "authentication", "authorization"]);
 
 function tokenizeKey(key: string): string[] {
   return key
@@ -87,14 +82,13 @@ function tokenizeKey(key: string): string[] {
 }
 
 /**
- * `true` cuando el nombre de campo sugiere secreto. Tokenizado (no substring)
- * para no confundir `author` con `auth`; `email`/`username` quedan visibles.
+ * `true` cuando el nombre de campo sugiere secreto. Ver `SENSITIVE_SUBSTRINGS`:
+ * `author` queda visible, `email`/`username` también.
  */
 export function isSensitiveKey(key: string): boolean {
-  const tokens = tokenizeKey(key);
-  if (tokens.some((t) => SENSITIVE_TOKENS.has(t))) return true;
-  const joined = tokens.join("");
-  return SENSITIVE_COMPOUNDS.some((c) => joined.includes(c));
+  const joined = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (SENSITIVE_SUBSTRINGS.some((s) => joined.includes(s))) return true;
+  return tokenizeKey(key).some((t) => AUTH_TOKENS.has(t));
 }
 
 /**

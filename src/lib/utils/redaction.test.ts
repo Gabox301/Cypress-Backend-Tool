@@ -20,6 +20,19 @@ describe("isSensitiveKey (AUDIT-T2)", () => {
       "clientSecret",
       "access_token",
       "key",
+      "jwt",
+      "oauth",
+      "keys",
+      "passphrase",
+      "authentication",
+      "sessionId",
+      "APIToken",
+      "JWTToken",
+      "IDToken",
+      "userIDToken",
+      "token2",
+      "accesskey",
+      "accessKey",
     ]) {
       expect(isSensitiveKey(key), `expected sensitive: ${key}`).toBe(true);
     }
@@ -52,6 +65,15 @@ describe("redactValue — field-aware (AUDIT-T2)", () => {
 
   it("masks secret columns in row arrays while preserving the rest", () => {
     expect(redactValue([{ id: 1, token: "s" }])).toEqual([{ id: 1, token: "***" }]);
+  });
+
+  it("masks realistic credential keys while preserving the rest (R1/R2/R3)", () => {
+    expect(redactValue({ jwt: "t", oauthToken: "o", sessionId: "s", count: 1 })).toEqual({
+      jwt: "***",
+      oauthToken: "***",
+      sessionId: "***",
+      count: 1,
+    });
   });
 
   it("handles circular structures without throwing", () => {
