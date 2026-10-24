@@ -185,8 +185,13 @@ export function redactApiResponse(
     cookies: options.headers
       ? response.cookies?.map((cookie) => ({ ...cookie, value: REDACTED_VALUE }))
       : response.cookies,
-    attempts: response.attempts?.map(
-      (attempt) => redactApiResponse(attempt, settings) as ApiResponse,
-    ),
+    // Los attempts son registros planos por intento: se les quita `attempts`
+    // anidados porque la respuesta final se incluye a sí misma en el array
+    // (ciclo directo → recursión infinita) y no aportan nada un nivel abajo.
+    attempts: response.attempts?.map((attempt) => {
+      const { attempts: _nested, ...flat } = attempt;
+      void _nested;
+      return redactApiResponse(flat as ApiResponse, settings) as ApiResponse;
+    }),
   };
 }
