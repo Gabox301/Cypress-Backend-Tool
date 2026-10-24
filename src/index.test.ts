@@ -7,6 +7,7 @@
  * mocks deben existir primero.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { DbConnectionOptions } from "./support/plugin-types";
 
 // ---------------------------------------------------------------------------
 // Fábricas de mocks (hoisted — disponibles antes de la importación del módulo)
@@ -628,6 +629,19 @@ describe("query bind values (QBV-02)", () => {
     expect(task.mock.calls[0]?.[1]).toEqual({ query: "SELECT 1", ...connectionOptions });
     expect(task.mock.calls[0]?.[1]).not.toHaveProperty("values");
     expect(result.values).toBeUndefined();
+  });
+
+  it("honest partial: 2nd-arg with only host forwards just the override", async () => {
+    const partial: DbConnectionOptions = { host: "override.example.test" };
+    const task = mockQueryTasks([{ value: 1 }]);
+    const queryHandler = capturedCommands["query"] as (
+      query: string,
+      options: unknown,
+    ) => Promise<{ values?: unknown[] }>;
+
+    await queryHandler("SELECT 1", partial);
+
+    expect(task.mock.calls[0]?.[1]).toEqual({ query: "SELECT 1", host: "override.example.test" });
   });
 
   it("preserves explicit per-query overrides when values are supplied as the 2nd arg", async () => {
