@@ -1,13 +1,13 @@
 import { addApiCall } from "$lib/stores.svelte";
 import type { ApiCall, ApiResponse } from "$lib/types";
-import { reserveEntry } from "$lib/ui";
 import { setActiveApiCall } from "$lib/ui/chai-interceptor";
 import { bodySizeBytes, newCallId, nowMs } from "$lib/utils/metrics";
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse } from "$lib/utils/redaction";
+import { reserveCallPlaceholder } from "../support/command-ui";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
 import type { ApiRequestOptions } from "../support/plugin-types";
-import { applySnapshotOnly, getOrCreateContainer, showApiUi } from "../support/plugin-ui";
+import { showApiUi } from "../support/plugin-ui";
 import { getTestStore } from "../support/test-store";
 
 /**
@@ -58,20 +58,8 @@ export function registerHttpCommand(): void {
       const attemptDelay = retry?.delay ?? 0;
       const attempts: ApiResponse[] = [];
 
-      // Reserve placeholder EN ORDEN DE LLAMADA before cy.request to preserve
-      // orden visual = orden de llamada (no orden de finalización).
-      try {
-        const winEarly = cy.state("window") as Window | undefined;
-        const docEarly = winEarly?.document;
-        if (docEarly?.getElementById) {
-          const containerEarly = getOrCreateContainer(docEarly);
-          const cfgEarly = readPluginConfig();
-          applySnapshotOnly(containerEarly, cfgEarly);
-          reserveEntry(callId, docEarly);
-        }
-      } catch (e) {
-        logDebug("reserveEntry http early failed", e);
-      }
+      // Placeholder en orden de llamada (no de finalización) — ver command-ui.
+      reserveCallPlaceholder(callId, "http");
 
       function doRequest(attemptNumber: number): Cypress.Chainable<ApiResponse> {
         const attemptStart = nowMs();

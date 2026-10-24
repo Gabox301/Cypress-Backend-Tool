@@ -1,8 +1,8 @@
 import { addDbQuery } from "$lib/stores.svelte";
 import type { DbQuery } from "$lib/types";
-import { reserveEntry } from "$lib/ui";
 import { newCallId, nowMs } from "$lib/utils/metrics";
 import { REDACTED_VALUE, redactValue } from "$lib/utils/redaction";
+import { reserveCallPlaceholder } from "../support/command-ui";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
 import type {
@@ -11,7 +11,7 @@ import type {
   DbQueryTaskThen,
   DbTaskResult,
 } from "../support/plugin-types";
-import { applySnapshotOnly, getOrCreateContainer, showDbQueryUi } from "../support/plugin-ui";
+import { showDbQueryUi } from "../support/plugin-ui";
 import { getTestStore } from "../support/test-store";
 
 export function registerQueryCommand(): void {
@@ -30,19 +30,8 @@ export function registerQueryCommand(): void {
       const redactionSettings = readPluginConfig();
       const startTime = nowMs();
       const queryId = newCallId();
-      // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
-      try {
-        const winEarly = cy.state("window") as Window | undefined;
-        const docEarly = winEarly?.document;
-        if (docEarly?.getElementById) {
-          const containerEarly = getOrCreateContainer(docEarly);
-          const cfgEarly = readPluginConfig();
-          applySnapshotOnly(containerEarly, cfgEarly);
-          reserveEntry(queryId, docEarly);
-        }
-      } catch (e) {
-        logDebug("reserveEntry query early failed", e);
-      }
+      // Placeholder en orden de llamada — ver command-ui.
+      reserveCallPlaceholder(queryId, "query");
 
       // Renders a failure UI entry (store + log + mount + snapshot) for the
       // sync-degraded/D2/QIR paths below. Never throws: a render problem must
