@@ -1,4 +1,4 @@
-import { addApiCall } from "$lib/stores.svelte";
+import { addApiCall, pushCapped } from "$lib/stores.svelte";
 import type { ApiCall, ApiResponse } from "$lib/types";
 import { setActiveApiCall } from "$lib/ui/chai-interceptor";
 import { bodySizeBytes, newCallId, nowMs } from "$lib/utils/metrics";
@@ -102,7 +102,7 @@ export function registerHttpCommand(): void {
               ).retryCount = Math.max(0, attempts.length - 1);
             }
             addApiCall(call);
-            getTestStore().apiCalls.push(call);
+            pushCapped(getTestStore().apiCalls, call);
             const logRequest = redactApiRequest(options, redactionSettings);
             const logResponse = redactApiResponse(response, redactionSettings);
             // One-policy redaction mapping for the free-text error: transport
@@ -257,7 +257,7 @@ export function registerHttpCommand(): void {
           ).retryCount = attempts.length - 1;
         }
         addApiCall(call);
-        getTestStore().apiCalls.push(call);
+        pushCapped(getTestStore().apiCalls, call);
         const logRequest = redactApiRequest(options, redactionSettings);
         const logResponse = redactApiResponse(finalResponse, redactionSettings);
         const log = Cypress.log({

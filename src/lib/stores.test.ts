@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import {
+  MAX_STORE_ENTRIES,
   addApiCall,
   addDbConnection,
   addDbQuery,
@@ -8,6 +9,7 @@ import {
   clearDbQueries,
   dbConnectionsGlobal,
   dbQueries,
+  pushCapped,
   removeDbConnection,
   updateDbConnection,
 } from "./stores.svelte";
@@ -268,5 +270,38 @@ describe("limpieza de ambos — arreglos independientes", () => {
     expect(dbQueries[0].id).toBe("db-1");
     clearDbQueries();
     expect(dbQueries).toHaveLength(0);
+  });
+});
+
+describe("stores — cota de entradas (PH3-T5)", () => {
+  beforeEach(() => {
+    clearApiCalls();
+    clearDbQueries();
+  });
+
+  it("addApiCall evicta las más viejas pasado el máximo", () => {
+    for (let i = 0; i < MAX_STORE_ENTRIES + 5; i++) addApiCall(makeApiCall({ id: `call-${i}` }));
+    expect(apiCalls).toHaveLength(MAX_STORE_ENTRIES);
+    expect(apiCalls[0].id).toBe("call-5");
+    expect(apiCalls[MAX_STORE_ENTRIES - 1].id).toBe(`call-${MAX_STORE_ENTRIES + 4}`);
+  });
+
+  it("addDbQuery evicta igual", () => {
+    for (let i = 0; i < MAX_STORE_ENTRIES + 3; i++) addDbQuery(makeDbQuery({ id: `q-${i}` }));
+    expect(dbQueries).toHaveLength(MAX_STORE_ENTRIES);
+    expect(dbQueries[0].id).toBe("q-3");
+  });
+
+  it("pushCapped conserva las más nuevas en arreglos planos", () => {
+    const arr: number[] = [];
+    for (let i = 0; i < MAX_STORE_ENTRIES + 3; i++) pushCapped(arr, i);
+    expect(arr).toHaveLength(MAX_STORE_ENTRIES);
+    expect(arr[0]).toBe(3);
+    expect(arr[MAX_STORE_ENTRIES - 1]).toBe(MAX_STORE_ENTRIES + 2);
+  });
+
+  it("bajo la cota no evicta", () => {
+    addApiCall(makeApiCall({ id: "only" }));
+    expect(apiCalls.map((c) => c.id)).toEqual(["only"]);
   });
 });

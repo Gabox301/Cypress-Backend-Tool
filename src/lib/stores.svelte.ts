@@ -21,12 +21,27 @@ export const pluginConfig = $state<CypressApiPluginConfig>({
 });
 
 // Funciones helper para manipular el estado
+
+/**
+ * Cota por lista (PH3-T5): en tests gigantes se evicta lo más viejo para que
+ * los stores no crezcan sin límite. El registro/DOM se limpia por test en los
+ * hooks; esto acota el caso de cientos de llamadas dentro de un solo `it()`.
+ */
+export const MAX_STORE_ENTRIES = 100;
+
+export function pushCapped<T>(list: T[], item: T): void {
+  if (list.length >= MAX_STORE_ENTRIES) {
+    list.splice(0, list.length - MAX_STORE_ENTRIES + 1);
+  }
+  list.push(item);
+}
+
 export function addApiCall(call: ApiCall) {
-  apiCalls.push(call);
+  pushCapped(apiCalls, call);
 }
 
 export function addDbQuery(query: DbQuery) {
-  dbQueries.push(query);
+  pushCapped(dbQueries, query);
 }
 
 export function addDbConnection(conn: DbConnection) {

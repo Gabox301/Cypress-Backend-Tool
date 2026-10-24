@@ -1,4 +1,4 @@
-import { addDbQuery } from "$lib/stores.svelte";
+import { addDbQuery, pushCapped } from "$lib/stores.svelte";
 import type { DbQuery } from "$lib/types";
 import { newCallId, nowMs } from "$lib/utils/metrics";
 import { REDACTED_VALUE, redactValue } from "$lib/utils/redaction";
@@ -51,7 +51,7 @@ export function registerQueryCommand(): void {
             database,
           };
           addDbQuery(dbCall);
-          getTestStore().dbQueries.push(dbCall);
+          pushCapped(getTestStore().dbQueries, dbCall);
           const logQuery =
             redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
               ? REDACTED_VALUE
@@ -185,7 +185,7 @@ export function registerQueryCommand(): void {
             database,
           };
           addDbQuery(dbCall);
-          getTestStore().dbQueries.push(dbCall);
+          pushCapped(getTestStore().dbQueries, dbCall);
           // Misma lógica que cy.http(): el log se crea DESPUÉS de que cy.task haya
           // resuelto, de modo que ningún snapshot interno de pase de comando del AUT
           // previo al montaje puede inyectarse en él — el ÚNICO snapshot es el explícito
