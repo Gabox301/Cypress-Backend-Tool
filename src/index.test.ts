@@ -1526,3 +1526,47 @@ describe("cy.query flattened chain (FL-1)", () => {
     expect(entry.database).toBe("test_db");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Whitelist de transporte http (AUDIT-T3): internos del plugin nunca al transporte
+// ---------------------------------------------------------------------------
+describe("http transport whitelist (AUDIT-T3)", () => {
+  beforeAll(async () => {
+    await import("./index");
+  });
+
+  it("passes only documented cy.request fields, never plugin internals", async () => {
+    const mockRequest = vi.fn().mockResolvedValue({
+      status: 200,
+      body: { ok: true },
+      headers: {},
+      statusText: "OK",
+      cookies: [],
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).request = mockRequest;
+    const httpHandler = capturedCommands["http"] as (...args: unknown[]) => Promise<unknown>;
+    await httpHandler({
+      url: "https://api.example.com/data",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: { title: "t" },
+      qs: { page: "1" },
+      auth: { username: "u", password: "p" },
+      expect: { status: 200 },
+      retry: { retries: 2, delay: 0 },
+      redact: false,
+    });
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    const sent = mockRequest.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(sent).toEqual({
+      url: "https://api.example.com/data",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: { title: "t" },
+      qs: { page: "1" },
+      auth: { username: "u", password: "p" },
+      log: false,
+      failOnStatusCode: false,
+    });
+  });
+});

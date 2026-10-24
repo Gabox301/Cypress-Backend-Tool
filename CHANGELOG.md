@@ -5,6 +5,18 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Added
+
+- **TLS verificado y CA por env (`db`):** `CYPRESS_DB_SSL`/`DB_SSL` aceptan `require`/`verify` (TLS verificado) e `insecure`/`no-verify` (opt-in explícito al modo inseguro); nuevo `CYPRESS_DB_SSL_CA`/`DB_SSL_CA` para CA custom en PEM. El histórico `"true"` sigue funcionando pero emite un warning en Node (no verifica el certificado).
+- **Enmascarado por campo + override por request (`http`):** cuerpos y respuestas enmascaran por nombre de campo sensible y preservan tipos y valores no sensibles; `redact: false` en `cy.http()` desactiva el enmascarado de esa llamada (nunca viaja al servidor).
+
+### Fixed
+
+- **Whitelist de transporte (`http`):** solo `url/method/headers/body/qs/auth` llegan a `cy.request`; los internos `expect`/`retry`/`redact` nunca salen del plugin.
+- **Docs:** `defaults.ssl: true` es TLS verificado con defaults de `pg` (no insecure); corrección en tablas ES/EN.
+
 ## [1.2.6] - 2026-10-22
 
 ### Changed

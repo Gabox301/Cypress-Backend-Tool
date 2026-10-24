@@ -20,7 +20,7 @@ Cypress plugin for HTTP API testing and PostgreSQL database queries with an inte
 
 - **Persistent UI**: Each request/query has its own permanent DOM entry. Cypress snapshots are stable across `it()` blocks — you will never see a blank panel when inspecting a previous call.
 - **PostgreSQL support**: Run SQL queries directly from Cypress without exposing default credentials to the browser.
-- **Credential redaction**: Masks sensitive request and response values in the UI, Cypress logs, and generated cURL by default; redaction can be explicitly disabled.
+- **Credential redaction**: Masks sensitive request and response values in the UI, Cypress logs, and generated cURL by default; redaction can be explicitly disabled. In bodies and responses, masking is by sensitive field name (`password`, `token`, `api_key`, …) and preserves types and non-sensitive values; headers, auth, query and URL stay fully masked. `redact: false` per request disables masking for that call.
 - **DB credential isolation**: Default database credentials stay in the Cypress Node process; explicit per-query connection overrides remain supported.
 - **Modern API**: Uses Cypress `Cypress.expose()` and `cy.env()` APIs from Cypress 15.10.0+
 - **Automatic coloring via `expect()`**: Each `expect()` over `response.status`, `response.body`, `response.headers`, `response.cookies` or nested fields colors the `ResponsePanel`/`CodeBlock` in green (match), red (mismatch) or yellow (nullish). Cookie assertions are recorded as a name→value map (mirroring headers) and highlight cookie rows; comparison uses raw values while `hideCredentials` still redacts the displayed value. Works with `eq`, `deep.eq`, `have.property` and `not` — no extra configuration.
@@ -161,7 +161,7 @@ CYPRESS_DB_PORT=5432
 CYPRESS_DB_NAME=my_db
 CYPRESS_DB_USER=postgres
 CYPRESS_DB_PASSWORD=secret
-CYPRESS_DB_SSL=true           # true => {rejectUnauthorized:false} for Neon/Supabase, false to disable, or JSON: {"rejectUnauthorized":false,"ca":"..."}
+CYPRESS_DB_SSL=true           # true => {rejectUnauthorized:false} for Neon/Supabase (warns: no cert verification). Prefer require + CYPRESS_DB_SSL_CA; false disables; or JSON: {"rejectUnauthorized":false,"ca":"..."}
 # Optional timeouts via defaults (not via env, see below)
 
 # Fallback — only if CYPRESS_DB_* is not set
@@ -214,28 +214,29 @@ export default defineConfig({
 
 The snapshot (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) merges into `config.expose` without overwriting your keys. This keeps `cy.query()` aligned with the registered task names without adding a per-query prefix option.
 
-| Option                             | Type                | Default         | Description                                                              |
-| ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------------------ |
-| `defaultPrefix`                    | `string`            | `''`            | Prefix for registered task names                                         |
-| `envPrefix`                        | `string`            | `'CYPRESS_DB_'` | Prefix of environment variables to read                                  |
-| `defaults`                         | `object`            | —               | Fallback values when no env vars are set                                 |
-| `defaults.host`                    | `string`            | —               | Database host                                                            |
-| `defaults.port`                    | `number`            | —               | Database port                                                            |
-| `defaults.database`                | `string`            | —               | Database name                                                            |
-| `defaults.user`                    | `string`            | —               | Database user                                                            |
-| `defaults.password`                | `string`            | —               | Database password                                                        |
-| `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→{rejectUnauthorized:false}, `false`→no SSL, object passed to `pg` |
-| `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Pool/Client connection timeout                                           |
-| `defaults.idleTimeoutMillis`       | `number`            | `2000`          | Pool idle timeout                                                        |
+| Option                             | Type                | Default         | Description                                                |
+| ---------------------------------- | ------------------- | --------------- | ---------------------------------------------------------- |
+| `defaultPrefix`                    | `string`            | `''`            | Prefix for registered task names                           |
+| `envPrefix`                        | `string`            | `'CYPRESS_DB_'` | Prefix of environment variables to read                    |
+| `defaults`                         | `object`            | —               | Fallback values when no env vars are set                   |
+| `defaults.host`                    | `string`            | —               | Database host                                              |
+| `defaults.port`                    | `number`            | —               | Database port                                              |
+| `defaults.database`                | `string`            | —               | Database name                                              |
+| `defaults.user`                    | `string`            | —               | Database user                                              |
+| `defaults.password`                | `string`            | —               | Database password                                          |
+| `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→verified TLS, `false`→no SSL, object passed to `pg` |
+| `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Pool/Client connection timeout                             |
+| `defaults.idleTimeoutMillis`       | `number`            | `2000`          | Pool idle timeout                                          |
 
 `options.defaults` has no connection values unless configured. For compatibility, when no environment value or per-query override is available, `db:query` uses `localhost`, port `5432`, database `test_db`, user `postgres`, and an empty password inside Node. These are query fallbacks, not Pool defaults; `db:getConfig` returns only configured connection metadata.
 
-> `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"true"`/`"1"`/`"yes"` → `{ rejectUnauthorized: false }`, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object.
+> `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"true"`/`"1"`/`"yes"` → `{ rejectUnauthorized: false }` (warns in Node: no certificate verification), `"require"`/`"verify"` → verified TLS, `"insecure"`/`"no-verify"` → explicit opt-in to insecure mode, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object. `CYPRESS_DB_SSL_CA` / `DB_SSL_CA` provide the CA in PEM (literal `\n` newlines accepted); an explicit `false` wins over the CA.
 
 #### SSL for Neon / Supabase / RDS
 
 - **Neon** (pooler) requires `CYPRESS_DB_SSL=true` (or `ssl: { rejectUnauthorized: false }` in `defaults`) and, if you use `DATABASE_URL`, append `?sslmode=require` to the URL.
 - **Supabase** similar: `CYPRESS_DB_SSL=true` or `ssl: { rejectUnauthorized: false }`.
+- **RDS / custom CA**: `CYPRESS_DB_SSL=require` + `CYPRESS_DB_SSL_CA="<pem>"` (or `ssl: { ca: '...' }` in `defaults`) for verified TLS with a custom CA.
 - **Local Postgres without SSL**: omit the variable or use `CYPRESS_DB_SSL=false` / `defaults.ssl: false`.
 
 Both approaches are equivalent:
@@ -245,6 +246,9 @@ Both approaches are equivalent:
 CYPRESS_DB_SSL=true
 # or advanced JSON
 CYPRESS_DB_SSL={"rejectUnauthorized":false,"ca":"..."}
+# or verified TLS with a custom CA
+CYPRESS_DB_SSL=require
+CYPRESS_DB_SSL_CA="-----BEGIN CERTIFICATE-----..."
 ```
 
 ```typescript
@@ -252,7 +256,7 @@ CYPRESS_DB_SSL={"rejectUnauthorized":false,"ca":"..."}
 setupDatabaseTasks(on, {
   defaults: {
     ssl: { rejectUnauthorized: false },
-    // or ssl: true  → { rejectUnauthorized: false }
+    // or ssl: true  → verified TLS with pg defaults
     // or ssl: false → no SSL
   },
 });
@@ -309,6 +313,16 @@ cy.http({
 cy.http("https://example.com/login").then((r) => {
   expect(r.cookies).to.have.property("session", "abc123"); // → green cookie row on match, red on mismatch
 });
+
+// Per-request redaction override — only this call renders unredacted
+cy.http({
+  url: "https://api.example.com/users",
+  method: "GET",
+  redact: false, // plugin-internal: never sent to the server
+});
+
+// Transport note: only url/method/headers/body/qs/auth reach the server.
+// Plugin internals (expect, retry, redact) never leave the plugin.
 ```
 
 ### cy.query() - PostgreSQL Queries
@@ -393,7 +407,7 @@ export default defineConfig({
 | `hideCredentialsOptions` | `{headers,auth,body,query: boolean}` | All `true` | Granular control per section       |
 | `CYPRESS_PLUGIN_DEBUG`   | `boolean`                            | `false`    | Diagnostic logs                    |
 
-Set `hideCredentials: false` explicitly to show unredacted values. Individual `hideCredentialsOptions` can opt a section out; otherwise all listed values are masked. cURL output is sanitized by default and may need credentials restored before replay.
+Set `hideCredentials: false` explicitly to show unredacted values. Individual `hideCredentialsOptions` can opt a section out; otherwise all listed values are masked. cURL output is sanitized by default and may need credentials restored before replay. In bodies and responses, "sensitive" means field name (`password`, `token`, `api_key`, …) — everything else renders with its type. `redact: false` in `cy.http()` disables masking for that call only.
 
 ### configure() — Programmatic override
 
@@ -490,7 +504,7 @@ npm run build
 # All tests (unit + E2E)
 npm test
 
-# Unit only (vp test, 356 tests)
+# Unit only (vp test, 372 tests)
 npm run unit
 
 # Watch

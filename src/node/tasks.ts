@@ -179,6 +179,20 @@ export function setupDatabaseTasks(
       if (lower === "false" || lower === "0" || lower === "no" || lower === "disable") {
         return false;
       }
+      // Keywords seguros: verificación TLS completa (valor booleano `true` de pg).
+      if (
+        lower === "require" ||
+        lower === "verify" ||
+        lower === "verify-full" ||
+        lower === "verify_full"
+      ) {
+        return true;
+      }
+      // Opt-in explícito al modo inseguro (mismo efecto que el histórico "true",
+      // pero nombrando la consecuencia en vez de escondela).
+      if (lower === "insecure" || lower === "no-verify" || lower === "noverify") {
+        return { rejectUnauthorized: false };
+      }
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         try {
           return JSON.parse(trimmed) as Record<string, unknown>;
@@ -196,8 +210,50 @@ export function setupDatabaseTasks(
     return undefined;
   };
 
+  const readSslCa = (): string | undefined => {
+    const raw = process.env[envPrefix + "SSL_CA"] ?? process.env["DB_SSL_CA"];
+    if (raw === undefined) return undefined;
+    // Acepta PEM con `\n` literales (típico en env vars) además de saltos reales.
+    const normalized = raw.replace(/\\n/g, "\n").trim();
+    return normalized === "" ? undefined : normalized;
+  };
+
+  /** `true` cuando la config desactiva la verificación del certificado (MITM posible). */
+  const isInsecureSsl = (ssl: unknown): boolean =>
+    typeof ssl === "object" &&
+    ssl !== null &&
+    (ssl as Record<string, unknown>).rejectUnauthorized === false;
+
+  /**
+   * Combina `readSslEnv()` con `readSslCa()`. Precedencia: `args.ssl` (por consulta,
+   * resuelto en el handler) > env SSL > `defaults.ssl`; el CA nunca pisa un `ca`
+   * ya presente y un `false` explícito (SSL desactivado) siempre gana sobre el CA.
+   */
+  const resolveSsl = (): boolean | Record<string, unknown> | undefined => {
+    const base = readSslEnv();
+    const ca = readSslCa();
+    if (ca === undefined) return base;
+    if (base === false) return false;
+    if (base === true) return { ca };
+    if (typeof base === "object" && base !== null) {
+      const rec = base as Record<string, unknown>;
+      return { ...rec, ca: rec.ca ?? ca };
+    }
+    // Solo hay CA: implica TLS verificado con CA custom (seguro por default).
+    return { ca };
+  };
+
   const defaultHost = readEnv("HOST");
-  const sslValue = readSslEnv();
+  const sslValue = resolveSsl();
+  if (isInsecureSsl(sslValue)) {
+    // Aviso una vez por setup (no por query): el histórico `"true"` sigue funcionando
+    // por compatibilidad, pero ahora grita su consecuencia en el log de Node.
+    console.warn(
+      `[cypress-backend-tool] ${envPrefix}SSL desactiva la verificación TLS ` +
+        `({ rejectUnauthorized: false }): posible MITM. ` +
+        `Usá ${envPrefix}SSL=require con ${envPrefix}SSL_CA, o un objeto ssl con ca.`,
+    );
+  }
   const pool = new pg.Pool({
     max: 1,
     host: defaultHost,
@@ -232,7 +288,7 @@ export function setupDatabaseTasks(
       const database = args.database || readEnv("NAME", "database") || "test_db";
       const user = args.user || readEnv("USER") || "postgres";
       const password = args.password ?? readEnv("PASSWORD");
-      const effectiveSsl = args.ssl ?? readSslEnv();
+      const effectiveSsl = args.ssl ?? resolveSsl();
       const values = Array.isArray(args.values) ? args.values : undefined;
       const poolOpts = pool.options as unknown as Record<string, unknown>;
       const poolSsl = poolOpts["ssl"] as unknown;

@@ -13,6 +13,11 @@ export interface ApiRequestOptions {
   failOnStatusCode?: boolean;
   expect?: unknown;
   retry?: { retries: number; delay: number };
+  /**
+   * Override por request del enmascaramiento: `false` muestra esta llamada sin
+   * enmascarar en logs y paneles. Nunca se envía al servidor (interno del plugin).
+   */
+  redact?: boolean;
 }
 
 /** Forma devuelta por cy.task('db:query') */
