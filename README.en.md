@@ -517,7 +517,7 @@ npm run build
 # All tests (unit + E2E)
 npm test
 
-# Unit only (vp test, 387 tests)
+# Unit only (vp test, 405 tests)
 npm run unit
 
 # Watch
