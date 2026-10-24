@@ -23,7 +23,7 @@ Plugin de Cypress para testing de APIs HTTP y consultas a bases de datos Postgre
 - **Enmascaramiento de credenciales**: Oculta valores sensibles en la interfaz, los registros de Cypress y el cURL generado de forma predeterminada; es posible desactivarlo explícitamente. En cuerpos y respuestas el enmascarado es por nombre de campo sensible (`password`, `token`, `api_key`, …) y preserva tipos y valores no sensibles; headers, auth, query y URL siguen con enmascarado total. `redact: false` por request desactiva el enmascarado de esa llamada.
 - **Aislamiento de credenciales de base de datos**: Las credenciales predeterminadas permanecen en el proceso Node de Cypress; se mantienen las opciones explícitas por consulta.
 - **API moderna**: Usa las APIs `Cypress.expose()` y `cy.env()` de Cypress 15.10.0+
-- **Coloreo automático por `expect()`**: Cada `expect()` sobre `response.status`, `response.body`, `response.headers`, `response.cookies` o campos anidados colorea el `ResponsePanel`/`CodeBlock` en verde (match), rojo (mismatch) o amarillo (nullish). Las aserciones de cookies se registran como mapa nombre→valor (igual que los headers) y resaltan las filas de cookies; la comparación usa los valores originales mientras `hideCredentials` sigue ocultando el valor mostrado. Funciona con `eq`, `deep.eq`, `have.property` y `not` — sin configuración adicional.
+- **Coloreo automático por `expect()`**: Cada `expect()` sobre `response.status`, `response.body`, `response.headers`, `response.cookies` o campos anidados colorea el `ResponsePanel`/`CodeBlock` en verde (match), rojo (mismatch) o amarillo (nullish). Las aserciones de cookies se registran como mapa nombre→valor (igual que los headers) y resaltan las filas de cookies; la comparación usa los valores originales mientras `hideCredentials` sigue ocultando el valor mostrado. Funciona con `eq`, `deep.eq`, `have.property` y `not` — sin configuración adicional. Las aserciones tardías (alias) colorean su llamada original aunque otra haya completado después (solo `cy.http()`).
 - **Snapshot con coloreo**: El `Cypress.log` de `cy.http()`/`cy.query()` guarda un segundo snapshot `'assertions'` tras el microtask de `expect()`, por lo que al hacer hover sobre el log en el Command Log ves el panel ya coloreado, no solo el DOM vivo.
 - **Amarillo preciso — solo si el valor _real_ es `null`/`undefined`**: `expect("hildegard.org").to.not.be.null` ahora es **verde** (no amarillo). Amarillo solo cuando `response.body.campo` es realmente `null`/`undefined` en la respuesta.
 
@@ -323,6 +323,19 @@ cy.http({
 
 // Nota de transporte: al servidor solo llegan url/method/headers/body/qs/auth.
 // Los internos (expect, retry, redact) nunca salen del plugin.
+
+// Reintentos (B refinada): con retry se reintentan 5xx, 408 y 429 con backoff
+// exponencial (delay·2^n), independiente de failOnStatusCode (tras agotar se
+// aplica); otros 4xx no reintentan; la red falla al primer intento.
+// OJO: evitá retry en POST no idempotentes.
+cy.http({
+  url: "https://api.example.com/flaky",
+  method: "GET",
+  retry: { retries: 2, delay: 100 },
+}).then((response) => {
+  expect(response.status).to.eq(200);
+  expect(response.retryCount).to.eq(0); // 0 reintentos si el primero da 2xx
+});
 ```
 
 ### cy.query() - Consultas PostgreSQL
@@ -504,7 +517,7 @@ npm run build
 # Todos los tests (unit + E2E)
 npm test
 
-# Solo unit (vp test, 372 tests)
+# Solo unit (vp test, 387 tests)
 npm run unit
 
 # Watch

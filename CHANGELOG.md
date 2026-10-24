@@ -11,10 +11,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 - **TLS verificado y CA por env (`db`):** `CYPRESS_DB_SSL`/`DB_SSL` aceptan `require`/`verify` (TLS verificado) e `insecure`/`no-verify` (opt-in explícito al modo inseguro); nuevo `CYPRESS_DB_SSL_CA`/`DB_SSL_CA` para CA custom en PEM. El histórico `"true"` sigue funcionando pero emite un warning en Node (no verifica el certificado).
 - **Enmascarado por campo + override por request (`http`):** cuerpos y respuestas enmascaran por nombre de campo sensible y preservan tipos y valores no sensibles; `redact: false` en `cy.http()` desactiva el enmascarado de esa llamada (nunca viaja al servidor).
+- **Reintentos ante transitorios (`http`, B refinada):** con `retry` se reintentan 5xx, 408 y 429 con backoff exponencial, independiente de `failOnStatusCode` (tras agotar se aplica); `attempts`/`retryCount` conservados.
 
 ### Fixed
 
 - **Whitelist de transporte (`http`):** solo `url/method/headers/body/qs/auth` llegan a `cy.request`; los internos `expect`/`retry`/`redact` nunca salen del plugin.
+- **Atribución de aserciones por llamada (`http`):** los `expect()` tardíos (alias) colorean su llamada original aunque otra haya completado después (activa primero, luego más reciente primero); coloreo sigue HTTP-only.
+
+### Removed
+
+- **`prismjs`:** dependencia sin ningún import en `src` (CodeBlock usa tokenizer propio sin HTML crudo); eliminada de `package.json` + lock.
 - **Docs:** `defaults.ssl: true` es TLS verificado con defaults de `pg` (no insecure); corrección en tablas ES/EN.
 
 ## [1.2.6] - 2026-10-22
