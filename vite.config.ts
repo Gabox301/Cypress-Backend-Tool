@@ -307,6 +307,8 @@ export default defineConfig({
         "src/lib/config.ts",
         "src/lib/types/index.ts",
       ],
+      // Nunca emitir declaraciones de tests al dist publicado.
+      exclude: ["**/*.test.ts", "**/*.test-d.ts", "**/__tests__/**"],
     }),
   ]),
   build: {
