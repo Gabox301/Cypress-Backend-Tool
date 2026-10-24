@@ -1,6 +1,7 @@
 import { addDbQuery } from "$lib/stores.svelte";
 import type { DbQuery } from "$lib/types";
 import { reserveEntry } from "$lib/ui";
+import { newCallId, nowMs } from "$lib/utils/metrics";
 import { REDACTED_VALUE, redactValue } from "$lib/utils/redaction";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
@@ -27,8 +28,8 @@ export function registerQueryCommand(): void {
       ) as DbConnectionOptions | undefined;
       const dbTaskPrefix = (Cypress.expose("dbTaskPrefix") as string) ?? "";
       const redactionSettings = readPluginConfig();
-      const startTime = Date.now();
-      const queryId = crypto.randomUUID();
+      const startTime = nowMs();
+      const queryId = newCallId();
       // Reserva placeholder temprano (mismo razonamiento que cy.http) — orden de llamada
       try {
         const winEarly = cy.state("window") as Window | undefined;
@@ -56,7 +57,7 @@ export function registerQueryCommand(): void {
             result: null,
             rowCount: 0,
             error: errorMessage,
-            duration: Date.now() - startTime,
+            duration: nowMs() - startTime,
             timestamp: Date.now(),
             database,
           };
@@ -180,7 +181,7 @@ export function registerQueryCommand(): void {
           const dbResponse: DbQueryResponse = {
             rows: queryRows,
             rowCount: result.rowCount || 0,
-            duration: Date.now() - startTime,
+            duration: nowMs() - startTime,
             query,
             ...(values !== undefined ? { values } : {}),
           };
@@ -190,7 +191,7 @@ export function registerQueryCommand(): void {
             query,
             result: queryRows,
             rowCount: result.rowCount ?? queryRows.length,
-            duration: Date.now() - startTime,
+            duration: nowMs() - startTime,
             timestamp: Date.now(),
             database,
           };
