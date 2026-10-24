@@ -1,5 +1,5 @@
-describe("cy.http — diagnóstico de reintentos (P3-7)", () => {
-  it("retry: 4xx con failOnStatusCode:false reintenta y resuelve con la respuesta final", () => {
+describe("cy.http — diagnóstico de reintentos (B refinada)", () => {
+  it("retry: 429 con failOnStatusCode:false reintenta y resuelve con la respuesta final", () => {
     cy.http({
       url: "https://httpbin.org/status/429",
       method: "GET",
@@ -24,7 +24,7 @@ describe("cy.http — diagnóstico de reintentos (P3-7)", () => {
     });
   });
 
-  it("retry: failOnStatusCode:true lanza inmediatamente sin reintentar", () => {
+  it("retry: 500 con failOnStatusCode por defecto agota reintentos y luego lanza", () => {
     cy.on("fail", (error) => {
       expect(error.message).to.include("cy.http request failed: 500");
       return false;
@@ -33,8 +33,20 @@ describe("cy.http — diagnóstico de reintentos (P3-7)", () => {
     cy.http({
       url: "https://httpbin.org/status/500",
       method: "GET",
+      retry: { retries: 2, delay: 50 },
+    });
+  });
+
+  it("retry: 400 no es transitorio — no reintenta y retorna de inmediato", () => {
+    cy.http({
+      url: "https://httpbin.org/status/400",
+      method: "GET",
       retry: { retries: 3, delay: 50 },
-      failOnStatusCode: true,
+      failOnStatusCode: false,
+    }).then((response: any) => {
+      expect(response.status).to.eq(400);
+      expect(response.retryCount).to.eq(0);
+      expect(response.attempts).to.have.length(1);
     });
   });
 

@@ -117,4 +117,32 @@ describe("cypress-backend-tool — Coloreado de Expect en el Panel de Respuesta"
         cy.get(".expect-pill.nullish").should("contain.text", "null/undef");
       });
   });
+
+  it("8. Alias de llamada vieja colorea la vieja, no la última (PH2-T2)", () => {
+    let first: any;
+    cy.http("https://jsonplaceholder.typicode.com/users/1").then((response: any) => {
+      first = response;
+      expect(response.status).to.eq(200);
+    });
+    cy.http("https://jsonplaceholder.typicode.com/users/2").then((response: any) => {
+      expect(response.status).to.eq(200);
+      expect(response.body.name).to.eq("Ervin Howell");
+    });
+    // Aserción tardía sobre la primera respuesta: debe colorear la primera
+    // entrada aunque la segunda haya completado después.
+    cy.then(() => {
+      expect(first.body.name).to.eq("Leanne Graham");
+    });
+    cy.get('#cypress-api-plugin-container div[id^="cabt-entry-"]')
+      .first()
+      .within(() => {
+        cy.get(".line-match").should("contain.text", "Leanne Graham");
+      });
+    cy.get('#cypress-api-plugin-container div[id^="cabt-entry-"]')
+      .last()
+      .within(() => {
+        cy.get(".line-match").should("contain.text", "Ervin Howell");
+        cy.get(".line-match").should("not.contain.text", "Leanne Graham");
+      });
+  });
 });

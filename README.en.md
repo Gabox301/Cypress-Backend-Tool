@@ -23,7 +23,7 @@ Cypress plugin for HTTP API testing and PostgreSQL database queries with an inte
 - **Credential redaction**: Masks sensitive request and response values in the UI, Cypress logs, and generated cURL by default; redaction can be explicitly disabled. In bodies and responses, masking is by sensitive field name (`password`, `token`, `api_key`, …) and preserves types and non-sensitive values; headers, auth, query and URL stay fully masked. `redact: false` per request disables masking for that call.
 - **DB credential isolation**: Default database credentials stay in the Cypress Node process; explicit per-query connection overrides remain supported.
 - **Modern API**: Uses Cypress `Cypress.expose()` and `cy.env()` APIs from Cypress 15.10.0+
-- **Automatic coloring via `expect()`**: Each `expect()` over `response.status`, `response.body`, `response.headers`, `response.cookies` or nested fields colors the `ResponsePanel`/`CodeBlock` in green (match), red (mismatch) or yellow (nullish). Cookie assertions are recorded as a name→value map (mirroring headers) and highlight cookie rows; comparison uses raw values while `hideCredentials` still redacts the displayed value. Works with `eq`, `deep.eq`, `have.property` and `not` — no extra configuration.
+- **Automatic coloring via `expect()`**: Each `expect()` over `response.status`, `response.body`, `response.headers`, `response.cookies` or nested fields colors the `ResponsePanel`/`CodeBlock` in green (match), red (mismatch) or yellow (nullish). Cookie assertions are recorded as a name→value map (mirroring headers) and highlight cookie rows; comparison uses raw values while `hideCredentials` still redacts the displayed value. Works with `eq`, `deep.eq`, `have.property` and `not` — no extra configuration. Late assertions (aliases) color their original call even if another completed later (`cy.http()` only).
 - **Colored snapshots**: The `Cypress.log` for `cy.http()`/`cy.query()` saves a second `'assertions'` snapshot after the `expect()` microtask, so hovering the log in the Command Log shows the panel already colored, not just the live DOM.
 - **Precise yellow — only when the _real_ value is `null`/`undefined`**: `expect("hildegard.org").to.not.be.null` is now **green** (not yellow). Yellow only when `response.body.field` is actually `null`/`undefined` in the response.
 
@@ -323,6 +323,19 @@ cy.http({
 
 // Transport note: only url/method/headers/body/qs/auth reach the server.
 // Plugin internals (expect, retry, redact) never leave the plugin.
+
+// Retries (refined B): with retry, 5xx, 408 and 429 are retried with exponential
+// backoff (delay·2^n), independent of failOnStatusCode (applied after exhaustion);
+// other 4xx never retry; network fails on the first attempt.
+// NOTE: avoid retry on non-idempotent POSTs.
+cy.http({
+  url: "https://api.example.com/flaky",
+  method: "GET",
+  retry: { retries: 2, delay: 100 },
+}).then((response) => {
+  expect(response.status).to.eq(200);
+  expect(response.retryCount).to.eq(0); // 0 retries when the first try is 2xx
+});
 ```
 
 ### cy.query() - PostgreSQL Queries
@@ -504,7 +517,7 @@ npm run build
 # All tests (unit + E2E)
 npm test
 
-# Unit only (vp test, 372 tests)
+# Unit only (vp test, 387 tests)
 npm run unit
 
 # Watch

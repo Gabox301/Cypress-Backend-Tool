@@ -1,12 +1,27 @@
 import { addApiCall } from "$lib/stores.svelte";
 import type { ApiCall, ApiResponse } from "$lib/types";
 import { reserveEntry } from "$lib/ui";
+import { setActiveApiCall } from "$lib/ui/chai-interceptor";
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse } from "$lib/utils/redaction";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
 import type { ApiRequestOptions } from "../support/plugin-types";
 import { applySnapshotOnly, getOrCreateContainer, showApiUi } from "../support/plugin-ui";
 import { getTestStore } from "../support/test-store";
+
+/**
+ * Política de reintento (B refinada, S3): solo estos fallos son transitorios.
+ * 408/429 son los únicos 4xx reintentables; todo 5xx sí; el resto no.
+ * Solo se aplica con `retry` configurado; sin él, idéntico a v1.1.6.
+ */
+export function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+/** Backoff exponencial sobre el `delay` base: espera antes del intento n+1. */
+export function retryBackoffMs(delay: number, attemptNumber: number): number {
+  return delay * 2 ** (attemptNumber - 1);
+}
 
 // ============================================
 // Registro de comandos — auto-inicialización al importar
@@ -59,6 +74,13 @@ export function registerHttpCommand(): void {
 
       function doRequest(attemptNumber: number): Cypress.Chainable<ApiResponse> {
         const attemptStart = Date.now();
+        // Reglas de asimilación del runner real (verificadas V1–V10): solo el
+        // .then de Cypress con UN callback asimila Chainables anidados; con dos
+        // handlers resuelve undefined (V3/V5), y un custom command no puede
+        // retornar promesas que encolen cy.* (CypressError, puente Bluebird
+        // descartado). Por eso: éxito y reintentos en .then single anidado
+        // (V1/V2/V4/V9) y rechazos de transporte en el tail (v=>v, err=>H1),
+        // que nunca retorna Chainables. Backoff con cy.wait (visible en el log).
 
         // Renders a failure UI entry (store + log + mount + snapshot) for the H1/H2
         // paths below. Never throws: a render problem must not mask the original
@@ -112,88 +134,112 @@ export function registerHttpCommand(): void {
         }
 
         return (
-          cy.request({
-            ...transportOptions,
-            log: false,
-            failOnStatusCode: false,
-          } as unknown as Record<string, unknown>) as unknown as Promise<{
-            status: number;
-            statusText: string;
-            headers: Record<string, string>;
-            body: unknown;
-            cookies?: ApiResponse["cookies"];
-          }>
-        ).then(
-          (cyResponse) => {
-            const response: ApiResponse = {
-              status: cyResponse.status,
-              statusText: cyResponse.statusText || "",
-              headers: (cyResponse.headers || {}) as Record<string, string>,
-              body: cyResponse.body,
-              duration: Date.now() - attemptStart,
-              size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
-              cookies: cyResponse.cookies || [],
-            };
-            attempts.push(response);
-
-            const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
-
-            if (options.failOnStatusCode !== false && !isSuccess) {
-              // H2: failOnStatusCode throws BEFORE retry — with the default
-              // failOnStatusCode:true a non-2xx response fails fast here and never
-              // reaches the retry branch below. Retry semantics intentionally
-              // unchanged (FCU-01).
-              const failure = new Error(
-                `cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`,
-              );
-              renderHttpFailure(response, failure.message);
-              throw failure;
-            }
-
-            if (isSuccess) {
-              return response as unknown as Cypress.Chainable<ApiResponse>;
-            }
-
-            if (attemptNumber < maxAttempts) {
-              return cy
-                .wait(attemptDelay)
-                .then(
-                  () => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>,
-                );
-            }
-
-            return response as unknown as Cypress.Chainable<ApiResponse>;
-          },
-          (err: unknown) => {
-            // H1: cy.request itself rejected (transport failure). The rejection
-            // carries no full response; preserve whatever status/body it exposes,
-            // otherwise the entry stays degraded (response: null, request known).
-            // No retry here — transport rejections never entered the retry branch.
-            const rejection = err as {
-              status?: unknown;
-              statusText?: unknown;
-              headers?: unknown;
-              body?: unknown;
+          (
+            cy.request({
+              ...transportOptions,
+              log: false,
+              failOnStatusCode: false,
+            } as unknown as Record<string, unknown>) as unknown as Promise<{
+              status: number;
+              statusText: string;
+              headers: Record<string, string>;
+              body: unknown;
               cookies?: ApiResponse["cookies"];
-            } | null;
-            const carriedStatus = typeof rejection?.status === "number" ? rejection.status : null;
-            const failureResponse: ApiResponse | null =
-              carriedStatus === null
-                ? null
-                : {
-                    status: carriedStatus,
-                    statusText:
-                      typeof rejection?.statusText === "string" ? rejection.statusText : "",
-                    headers: (rejection?.headers || {}) as Record<string, string>,
-                    body: rejection?.body,
-                    duration: Date.now() - attemptStart,
-                    size: rejection?.body ? JSON.stringify(rejection.body).length : 0,
-                    cookies: rejection?.cookies || [],
-                  };
-            renderHttpFailure(failureResponse, toErrorMessage(err));
-            throw err;
-          },
-        ) as unknown as Cypress.Chainable<ApiResponse>;
+            }>
+          )
+            .then((cyResponse) => {
+              const response: ApiResponse = {
+                status: cyResponse.status,
+                statusText: cyResponse.statusText || "",
+                headers: (cyResponse.headers || {}) as Record<string, string>,
+                body: cyResponse.body,
+                duration: Date.now() - attemptStart,
+                size: cyResponse.body ? JSON.stringify(cyResponse.body).length : 0,
+                cookies: cyResponse.cookies || [],
+              };
+              attempts.push(response);
+
+              const isSuccess = cyResponse.status >= 200 && cyResponse.status < 300;
+
+              if (isSuccess) {
+                return response as unknown as Cypress.Chainable<ApiResponse>;
+              }
+
+              // B refinada (S3): con `retry` configurado se reintentan los fallos
+              // transitorios (5xx, 408, 429) con backoff exponencial, independiente
+              // de failOnStatusCode. Tras agotar los intentos (o ante un fallo no
+              // reintentable como otros 4xx) se aplica failOnStatusCode como antes.
+              // Sin `retry` configurado, idéntico a v1.1.6 (H1/H2 intactos).
+              // Nota: el intent explícito de `retry` vale para todo método — ver el
+              // warning sobre POST no idempotentes en los tipos/docs.
+              if (
+                retry !== undefined &&
+                attemptNumber < maxAttempts &&
+                isRetryableStatus(cyResponse.status)
+              ) {
+                // V4/V9: este single-callback anidado sí asimila en el runner real.
+                return cy
+                  .wait(retryBackoffMs(attemptDelay, attemptNumber))
+                  .then(
+                    () => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>,
+                  );
+              }
+
+              if (options.failOnStatusCode !== false) {
+                const failure = new Error(
+                  `cy.http request failed: ${cyResponse.status} ${cyResponse.statusText}`,
+                );
+                // Marca interna: el tail debe relanzar sin re-renderizar la entrada.
+                (failure as { __cbtStatusFail?: boolean }).__cbtStatusFail = true;
+                renderHttpFailure(response, failure.message);
+                throw failure;
+              }
+
+              return response as unknown as Cypress.Chainable<ApiResponse>;
+            })
+            // Tail (V9/V10): passthrough + catch de transporte. Nunca retorna
+            // Chainables: H2 (marcado __cbtStatusFail) se relanza tal cual, H1
+            // renderiza la entrada degradada una sola vez y relanza el original.
+            .then(
+              (v) => v,
+              (err: unknown) => {
+                // H2 ya renderizó su entrada: relanzar sin duplicar.
+                if ((err as { __cbtStatusFail?: boolean } | null)?.__cbtStatusFail) throw err;
+                // H1: cy.request itself rejected (transport failure) — single
+                // attempt, sin reintento: el runner no asimila Chainables
+                // retornados junto a un rejection handler (V3/V5), y un custom
+                // command no puede retornar promesas que encolen cy.*
+                // (CypressError). The rejection
+                // carries no full response; preserve whatever status/body it exposes,
+                // otherwise the entry stays degraded (response: null, request known).
+                // No retry here — transport rejections never entered the retry branch.
+                const rejection = err as {
+                  status?: unknown;
+                  statusText?: unknown;
+                  headers?: unknown;
+                  body?: unknown;
+                  cookies?: ApiResponse["cookies"];
+                } | null;
+                const carriedStatus =
+                  typeof rejection?.status === "number" ? rejection.status : null;
+                const failureResponse: ApiResponse | null =
+                  carriedStatus === null
+                    ? null
+                    : {
+                        status: carriedStatus,
+                        statusText:
+                          typeof rejection?.statusText === "string" ? rejection.statusText : "",
+                        headers: (rejection?.headers || {}) as Record<string, string>,
+                        body: rejection?.body,
+                        duration: Date.now() - attemptStart,
+                        size: rejection?.body ? JSON.stringify(rejection.body).length : 0,
+                        cookies: rejection?.cookies || [],
+                      };
+                renderHttpFailure(failureResponse, toErrorMessage(err));
+                throw err;
+              },
+            ) as unknown as Cypress.Chainable<ApiResponse>
+        );
       }
 
       return doRequest(1).then((finalResponse: ApiResponse) => {
@@ -232,6 +278,10 @@ export function registerHttpCommand(): void {
           snapshot: false,
           consoleProps: () => ({ request: logRequest, response: logResponse }),
         } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+        // PH2-T2: fija la llamada activa para que los expect() del usuario
+        // coloreen ESTA llamada (cubre alias resueltos después). HTTP-only:
+        // cy.query nunca entra al interceptor de Chai.
+        setActiveApiCall(call.id);
         return showApiUi(call, log);
       });
     },

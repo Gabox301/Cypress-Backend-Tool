@@ -50,7 +50,6 @@
   },
   "dependencies": {
     "pg": "^8.23.1",
-    "prismjs": "^1.30.0",
     "set-cookie-parser": "^3.2.1"
   },
   "devDependencies": {

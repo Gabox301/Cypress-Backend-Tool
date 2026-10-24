@@ -119,6 +119,9 @@ beforeEach(() => {
     headers: { "content-type": "application/json" },
     statusText: "OK",
   });
+  // cy.wait espiable para el backoff de retry: resuelve de inmediato y deja
+  // asserts de delays por test (producción usa el cy.wait real de Cypress).
+  originalCy.wait = vi.fn().mockResolvedValue(undefined);
   originalCy.window = vi.fn((_opts?: { log: boolean }) => Promise.resolve(window));
   originalCy.wrap = vi.fn(
     // eslint-disable-next-line unicorn/no-thenable -- mock deliberado: emula el objeto Chainable de Cypress, que por definición es thenable
@@ -717,7 +720,7 @@ describe("HTTP failure entries (FCU-01)", () => {
     expect(document.querySelector('[id^="cabt-entry-"]')).not.toBeNull();
   });
 
-  it("H2: keeps collected attempts/retryCount on the failure response when retry is configured", async () => {
+  it("H2: exhausts retries on 503 then throws with collected attempts/retryCount", async () => {
     (globalThis.cy as unknown as Record<string, unknown>).request = vi.fn().mockResolvedValue({
       status: 503,
       statusText: "Service Unavailable",
@@ -725,7 +728,6 @@ describe("HTTP failure entries (FCU-01)", () => {
       body: "down",
       cookies: [],
     });
-
     await expect(
       httpHandler()({
         url: "https://api.example.com/flaky",
@@ -735,8 +737,8 @@ describe("HTTP failure entries (FCU-01)", () => {
     ).rejects.toThrow("503");
     expect(apiCallsStore).toHaveLength(1);
     const entry = apiCallsStore[0] as Record<string, any>;
-    expect(entry.response.attempts).toHaveLength(1);
-    expect(entry.response.retryCount).toBe(0);
+    expect(entry.response.attempts).toHaveLength(3);
+    expect(entry.response.retryCount).toBe(2);
     expect(entry.error).toContain("503");
   });
 
@@ -1568,5 +1570,161 @@ describe("http transport whitelist (AUDIT-T3)", () => {
       log: false,
       failOnStatusCode: false,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Política de retry refinada (PH2-T1, S3): 5xx + red + 408/429, backoff exponencial
+// ---------------------------------------------------------------------------
+describe("http retry refinado (PH2-T1)", () => {
+  let apiCallsStore: unknown[];
+  let clearStore: () => void;
+
+  beforeAll(async () => {
+    await import("./index");
+    const stores = await import("./lib/stores.svelte");
+    apiCallsStore = stores.apiCalls as unknown[];
+    clearStore = stores.clearApiCalls;
+  });
+
+  beforeEach(() => {
+    clearStore();
+  });
+
+  function httpHandler() {
+    return capturedCommands["http"] as (options: unknown) => Promise<Record<string, any>>;
+  }
+
+  function mockRequestSequence(responses: Array<{ status: number; body?: unknown } | Error>) {
+    const mockRequest = vi.fn();
+    for (const r of responses) {
+      if (r instanceof Error) mockRequest.mockRejectedValueOnce(r);
+      else
+        mockRequest.mockResolvedValueOnce({
+          status: r.status,
+          statusText: "Status",
+          headers: {},
+          body: r.body ?? {},
+          cookies: [],
+        });
+    }
+    (globalThis.cy as unknown as Record<string, unknown>).request = mockRequest;
+    return mockRequest;
+  }
+
+  function waitCalls(): unknown[] {
+    return (globalThis.cy as unknown as { wait: ReturnType<typeof vi.fn> }).wait.mock.calls.map(
+      ([ms]) => ms,
+    );
+  }
+
+  it("isRetryableStatus: 5xx, 408 y 429 sí; 2xx/3xx/otros 4xx no", async () => {
+    const { isRetryableStatus } = await import("./commands/http");
+    for (const s of [500, 502, 503, 599, 408, 429]) expect(isRetryableStatus(s)).toBe(true);
+    for (const s of [200, 201, 204, 301, 400, 401, 403, 404, 422])
+      expect(isRetryableStatus(s)).toBe(false);
+  });
+
+  it("retryBackoffMs: exponencial sobre delay base", async () => {
+    const { retryBackoffMs } = await import("./commands/http");
+    expect(retryBackoffMs(50, 1)).toBe(50);
+    expect(retryBackoffMs(50, 2)).toBe(100);
+    expect(retryBackoffMs(50, 3)).toBe(200);
+    expect(retryBackoffMs(0, 2)).toBe(0);
+  });
+
+  it("reintenta 500 y resuelve al recuperarse, con backoff y attempts", async () => {
+    const mockRequest = mockRequestSequence([
+      { status: 500, body: { e: 1 } },
+      { status: 500, body: { e: 2 } },
+      { status: 200, body: { ok: true } },
+    ]);
+    const result = await httpHandler()({
+      url: "https://api.example.com/flaky",
+      method: "GET",
+      retry: { retries: 2, delay: 50 },
+    });
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    expect(waitCalls()).toEqual([50, 100]);
+    expect(result.status).toBe(200);
+    expect(result.attempts).toHaveLength(3);
+    expect(result.retryCount).toBe(2);
+  });
+
+  it("agota reintentos en 500 y lanza por defecto", async () => {
+    const mockRequest = mockRequestSequence([{ status: 500 }, { status: 500 }, { status: 500 }]);
+    await expect(
+      httpHandler()({
+        url: "https://api.example.com/down",
+        method: "GET",
+        retry: { retries: 2, delay: 50 },
+      }),
+    ).rejects.toThrow("500");
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    expect(waitCalls()).toEqual([50, 100]);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response.attempts).toHaveLength(3);
+    expect(entry.response.retryCount).toBe(2);
+  });
+
+  it("agota reintentos en 500 y retorna con failOnStatusCode:false", async () => {
+    const mockRequest = mockRequestSequence([{ status: 500 }, { status: 500 }]);
+    const result = await httpHandler()({
+      url: "https://api.example.com/down",
+      method: "GET",
+      retry: { retries: 1, delay: 10 },
+      failOnStatusCode: false,
+    });
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe(500);
+    expect(result.retryCount).toBe(1);
+  });
+
+  it("no reintenta 400 y lanza de inmediato por defecto", async () => {
+    const mockRequest = mockRequestSequence([{ status: 400, body: { e: "bad" } }]);
+    await expect(
+      httpHandler()({
+        url: "https://api.example.com/bad",
+        method: "GET",
+        retry: { retries: 3, delay: 10 },
+      }),
+    ).rejects.toThrow("400");
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(waitCalls()).toEqual([]);
+  });
+
+  it("no reintenta 400 y retorna de inmediato con failOnStatusCode:false", async () => {
+    const mockRequest = mockRequestSequence([{ status: 404, body: {} }]);
+    const result = await httpHandler()({
+      url: "https://api.example.com/missing",
+      method: "GET",
+      retry: { retries: 3, delay: 10 },
+      failOnStatusCode: false,
+    });
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe(404);
+    expect(result.attempts).toHaveLength(1);
+    expect(result.retryCount).toBe(0);
+  });
+
+  it("el rechazo de transporte no reintenta: entry degradada y relanza el original", async () => {
+    const boom = new Error("getaddrinfo ENOTFOUND example.test");
+    const mockRequest = mockRequestSequence([boom, boom]);
+    let caught: unknown;
+    try {
+      await httpHandler()({
+        url: "https://example.test/x",
+        method: "GET",
+        retry: { retries: 2, delay: 5 },
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBe(boom);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(waitCalls()).toEqual([]);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toBeNull();
+    expect(entry.error).toContain("ENOTFOUND");
   });
 });
