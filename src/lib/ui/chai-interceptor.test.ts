@@ -4,6 +4,7 @@ import { beforeEach, describe, it, vi, expect as vitestExpect } from "vite-plus/
 import {
   findPathInObject,
   recordAssertionOnApiCall,
+  setActiveApiCall,
   setDeepValue,
   setupChaiExpectInterceptor,
 } from "./chai-interceptor";
@@ -240,5 +241,86 @@ describe("chai-interceptor — ACM-01 aserciones de cookies", () => {
       body: { name: "Alice" },
       headers: { "content-type": "application/json" },
     });
+  });
+});
+
+describe("chai-interceptor — atribución por llamada (PH2-T2)", () => {
+  beforeEach(() => {
+    clearApiCalls();
+    setActiveApiCall(null);
+  });
+
+  function pushCall(id: string, status: number, body: Record<string, unknown>): ApiCall {
+    const call: ApiCall = {
+      id,
+      request: { url: "https://example.com", method: "GET" },
+      response: { status, statusText: "Status", headers: {}, body, duration: 5, size: 5 },
+      timestamp: Date.now(),
+    };
+    apiCalls.push(call);
+    return call;
+  }
+
+  it("atribuye a la llamada activa aunque no sea la última", () => {
+    pushCall("a-old", 200, { name: "Ada" });
+    pushCall("b-last", 201, { name: "Bob" });
+    setActiveApiCall("a-old");
+
+    recordAssertionOnApiCall(200, 200, 200);
+
+    vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.status).toBe(200);
+    vitestExpect(apiCalls[1].expect).toBeUndefined();
+  });
+
+  it("sin activa, un alias de llamada vieja colorea la vieja", () => {
+    pushCall("a-old", 200, { name: "Ada" });
+    pushCall("b-last", 201, { name: "Bob" });
+
+    // cy.get('@a').then(r => expect(r.body.name).to.eq('Ada'))
+    recordAssertionOnApiCall("Ada", "Ada", "Ada");
+
+    vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.body).toEqual({ name: "Ada" });
+    vitestExpect(apiCalls[1].expect).toBeUndefined();
+  });
+
+  it("valor compartido por varias va a la más reciente", () => {
+    pushCall("a-old", 200, { tag: "x" });
+    pushCall("b-last", 201, { tag: "x" });
+
+    recordAssertionOnApiCall("x", "x", "x");
+
+    vitestExpect(apiCalls[0].expect).toBeUndefined();
+    vitestExpect((apiCalls[1].expect as Record<string, unknown>)?.body).toEqual({ tag: "x" });
+  });
+
+  it("status compartido va a la más reciente, igual que antes", () => {
+    pushCall("a-old", 200, { name: "Ada" });
+    pushCall("b-last", 200, { name: "Bob" });
+
+    recordAssertionOnApiCall(200, 200, 200);
+
+    vitestExpect(apiCalls[0].expect).toBeUndefined();
+    vitestExpect((apiCalls[1].expect as Record<string, unknown>)?.status).toBe(200);
+  });
+
+  it("activa inexistente cae a la búsqueda normal", () => {
+    pushCall("a-old", 200, { name: "Ada" });
+    pushCall("b-last", 201, { name: "Bob" });
+    setActiveApiCall("ghost");
+
+    recordAssertionOnApiCall("Bob", "Bob", "Bob");
+
+    vitestExpect((apiCalls[1].expect as Record<string, unknown>)?.body).toEqual({ name: "Bob" });
+  });
+
+  it("programa el refresh para la atribuida, no para la última", () => {
+    pushCall("a-old", 200, { name: "Ada" });
+    pushCall("b-last", 201, { name: "Bob" });
+    entryRefreshMocks.scheduleEntryRefresh.mockClear();
+
+    recordAssertionOnApiCall("Ada", "Ada", "Ada");
+
+    vitestExpect(entryRefreshMocks.scheduleEntryRefresh).toHaveBeenCalledWith("a-old");
+    vitestExpect(entryRefreshMocks.scheduleEntryRefresh).not.toHaveBeenCalledWith("b-last");
   });
 });

@@ -1,6 +1,7 @@
 import { addApiCall } from "$lib/stores.svelte";
 import type { ApiCall, ApiResponse } from "$lib/types";
 import { reserveEntry } from "$lib/ui";
+import { setActiveApiCall } from "$lib/ui/chai-interceptor";
 import { REDACTED_VALUE, redactApiRequest, redactApiResponse } from "$lib/utils/redaction";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
@@ -277,6 +278,10 @@ export function registerHttpCommand(): void {
           snapshot: false,
           consoleProps: () => ({ request: logRequest, response: logResponse }),
         } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
+        // PH2-T2: fija la llamada activa para que los expect() del usuario
+        // coloreen ESTA llamada (cubre alias resueltos después). HTTP-only:
+        // cy.query nunca entra al interceptor de Chai.
+        setActiveApiCall(call.id);
         return showApiUi(call, log);
       });
     },
