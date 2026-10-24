@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-10-24
+
+### Added
+
+- **Verified TLS and CA via env (`db`):** `CYPRESS_DB_SSL`/`DB_SSL` accept `require`/`verify` (verified TLS) and `insecure`/`no-verify` (explicit insecure opt-in); new `CYPRESS_DB_SSL_CA`/`DB_SSL_CA` for custom CA in PEM. Historic `"true"` keeps working but warns in Node (no certificate verification).
+- **Field-aware redaction + per-request override (`http`):** bodies and responses mask by sensitive field name and preserve types and non-sensitive values; `redact: false` in `cy.http()` disables masking for that call (never sent to the server).
+- **Retries on transients (`http`, refined):** with `retry`, 5xx, 408 and 429 are retried with exponential backoff, independent of `failOnStatusCode` (applied after exhaustion); `attempts`/`retryCount` preserved.
+- **Honest partial `DbConnectionOptions` (`db`):** all fields optional; missing values resolve via snapshot/env/fallbacks (the type used to demand a full object the runtime never required).
+- **`TRUNCATE`/`MERGE`/`CALL` query types (`db`):** `extractQueryType` recognizes them alongside SELECT/INSERT/UPDATE/DELETE.
+
+### Fixed
+
+- **Transport whitelist (`http`):** only `url/method/headers/body/qs/auth` reach `cy.request`; internals `expect`/`retry`/`redact` never leave the plugin.
+- **Per-call assertion attribution (`http`):** late `expect()`s (aliases) color their original call even if another completed later (active first, then most-recent first); coloring stays HTTP-only.
+- **Pool survives idle errors (`db`):** `pool.on('error')` logs and continues instead of crashing the Node process.
+- **Real metrics (`http`/`db`):** `size` in UTF-8 bytes (not UTF-16 units), monotonic `duration`, UUID with fallback without `randomUUID`.
+- **Capped history (`http`/`db`):** stores and per-test stores evict oldest past 100 entries.
+- **Single-source `ApiRequestOptions`:** canonical declaration in `lib/types`, re-exported (the duplication had diverged).
+- **Infinite recursion when redacting with `attempts` (`http`):** the final response included itself and masking looped forever with `retry` configured; `attempts` are now flattened.
+- **Widened credential matcher (`http`):** `jwt`, `oauth`, `keys`, `passphrase`, `authentication`, `sessionId`, `token2` and acronyms (`APIToken`/`JWTToken`) are now masked; `author` stays visible.
+
+### Changed
+
+- **Shared `reserveCallPlaceholder` helper (internal):** call-ordered placeholder extracted from `cy.http`/`cy.query`; no visible changes.
+
+### Removed
+
+- **`prismjs`:** dependency with zero imports in `src` (CodeBlock uses its own raw-HTML-free tokenizer); removed from `package.json` + lock.
+- **Docs:** `defaults.ssl: true` is verified TLS with `pg` defaults (not insecure); corrected in ES/EN tables.
+
 ## [1.2.6] - 2026-10-22
 
 ### Changed

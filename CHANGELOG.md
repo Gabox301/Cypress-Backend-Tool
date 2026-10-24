@@ -5,13 +5,13 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [1.3.0] - 2026-10-24
 
 ### Added
 
 - **TLS verificado y CA por env (`db`):** `CYPRESS_DB_SSL`/`DB_SSL` aceptan `require`/`verify` (TLS verificado) e `insecure`/`no-verify` (opt-in explícito al modo inseguro); nuevo `CYPRESS_DB_SSL_CA`/`DB_SSL_CA` para CA custom en PEM. El histórico `"true"` sigue funcionando pero emite un warning en Node (no verifica el certificado).
 - **Enmascarado por campo + override por request (`http`):** cuerpos y respuestas enmascaran por nombre de campo sensible y preservan tipos y valores no sensibles; `redact: false` en `cy.http()` desactiva el enmascarado de esa llamada (nunca viaja al servidor).
-- **Reintentos ante transitorios (`http`, B refinada):** con `retry` se reintentan 5xx, 408 y 429 con backoff exponencial, independiente de `failOnStatusCode` (tras agotar se aplica); `attempts`/`retryCount` conservados.
+- **Reintentos ante transitorios (`http`, refinada):** con `retry` se reintentan 5xx, 408 y 429 con backoff exponencial, independiente de `failOnStatusCode` (tras agotar se aplica); `attempts`/`retryCount` conservados.
 - **`DbConnectionOptions` parcial honesto (`db`):** todos los campos opcionales; lo ausente se resuelve por snapshot/env/fallbacks (antes el tipo exigía el objeto completo que el runtime no pedía).
 - **Tipos de query `TRUNCATE`/`MERGE`/`CALL` (`db`):** `extractQueryType` los reconoce además de SELECT/INSERT/UPDATE/DELETE.
 
