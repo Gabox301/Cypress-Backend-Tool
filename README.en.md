@@ -424,12 +424,12 @@ Set `hideCredentials: false` explicitly to show unredacted values. Individual `h
 
 ### configure() — Programmatic override
 
-As an alternative to `Cypress.expose()`, you can use `configure()` from anywhere you have access to the browser bundle (e.g., `setupNodeEvents`, test hooks, or directly in the spec):
+As an alternative to `Cypress.expose()`, you can use `configure()` from anywhere that runs in the browser bundle (e.g., the support file, test hooks, or directly in the spec). It does NOT work in `setupNodeEvents`, which runs in Node in a separate module instance:
 
 ```typescript
 import { configure } from "cypress-backend-tool";
 
-// In setupNodeEvents or beforeEach:
+// In the support file or beforeEach:
 configure({ snapshotOnly: true });
 
 // Explicitly opt out of redaction for a trusted test run
@@ -445,8 +445,8 @@ configure({
 
 **Merge order** (highest priority wins):
 
-1. `Cypress.expose()` — base values from `cypress.config.ts`
-2. `configure()` — programmatic overrides
+1. `configure()` — programmatic overrides (wins)
+2. `Cypress.expose()` — base values from `cypress.config.ts`
 
 `hideCredentialsOptions` does a deep merge: if you only pass `{ headers: false }`, the `auth`, `body`, and `query` options are preserved from `Cypress.expose()`. You don't need to repeat all options. Setting an individual option to `false` reveals that section; `hideCredentials: false` disables redaction globally.
 

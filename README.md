@@ -424,12 +424,12 @@ De forma predeterminada, los paneles, el texto y las propiedades de los registro
 
 ### configure() — Override programático
 
-Como alternativa a `Cypress.expose()`, es posible utilizar `configure()` desde cualquier lugar con acceso al bundle del navegador (por ejemplo, `setupNodeEvents`, hooks de test o el spec):
+Como alternativa a `Cypress.expose()`, es posible utilizar `configure()` desde cualquier lugar que corra en el bundle del navegador (por ejemplo, el support file, hooks de test o el spec). NO funciona en `setupNodeEvents`, que corre en Node en una instancia de módulo separada:
 
 ```typescript
 import { configure } from "cypress-backend-tool";
 
-// En setupNodeEvents o beforeEach:
+// En el support file o beforeEach:
 configure({ snapshotOnly: true });
 
 // Opt-out explícito del enmascaramiento para una prueba de confianza
@@ -445,8 +445,8 @@ configure({
 
 **Orden de merge** (mayor prioridad gana):
 
-1. `Cypress.expose()` — valores base desde `cypress.config.ts`
-2. `configure()` — overrides programáticos
+1. `configure()` — overrides programáticos (gana)
+2. `Cypress.expose()` — valores base desde `cypress.config.ts`
 
 `hideCredentialsOptions` hace una combinación profunda: si solo se especifica `{ headers: false }`, las opciones `auth`, `body` y `query` se conservan desde `Cypress.expose()`. No es necesario repetir todas las opciones.
 
