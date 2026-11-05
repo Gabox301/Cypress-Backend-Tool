@@ -21,6 +21,9 @@ export { mountEntry, reserveEntry };
 // ──────────────────────────────────────────────────────────────────────────
 let mountedInstance: object | null = null;
 let mountedDocument: Document | null = null;
+/** El contenedor exacto donde vive la instancia montada: detecta reemplazos
+ * sincrónicos del contenedor (el observer aún no corrió su microtask). */
+let mountedContainer: HTMLElement | null = null;
 let _observer: MutationObserver | null = null;
 /** El body del AUT capturado cuando se armó el watcher — la señal de intercambio de body. */
 let _watchBody: HTMLElement | null = null;
@@ -28,6 +31,7 @@ let _watchBody: HTMLElement | null = null;
 function resetMountState(): void {
   mountedInstance = null;
   mountedDocument = null;
+  mountedContainer = null;
 }
 
 /**
@@ -141,8 +145,10 @@ export function ensurePluginMounted(container: HTMLElement, doc: Document): void
   // spec/runner y su document global puede ser otro documento.
   ensureCopyDelegation(doc);
   ensureTooltipDelegation(doc);
-  // Contenedor eliminado del DOM (reproducción de snapshot de Cypress) — reset
-  if (!container.isConnected || mountedDocument !== doc) {
+  // Contenedor eliminado del DOM (reproducción de snapshot de Cypress), en otro
+  // documento, o reemplazado sincrónicamente por uno nuevo (el observer aún no
+  // corrió) — reset para que el shell se monte en el contenedor vigente.
+  if (!container.isConnected || mountedDocument !== doc || mountedContainer !== container) {
     resetMountState();
   }
   if (mountedDocument !== doc) {
@@ -150,6 +156,7 @@ export function ensurePluginMounted(container: HTMLElement, doc: Document): void
   }
   if (mountedInstance) return;
   mountedInstance = mount(App, { target: container });
+  mountedContainer = container;
   watchContainer(container, doc);
 }
 
@@ -160,6 +167,7 @@ export function teardownPluginUI(): void {
     void unmount(mountedInstance);
     mountedInstance = null;
     mountedDocument = null;
+    mountedContainer = null;
   }
   _observer?.disconnect();
   _observer = null;
