@@ -30,9 +30,8 @@ declare global {
       dbTaskPrefix: string;
       dbHost: string;
       dbPort: string;
-      dbName: string;
-      /** Setup-time snapshot written by setupDatabaseTasks(on, config); absent until then. */
-      dbDatabase?: string;
+      /** Snapshot no-secreto escrito por setupDatabaseTasks(on, config); ausente hasta entonces. */
+      dbDatabase: string;
     }
   }
 
