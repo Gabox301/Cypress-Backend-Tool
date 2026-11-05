@@ -157,7 +157,7 @@ export function registerQueryCommand(): void {
           const queryRows = resultRows as unknown[];
           const dbResponse: DbQueryResponse = {
             rows: queryRows,
-            rowCount: result.rowCount || 0,
+            rowCount: result.rowCount ?? queryRows.length,
             duration: nowMs() - startTime,
             query,
             ...(values !== undefined ? { values } : {}),

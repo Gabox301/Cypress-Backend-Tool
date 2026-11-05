@@ -1450,6 +1450,16 @@ describe('cy.query flattened chain (FL-1)', () => {
     expect(typeof result.duration).toBe('number');
   });
 
+  it('rowCount null from a legacy handler falls back to rows length (panel parity)', async () => {
+    const rows = [{ one: 1 }, { two: 2 }];
+    mockSingleQuery({ rows, rowCount: null });
+
+    const result = await queryHandler()('SELECT 1');
+
+    expect(result.rows).toEqual(rows);
+    expect(result.rowCount).toBe(2);
+  });
+
   it('wide SELECT yields every row and column', async () => {
     const rows = [
       { id: 1, email: 'a@example.test', active: true },
