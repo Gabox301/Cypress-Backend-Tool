@@ -62,7 +62,22 @@ export function mergeConfig(
  * ```
  */
 export function configure(overrides: Partial<CypressApiPluginConfig>): void {
-  configOverrides = { ...configOverrides, ...overrides };
+  // Acumulación profunda para hideCredentialsOptions: sin esto, un segundo
+  // configure() parcial borraría las claves del anterior (el spread superficial
+  // reemplaza el objeto anidado). mergeConfig() ya fusiona en profundidad en
+  // lectura; esto preserva la misma semántica entre llamadas.
+  const mergedHideCredentialsOptions =
+    configOverrides.hideCredentialsOptions === undefined && overrides.hideCredentialsOptions === undefined
+      ? undefined
+      : {
+          ...configOverrides.hideCredentialsOptions,
+          ...overrides.hideCredentialsOptions,
+        };
+  configOverrides = {
+    ...configOverrides,
+    ...overrides,
+    ...(mergedHideCredentialsOptions === undefined ? {} : { hideCredentialsOptions: mergedHideCredentialsOptions }),
+  };
 }
 
 /**

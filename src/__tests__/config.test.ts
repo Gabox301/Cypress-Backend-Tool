@@ -140,6 +140,7 @@ describe('configure() — capa de overrides de configuración', () => {
   let _configure: (overrides: Record<string, unknown>) => void;
   let mergeConfig: (base: Record<string, unknown>, overrides: Record<string, unknown>) => Record<string, unknown>;
   let resetConfig: () => void;
+  let _getOverrides: () => Record<string, unknown>;
 
   beforeAll(async () => {
     const mod = await import('$lib/config');
@@ -151,6 +152,7 @@ describe('configure() — capa de overrides de configuración', () => {
     // resetConfig puede no existir aún (fase RED — se agregará con GREEN)
     const maybeReset = (mod as unknown as Record<string, unknown>).resetConfig;
     resetConfig = (typeof maybeReset === 'function' ? maybeReset : () => {}) as () => void;
+    _getOverrides = (mod as unknown as Record<string, unknown>).getConfigOverrides as () => Record<string, unknown>;
   });
 
   beforeEach(() => {
@@ -250,6 +252,14 @@ describe('configure() — capa de overrides de configuración', () => {
     // Los valores por defecto de expose se preservan para las claves no configuradas
     expect(hco3.auth).toBe(true);
     expect(hco3.query).toBe(true);
+  });
+
+  it('configure sucesivos fusionan hideCredentialsOptions en profundidad', () => {
+    _configure({ hideCredentialsOptions: { headers: false } });
+    _configure({ hideCredentialsOptions: { body: false } });
+    const hco = (_getOverrides().hideCredentialsOptions ?? {}) as Record<string, boolean>;
+    expect(hco.headers).toBe(false);
+    expect(hco.body).toBe(false);
   });
 
   // -----------------------------------------------------------------------
