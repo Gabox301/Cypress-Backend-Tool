@@ -13,13 +13,16 @@ describe('Aislamiento de Credenciales', () => {
   });
 
   describe('las credenciales de BD NUNCA entran al contexto del navegador', () => {
-    it('dbPassword no está expuesto en window tras cy.query()', () => {
-      // cy.task('db:getConfig') devuelve las credenciales desde el proceso de Node.js
+    it('db:getConfig expone solo metadatos no-secretos (nunca user/password)', () => {
+      // cy.task('db:getConfig') corre en Node y devuelve SOLO metadatos
+      // no-secretos (contrato desde 1.3.0: user/password quedan en Node).
       // El fallback de Cypress.expose('dbPassword') NO DEBE existir tras la corrección
       cy.task('db:getConfig').then((config: any) => {
-        // La tarea devuelve las credenciales — esto ocurre en Node.js, es seguro
         expect(config).to.have.property('host');
-        expect(config).to.have.property('password');
+        expect(config).to.have.property('port');
+        expect(config).to.have.property('database');
+        expect(config).to.not.have.property('user');
+        expect(config).to.not.have.property('password');
         // Ahora verifica que estas NO estén en la ventana del navegador
         cy.window().then((win: any) => {
           expect(win.dbPassword).to.be.undefined;
@@ -31,15 +34,16 @@ describe('Aislamiento de Credenciales', () => {
       });
     });
 
-    it('cy.task("db:getConfig") está disponible como fuente exclusiva de credenciales', () => {
+    it('cy.task("db:getConfig") devuelve metadatos sin credenciales', () => {
       cy.task('db:getConfig').then((config: any) => {
-        // Verifica que la tarea devuelva un objeto de config válido
+        // La tarea devuelve un objeto de metadatos no-secretos (user/password
+        // nunca cruzan al browser) — verifica el contrato, no credenciales
         expect(config).to.be.an('object');
         expect(config).to.have.property('host');
         expect(config).to.have.property('port');
         expect(config).to.have.property('database');
-        expect(config).to.have.property('user');
-        expect(config).to.have.property('password');
+        expect(config).to.not.have.property('user');
+        expect(config).to.not.have.property('password');
       });
     });
 
