@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] - 2026-11-05
+
+### Fixed
+
+- **Integer duration badge (`http`/`db`):** the badge rendered raw `performance.now()` floats (e.g. `188.80000001192093ms`); new `formatDuration` helper with `Math.round`, applied in `ResponsePanel` and `QueryPanel`. The numeric value is untouched for color thresholds.
+
 ## [1.3.1] - 2026-10-24
 
 ### Fixed

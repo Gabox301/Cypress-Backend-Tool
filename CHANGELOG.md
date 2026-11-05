@@ -5,6 +5,12 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.3.2] - 2026-11-05
+
+### Fixed
+
+- **Badge de duración en enteros (`http`/`db`):** el badge mostraba floats crudos de `performance.now()` (ej. `188.80000001192093ms`); nuevo helper `formatDuration` con `Math.round`, aplicado en `ResponsePanel` y `QueryPanel`. El valor numérico sigue intacto para los umbrales de color.
+
 ## [1.3.1] - 2026-10-24
 
 ### Fixed
