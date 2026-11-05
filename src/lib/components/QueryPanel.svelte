@@ -1,6 +1,6 @@
 <script lang="ts">
+  import { formatDuration } from '$lib/utils/format';
   import { REDACTED_VALUE, redactValue } from '$lib/utils/redaction';
-
   interface Props {
     query: string;
     rowCount: number;
@@ -12,7 +12,6 @@
     hideCredentials?: boolean;
     hideCredentialsOptions?: { headers: boolean; auth: boolean; body: boolean; query: boolean };
   }
-
   let {
     query,
     rowCount,
@@ -82,7 +81,7 @@
       {#if showAffected}
         <span class="meta-pill">{rowCount} affected</span>
       {/if}
-      <span class="meta-pill">{duration}ms</span>
+      <span class="meta-pill">{formatDuration(duration)}</span>
     </div>
   </div>
   <div class="content-area">

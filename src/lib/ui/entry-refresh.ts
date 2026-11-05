@@ -1,13 +1,13 @@
-import { apiCalls, pluginConfig } from "$lib/stores.svelte";
-import { mount, unmount } from "svelte";
-import EntryPanel from "../components/EntryPanel.svelte";
-import { EntryRegistry } from "./entry-registry";
+import { apiCalls, pluginConfig } from '$lib/stores.svelte';
+import { mount, unmount } from 'svelte';
+import EntryPanel from '../components/EntryPanel.svelte';
+import { EntryRegistry } from './entry-registry';
 
 function debugLog(...parts: unknown[]): void {
   try {
     const g = globalThis as Record<string, unknown>;
-    if (typeof g.__cbtDebug !== "object" || g.__cbtDebug === null) g.__cbtDebug = [];
-    (g.__cbtDebug as unknown[]).push(parts.join(" "));
+    if (typeof g.__cbtDebug !== 'object' || g.__cbtDebug === null) g.__cbtDebug = [];
+    (g.__cbtDebug as unknown[]).push(parts.join(' '));
   } catch {
     /* ignore */
   }
@@ -62,14 +62,14 @@ export function refreshEntry(id: string): void {
   try {
     const log = EntryRegistry.get(id)?.log as { snapshot?: (name?: string) => unknown } | undefined;
     if (log?.snapshot) {
-      log.snapshot("assertions");
+      log.snapshot('assertions');
       debugLog(`refresh:${id}:snapshot-assertions`);
       // Exponer para verificación en E2E via window.__cbtLastSnapshot
       try {
         const el = entry.element;
-        const hasMatch = el.querySelector(".line-match") !== null;
-        const hasMismatch = el.querySelector(".line-mismatch") !== null;
-        const hasNullish = el.querySelector(".line-nullish") !== null;
+        const hasMatch = el.querySelector('.line-match') !== null;
+        const hasMismatch = el.querySelector('.line-mismatch') !== null;
+        const hasNullish = el.querySelector('.line-nullish') !== null;
         const info = {
           id,
           hasMatch,

@@ -5,17 +5,17 @@
  */
 export function newCallId(): string {
   try {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
   } catch {
     // Permiso denegado u otro fallo: cae a los fallbacks de abajo.
   }
-  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
     bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
-    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
   return `cabt-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffffff).toString(36)}`;
@@ -33,8 +33,8 @@ export function nowMs(): number {
  */
 export function bodySizeBytes(body: unknown): number {
   try {
-    const text = typeof body === "string" ? body : JSON.stringify(body);
-    return new TextEncoder().encode(text ?? "").length;
+    const text = typeof body === 'string' ? body : JSON.stringify(body);
+    return new TextEncoder().encode(text ?? '').length;
   } catch {
     return 0;
   }

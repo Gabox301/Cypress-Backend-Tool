@@ -1,12 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-
   interface Props {
     children: Snippet;
     id?: string;
     class?: string;
   }
-
   let { children, id, class: klass }: Props = $props();
   let viewport: HTMLDivElement | undefined = $state(undefined);
   let track: HTMLDivElement | undefined = $state(undefined);
@@ -15,10 +13,8 @@
   let thumbTop = $state(0);
   let isDragging = $state(false);
   let isHovering = $state(false);
-
   let dragStartY = 0;
   let dragStartTop = 0;
-
   let rafPending = false;
   function scheduleUpdateThumb(): void {
     if (rafPending) return;
@@ -28,7 +24,6 @@
       updateThumb();
     });
   }
-
   function updateThumb(): void {
     if (!viewport || !track) return;
     const { clientHeight, scrollHeight, scrollTop } = viewport;
@@ -49,11 +44,9 @@
     if (nextHeight !== thumbHeight) thumbHeight = nextHeight;
     if (nextTop !== thumbTop) thumbTop = nextTop;
   }
-
   function handleScroll(): void {
     scheduleUpdateThumb();
   }
-
   function handleThumbMouseDown(e: MouseEvent): void {
     e.preventDefault();
     e.stopPropagation();
@@ -64,7 +57,6 @@
     window.addEventListener('mousemove', handleThumbMouseMove);
     window.addEventListener('mouseup', handleThumbMouseUp);
   }
-
   function handleThumbMouseMove(e: MouseEvent): void {
     if (!viewport || !track) return;
     const deltaY = e.clientY - dragStartY;
@@ -75,14 +67,12 @@
     const ratio = maxThumbTop > 0 ? newTop / maxThumbTop : 0;
     viewport.scrollTop = ratio * maxScrollTop;
   }
-
   function handleThumbMouseUp(): void {
     isDragging = false;
     document.body.style.userSelect = '';
     window.removeEventListener('mousemove', handleThumbMouseMove);
     window.removeEventListener('mouseup', handleThumbMouseUp);
   }
-
   function handleTrackClick(e: MouseEvent): void {
     if (!viewport || !track) return;
     if (e.target === thumb) return;
@@ -95,24 +85,18 @@
     const ratio = maxThumbTop > 0 ? newTop / maxThumbTop : 0;
     viewport.scrollTop = ratio * maxScrollTop;
   }
-
   $effect(() => {
     if (!viewport || !track) return;
-
     updateThumb();
-
     let mo: MutationObserver | undefined;
-
     if (typeof MutationObserver !== 'undefined') {
       mo = new MutationObserver(() => scheduleUpdateThumb());
       mo.observe(viewport, {
         childList: true,
       });
     }
-
     const onResize = (): void => scheduleUpdateThumb();
     window.addEventListener('resize', onResize);
-
     const onWindowError = (e: ErrorEvent) => {
       if (e.message?.includes('ResizeObserver loop') || String(e.error?.message ?? '').includes('ResizeObserver')) {
         e.stopImmediatePropagation();
@@ -124,7 +108,6 @@
       if (String(e.reason?.message ?? e.reason).includes('ResizeObserver')) e.preventDefault();
     };
     window.addEventListener('unhandledrejection', onRejection);
-
     return () => {
       mo?.disconnect();
       window.removeEventListener('resize', onResize);

@@ -1,9 +1,9 @@
 /// <reference types="cypress" />
 
-import { reserveEntry } from "$lib/ui";
-import { logDebug } from "./debug";
-import { readPluginConfig } from "./plugin-config";
-import { applySnapshotOnly, getOrCreateContainer } from "./plugin-ui";
+import { reserveEntry } from '$lib/ui';
+import { logDebug } from './debug';
+import { readPluginConfig } from './plugin-config';
+import { applySnapshotOnly, getOrCreateContainer } from './plugin-ui';
 
 /**
  * Reserva el placeholder `#cabt-entry-{id}` EN ORDEN DE LLAMADA (B3: extraído
@@ -13,7 +13,7 @@ import { applySnapshotOnly, getOrCreateContainer } from "./plugin-ui";
  */
 export function reserveCallPlaceholder(callId: string, debugLabel: string): void {
   try {
-    const winEarly = cy.state("window") as Window | undefined;
+    const winEarly = cy.state('window') as Window | undefined;
     const docEarly = winEarly?.document;
     if (docEarly?.getElementById) {
       const containerEarly = getOrCreateContainer(docEarly);

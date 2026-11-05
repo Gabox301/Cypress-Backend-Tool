@@ -1,18 +1,15 @@
 <script lang="ts">
   import { copyTextToClipboard, registerLiveCopyButton } from '../ui/copy-delegation';
   import { computeJsonLineStatuses } from '../ui/expect-matcher';
-
   interface Props {
     data?: unknown;
     comparisonData?: unknown;
     expected?: unknown;
     format?: string;
   }
-
   let { data = null, comparisonData = undefined, expected = undefined, format = 'json' }: Props = $props();
   let copied = $state(false);
   let copyFailed = $state(false);
-
   let formattedData = $derived.by(() => {
     if (!data) return '';
     if (typeof data === 'string') return data;
@@ -22,28 +19,23 @@
       return String(data);
     }
   });
-
   let lines = $derived(formattedData.split('\n'));
   let rawComparisonData = $derived(comparisonData === undefined ? data : comparisonData);
-
   let expectResult = $derived.by(() => {
     if (format !== 'json' || expected === undefined) {
       return { statuses: [], summary: { match: 0, mismatch: 0, nullish: 0 } };
     }
     return computeJsonLineStatuses(formattedData, rawComparisonData, expected);
   });
-
   let lineStatuses = $derived(expectResult.statuses);
   let expectSummary = $derived(expectResult.summary);
   let hasExpect = $derived(
     expected !== undefined && (expectSummary.match > 0 || expectSummary.mismatch > 0 || expectSummary.nullish > 0),
   );
-
   interface Token {
     text: string;
     class?: string;
   }
-
   /** Divide una línea JSON en tokens clasificados para un renderizado seguro basado en <span>.
    *  Nunca genera HTML crudo — devuelve tokens estructurados en su lugar. */
   function tokenize(line: string): Token[] {
@@ -73,7 +65,6 @@
     }
     return tokens;
   }
-
   async function copyToClipboard(event: MouseEvent) {
     // El DOM vivo usa el handler de Svelte. Detener la propagación evita que el
     // listener delegado intente copiar el mismo bloque por segunda vez.

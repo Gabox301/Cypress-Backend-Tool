@@ -1,10 +1,16 @@
 <script lang="ts">
   import type { ApiResponse } from '$lib/types';
-  import { formatSize, getDurationColor, getDurationGlow, getSizeColor, getSizeGlow } from '$lib/utils/format';
+  import {
+    formatDuration,
+    formatSize,
+    getDurationColor,
+    getDurationGlow,
+    getSizeColor,
+    getSizeGlow,
+  } from '$lib/utils/format';
   import { redactApiResponse } from '$lib/utils/redaction';
   import CodeBlock from './CodeBlock.svelte';
   import Icon from './Icon.svelte';
-
   interface Props {
     response: ApiResponse | null;
     expect?: unknown;
@@ -13,7 +19,6 @@
     hideCredentials?: boolean;
     hideCredentialsOptions?: { headers: boolean; auth: boolean; body: boolean; query: boolean };
   }
-
   let {
     response: rawResponse = null,
     expect = undefined,
@@ -26,7 +31,6 @@
   let displayError = $derived(hideCredentials && error ? 'Error details are hidden' : error);
   let selectedTab = $state<'body' | 'headers' | 'cookies'>('body');
   let panelElement: HTMLDivElement;
-
   const expectedBody = $derived.by(() => {
     if (expect === undefined || expect === null) return undefined;
     if (typeof expect === 'object' && 'body' in (expect as Record<string, unknown>)) {
@@ -34,7 +38,6 @@
     }
     return expect;
   });
-
   const expectedStatus = $derived.by(() => {
     if (expect === undefined || expect === null) return undefined;
     if (typeof expect === 'object' && 'status' in (expect as Record<string, unknown>)) {
@@ -42,7 +45,6 @@
     }
     return undefined;
   });
-
   const expectedHeaders = $derived.by(() => {
     if (expect === undefined || expect === null) return undefined;
     if (typeof expect === 'object' && 'headers' in (expect as Record<string, unknown>)) {
@@ -50,7 +52,6 @@
     }
     return undefined;
   });
-
   const expectedCookies = $derived.by(() => {
     if (expect === undefined || expect === null) return undefined;
     if (typeof expect === 'object' && 'cookies' in (expect as Record<string, unknown>)) {
@@ -58,9 +59,7 @@
     }
     return undefined;
   });
-
   const statusMatches = $derived(expectedStatus !== undefined && response ? response.status === expectedStatus : null);
-
   function getHeaderStatus(key: string): 'match' | 'mismatch' | null {
     if (!expectedHeaders || !rawResponse) return null;
     const lowerKey = key.toLowerCase();
@@ -70,7 +69,6 @@
     const expVal = expectedHeaders[expKey];
     return String(expVal) === String(rawResponse.headers[rawKey]) ? 'match' : 'mismatch';
   }
-
   // Cookie names match exactly (case-sensitive), unlike headers: the interceptor
   // records `expect.cookies` keyed by exact cookie name (cookiesArrayToMap /
   // ensureCookiesMap), so lookup here stays exact to mirror that behavior.
@@ -81,7 +79,6 @@
     if (!rawCookie) return null;
     return String(expectedCookies[name]) === String(rawCookie.value) ? 'match' : 'mismatch';
   }
-
   const statusConfig = $derived.by(() => {
     if (!response) return null;
     const s = response.status;
@@ -91,25 +88,20 @@
     if (s >= 500) return { color: '#fb923c', glow: 'rgba(251,146,60,0.35)', label: 'SERVER' };
     return { color: '#94a3b8', glow: 'rgba(148,163,184,0.2)', label: 'INFO' };
   });
-
   let formattedSize = $derived.by(() => {
     if (!response) return '';
     return formatSize(response.size);
   });
-
   const sizeColor = $derived.by(() => {
     if (!response) return '#94a3b8';
     return getSizeColor(response.size);
   });
-
   const sizeGlow = $derived.by(() => {
     if (!response) return 'rgba(148,163,184,0.2)';
     return getSizeGlow(response.size);
   });
-
   const retryCount = $derived(response?.retryCount ?? 0);
   const attempts = $derived(response?.attempts ?? []);
-
   $effect(() => {
     // Inyección de estilos globales del panel — reemplaza onMount legacy.
     // Corre tras mount y trackea panelElement; cleanup no necesario (style persiste).
@@ -239,7 +231,7 @@
           >
             <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
           </svg>
-          <span>{response.duration}ms</span>
+          <span>{formatDuration(response.duration)}</span>
         </div>
         <div class="cadb-pill" style="--pill-color:{sizeColor}; --pill-glow:{sizeGlow};">
           <svg

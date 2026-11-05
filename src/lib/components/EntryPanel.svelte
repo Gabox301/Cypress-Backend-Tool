@@ -12,15 +12,11 @@
     snapshotOnly: boolean;
   }
   let { data, hideCredentials, hideCredentialsOptions, snapshotOnly }: Props = $props();
-
   // Override por request (T2): `redact: false` en ApiRequest desactiva el
   // enmascarado de ESTA entrada en ambos paneles. Las entradas DB no tienen
   // request y siempre usan la config global.
-  let requestRedactOff = $derived(
-    !("query" in data) && (data as ApiCall).request?.redact === false,
-  );
+  let requestRedactOff = $derived(!('query' in data) && (data as ApiCall).request?.redact === false);
   let effectiveHideCredentials = $derived(requestRedactOff ? false : hideCredentials);
-
   let database = $derived.by(() => {
     // Referencia dbConnectionsGlobal para que el derivado reaccione a cambios de conexión
     void dbConnectionsGlobal.length;
@@ -31,7 +27,6 @@
     }
     return '—';
   });
-
   let tables = $derived.by(() => {
     if ('query' in data) {
       return extractTables((data as DbQuery).query);

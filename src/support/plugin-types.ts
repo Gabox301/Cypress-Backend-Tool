@@ -7,7 +7,7 @@
 // en `$lib/types` y acá se re-exporta para no romper los imports existentes
 // (commands, augment, index). La duplicación había divergido en silencio: solo
 // lib/ traía gzip/encoding/timeout.
-export type { ApiRequestOptions } from "$lib/types";
+export type { ApiRequestOptions } from '$lib/types';
 
 /** Forma devuelta por cy.task('db:query') */
 export interface DbTaskResult {

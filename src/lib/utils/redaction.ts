@@ -1,20 +1,17 @@
-import type { ApiRequest, ApiResponse, CypressApiPluginConfig } from "$lib/types";
+import type { ApiRequest, ApiResponse, CypressApiPluginConfig } from '$lib/types';
 
-export type CredentialRedactionSettings = Pick<
-  CypressApiPluginConfig,
-  "hideCredentials" | "hideCredentialsOptions"
->;
+export type CredentialRedactionSettings = Pick<CypressApiPluginConfig, 'hideCredentials' | 'hideCredentialsOptions'>;
 
-export const REDACTED_VALUE = "***";
+export const REDACTED_VALUE = '***';
 
 function redactParams(params: string): string {
   return params
-    .split("&")
+    .split('&')
     .map((param) => {
-      const separator = param.indexOf("=");
+      const separator = param.indexOf('=');
       return separator === -1 ? param : `${param.slice(0, separator)}=${REDACTED_VALUE}`;
     })
-    .join("&");
+    .join('&');
 }
 
 export function redactUrl(url: string, settings: CredentialRedactionSettings): string {
@@ -22,22 +19,22 @@ export function redactUrl(url: string, settings: CredentialRedactionSettings): s
 
   let redacted = url;
   if (settings.hideCredentialsOptions.auth) {
-    redacted = redacted.replace(/^([a-z][a-z\d+.-]*:\/\/)[^/?#@]*@/i, "$1***@");
+    redacted = redacted.replace(/^([a-z][a-z\d+.-]*:\/\/)[^/?#@]*@/i, '$1***@');
   }
 
   if (!settings.hideCredentialsOptions.query) return redacted;
 
-  const hashIndex = redacted.indexOf("#");
+  const hashIndex = redacted.indexOf('#');
   const hasFragment = hashIndex !== -1;
-  const fragment = hasFragment ? redacted.slice(hashIndex + 1) : "";
+  const fragment = hasFragment ? redacted.slice(hashIndex + 1) : '';
   let base = hasFragment ? redacted.slice(0, hashIndex) : redacted;
-  const queryIndex = base.indexOf("?");
+  const queryIndex = base.indexOf('?');
 
   if (queryIndex !== -1) {
     base = `${base.slice(0, queryIndex + 1)}${redactParams(base.slice(queryIndex + 1))}`;
   }
 
-  return hasFragment ? `${base}#${fragment ? REDACTED_VALUE : ""}` : base;
+  return hasFragment ? `${base}#${fragment ? REDACTED_VALUE : ''}` : base;
 }
 
 /**
@@ -58,21 +55,10 @@ export function redactUrl(url: string, settings: CredentialRedactionSettings): s
  * quedan visibles. Headers, auth, query y URL no usan esto: siguen con
  * enmascarado total vía `redactRecordValues`/`redactUrl`.
  */
-const SENSITIVE_SUBSTRINGS = [
-  "pass",
-  "secret",
-  "token",
-  "jwt",
-  "oauth",
-  "cookie",
-  "cred",
-  "private",
-  "session",
-  "key",
-];
+const SENSITIVE_SUBSTRINGS = ['pass', 'secret', 'token', 'jwt', 'oauth', 'cookie', 'cred', 'private', 'session', 'key'];
 
 /** Familia `auth`: solo match por token exacto (nunca substring: `author` ≠ `auth`). */
-const AUTH_TOKENS = new Set(["auth", "authentication", "authorization"]);
+const AUTH_TOKENS = new Set(['auth', 'authentication', 'authorization']);
 
 function tokenizeKey(key: string): string[] {
   return key
@@ -86,7 +72,7 @@ function tokenizeKey(key: string): string[] {
  * `author` queda visible, `email`/`username` también.
  */
 export function isSensitiveKey(key: string): boolean {
-  const joined = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const joined = key.toLowerCase().replace(/[^a-z0-9]/g, '');
   if (SENSITIVE_SUBSTRINGS.some((s) => joined.includes(s))) return true;
   return tokenizeKey(key).some((t) => AUTH_TOKENS.has(t));
 }
@@ -96,14 +82,9 @@ export function isSensitiveKey(key: string): boolean {
  * como escalares sueltos y bind-values) enmascara; bajo clave no sensible
  * preserva el valor con su tipo. Los objetos siempre evalúan sus propias claves.
  */
-function redactWithKey(
-  node: unknown,
-  key: string | undefined,
-  forced: boolean,
-  seen: WeakSet<object>,
-): unknown {
+function redactWithKey(node: unknown, key: string | undefined, forced: boolean, seen: WeakSet<object>): unknown {
   if (node === null || node === undefined) return node;
-  if (typeof node !== "object") {
+  if (typeof node !== 'object') {
     return forced || key === undefined || isSensitiveKey(key) ? REDACTED_VALUE : node;
   }
   if (seen.has(node)) return REDACTED_VALUE;
@@ -118,9 +99,7 @@ function redactWithKey(
     out = Object.fromEntries(
       Object.entries(node as Record<string, unknown>).map(([k, nested]) => [
         k,
-        forced || isSensitiveKey(k)
-          ? redactWithKey(nested, k, true, seen)
-          : redactWithKey(nested, k, false, seen),
+        forced || isSensitiveKey(k) ? redactWithKey(nested, k, true, seen) : redactWithKey(nested, k, false, seen),
       ]),
     );
   }
@@ -132,17 +111,12 @@ export function redactValue(value: unknown, seen = new WeakSet<object>()): unkno
   return redactWithKey(value, undefined, false, seen);
 }
 
-function redactRecordValues(
-  record: Record<string, unknown> | undefined,
-): Record<string, string> | undefined {
+function redactRecordValues(record: Record<string, unknown> | undefined): Record<string, string> | undefined {
   if (!record) return undefined;
   return Object.fromEntries(Object.keys(record).map((key) => [key, REDACTED_VALUE]));
 }
 
-export function redactApiRequest<T extends ApiRequest>(
-  request: T,
-  settings: CredentialRedactionSettings,
-): T {
+export function redactApiRequest<T extends ApiRequest>(request: T, settings: CredentialRedactionSettings): T {
   if (!settings.hideCredentials) return request;
   // Override por request: `redact: false` muestra esta llamada sin enmascarar.
   // La bandera es interna del plugin y se elimina de la proyección.
@@ -161,9 +135,7 @@ export function redactApiRequest<T extends ApiRequest>(
     qs: options.query ? redactRecordValues(request.qs) : request.qs,
     auth:
       options.auth && request.auth
-        ? (redactRecordValues(
-            request.auth as unknown as Record<string, unknown>,
-          ) as ApiRequest["auth"])
+        ? (redactRecordValues(request.auth as unknown as Record<string, unknown>) as ApiRequest['auth'])
         : request.auth,
     expect: request.expect === undefined ? undefined : redactValue(request.expect),
   } as T;
@@ -178,9 +150,7 @@ export function redactApiResponse(
   const options = settings.hideCredentialsOptions;
   return {
     ...response,
-    headers: options.headers
-      ? (redactRecordValues(response.headers) as Record<string, string>)
-      : response.headers,
+    headers: options.headers ? (redactRecordValues(response.headers) as Record<string, string>) : response.headers,
     body: options.body ? redactValue(response.body) : response.body,
     cookies: options.headers
       ? response.cookies?.map((cookie) => ({ ...cookie, value: REDACTED_VALUE }))
