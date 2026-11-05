@@ -1502,15 +1502,22 @@ describe('cy.query flattened chain (FL-1)', () => {
     expect(entry.database).toBe('snapshot_db');
   });
 
-  it('present-but-empty snapshot segments fall back to localhost/5432/test_db', async () => {
+  it('present-but-empty snapshot segments fail closed (empty is not an endpoint)', async () => {
+    // '' es lo que escribe setupDatabaseTasks sin env: no identifica endpoint.
+    // Contradice al viejo fallback silencioso a localhost (rama fail-closed
+    // antes inalcanzable por el '' del writer).
     mockExposeSnapshot('', '', '');
-    mockSingleQuery({ rows: [], rowCount: 0 });
+    const task = mockSingleQuery({ rows: [], rowCount: 0 });
 
-    await queryHandler()('SELECT 1');
-
-    const entry = dbQueriesStore[0] as Record<string, any>;
-    expect(entry.connectionId).toBe('localhost:5432/test_db');
-    expect(entry.database).toBe('test_db');
+    let thrown: unknown;
+    try {
+      await queryHandler()('SELECT 1');
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('database connection is unknown');
+    expect(task).not.toHaveBeenCalled();
   });
 });
 

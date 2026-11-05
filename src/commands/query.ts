@@ -88,7 +88,15 @@ export function registerQueryCommand(): void {
       const exposedHost = Cypress.expose('dbHost') as string | undefined;
       const exposedPort = Cypress.expose('dbPort') as string | number | undefined;
       const exposedDatabase = Cypress.expose('dbDatabase') as string | undefined;
-      const snapshotAbsent = exposedHost === undefined && exposedPort === undefined && exposedDatabase === undefined;
+      // setupDatabaseTasks escribe '' cuando no hay env: el snapshot existe pero
+      // no identifica ningún endpoint real — '' cuenta como ausente para fallar
+      // cerrado en vez de consultar localhost en silencio.
+      const snapshotValueMissing = (value: unknown): boolean =>
+        value === undefined || value === null || value === '';
+      const snapshotAbsent =
+        snapshotValueMissing(exposedHost) &&
+        snapshotValueMissing(exposedPort) &&
+        snapshotValueMissing(exposedDatabase);
       if (connectionOptions === undefined && snapshotAbsent) {
         // Sync-degraded (ex D1): no per-query overrides and no setup snapshot,
         // so the real endpoint is unknown — fail closed with the 'unknown'
