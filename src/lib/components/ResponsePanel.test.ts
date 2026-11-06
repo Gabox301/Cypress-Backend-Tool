@@ -110,6 +110,41 @@ describe('ResponsePanel — formateo de tamaño y estado vacío', () => {
     render(ResponsePanel, { props: { response: makeResponse({ duration: 42 }) } });
     expect(screen.getByText('42ms')).toBeInTheDocument();
   });
+
+  it('los dots no terminan en verde cuando el último intento falló', () => {
+    const attempt = (status: number): ApiResponse =>
+      makeResponse({ status, statusText: status === 200 ? 'OK' : 'Service Unavailable' });
+    render(
+      ResponsePanel,
+      {
+        props: {
+          response: makeResponse({
+            status: 503,
+            statusText: 'Service Unavailable',
+            attempts: [attempt(503), attempt(503), attempt(503)],
+            retryCount: 2,
+          }),
+        },
+      },
+    );
+    const dots = [...document.querySelectorAll('.attempt-dot')] as HTMLElement[];
+    expect(dots).toHaveLength(3);
+    for (const dot of dots) {
+      expect(dot.style.background).not.toBe('rgb(74, 222, 128)');
+    }
+  });
+
+  it('el último dot es verde cuando el reintento recupera con 200', () => {
+    const attempt = (status: number): ApiResponse =>
+      makeResponse({ status, statusText: status === 200 ? 'OK' : 'Service Unavailable' });
+    render(
+      ResponsePanel,
+      { props: { response: makeResponse({ status: 200, attempts: [attempt(503), attempt(200)], retryCount: 1 }) } },
+    );
+    const dots = [...document.querySelectorAll('.attempt-dot')] as HTMLElement[];
+    expect(dots).toHaveLength(2);
+    expect(dots[1]?.style.background).toBe('rgb(74, 222, 128)');
+  });
 });
 
 describe('ResponsePanel — secure defaults', () => {

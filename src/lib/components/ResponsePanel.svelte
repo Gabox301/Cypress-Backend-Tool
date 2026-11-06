@@ -270,8 +270,11 @@
       </div>
       {#if attempts.length > 1}
         <div class="attempt-dots">
-          {#each attempts as _, i (i)}
-            <span class="attempt-dot" style="background:{i === attempts.length - 1 ? '#4ade80' : '#f97316'};"></span>
+          {#each attempts as attempt, i (i)}
+            <span
+              class="attempt-dot"
+              style="background:{i === attempts.length - 1 && attempt.status < 300 ? '#4ade80' : '#f97316'};"
+            ></span>
           {/each}
         </div>
       {/if}
