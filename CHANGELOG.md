@@ -5,6 +5,20 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.3.3] - 2026-11-06
+
+### Fixed
+
+- **Aislamiento de credenciales (`db`, e2e):** el spec exigía `user`/`password` de `db:getConfig` pero el handler devuelve solo metadatos no-secretos desde 1.3.0; el spec ahora aserta la ausencia de credenciales del lado browser.
+- **Docs de `configure()`:** solo funciona donde corre el browser bundle (support file, hooks, spec) — `setupNodeEvents` es un no-op silencioso en otra instancia de módulo; orden de merge corregido (`configure()` gana).
+- **Acumulación de `configure()` (`http`/`db`):** `configure()` sucesivos con `hideCredentialsOptions` parciales ya no se pisan entre sí (deep-merge, igual que en lectura); evita fugas de enmascarado.
+- **`rowCount` coherente (`db`):** `null` de handlers legacy cae a `rows.length` tanto en el valor devuelto como en el panel (antes `0` vs N).
+- **Contrato `dbName`/`dbDatabase` (`db`):** `dbName` fantasma eliminado de `ExposeValues` (tipaba `string` pero jamás se escribía); `dbDatabase` requerido, como escriben/leen writer y reader.
+- **Fail-closed de `cy.query` (`db`):** snapshot con segmentos vacíos (`''` sin env) ahora falla con `database connection is unknown` en vez de consultar `localhost:5432/test_db` en silencio.
+- **Remount de UI (`http`/`db`):** contenedor reemplazado en el mismo documento vuelve a montar el shell; un `cy.http` exitoso ya no muere con `scroll-area not found`.
+- **Pills de status (`http`):** una aserción fallida ya no pinta pills (su `expected ≠ actual` no es evidencia).
+- **Dots de reintento (`http`):** el último dot es verde solo si su intento terminó en 2xx (antes siempre verde por posición).
+
 ## [1.3.2] - 2026-11-05
 
 ### Fixed

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] - 2026-11-06
+
+### Fixed
+
+- **Credential isolation (`db`, e2e):** the spec demanded `user`/`password` from `db:getConfig` but the handler returns only non-secret metadata since 1.3.0; the spec now asserts credentials are absent browser-side.
+- **`configure()` docs:** only works where the browser bundle runs (support file, hooks, spec) — `setupNodeEvents` is a silent no-op in a separate module instance; merge order corrected (`configure()` wins).
+- **`configure()` accumulation (`http`/`db`):** successive `configure()` calls with partial `hideCredentialsOptions` no longer clobber each other (deep merge, same as reads); prevents redaction leaks.
+- **Coherent `rowCount` (`db`):** `null` from legacy handlers falls back to `rows.length` in both the returned value and the panel (was `0` vs N).
+- **`dbName`/`dbDatabase` contract (`db`):** phantom `dbName` removed from `ExposeValues` (typed `string` but never written); `dbDatabase` required, matching writer and reader.
+- **`cy.query` fail-closed (`db`):** snapshots with empty segments (`''` without env) now fail with `database connection is unknown` instead of silently querying `localhost:5432/test_db`.
+- **UI remount (`http`/`db`):** a container replaced in the same document remounts the shell; a successful `cy.http` no longer dies with `scroll-area not found`.
+- **Status pills (`http`):** a failed assertion never paints status pills (its `expected ≠ actual` is no evidence).
+- **Retry dots (`http`):** the last dot is green only when its attempt ended in 2xx (was always green by position).
+
 ## [1.3.2] - 2026-11-05
 
 ### Fixed
