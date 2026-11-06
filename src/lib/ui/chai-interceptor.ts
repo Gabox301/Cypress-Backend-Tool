@@ -121,7 +121,7 @@ export function recordAssertionOnApiCall(
   target: unknown,
   expected: unknown,
   actual: unknown,
-  extra?: { message?: unknown; negatedMsg?: unknown; flags?: unknown },
+  extra?: { message?: unknown; negatedMsg?: unknown; flags?: unknown; passed?: boolean },
 ) {
   debugLog(
     'assert target=' +
@@ -150,10 +150,15 @@ export function recordAssertionOnApiCall(
   }
 
   // 1. Aserción directa sobre status: expect(response.status).to.eq(...)
+  // T8: una aserción FALLIDA no pinta pills — su expected ≠ actual no es
+  // evidencia de nada. Los primitivos no tienen procedencia (un .eq que pasa
+  // sobre response.status y uno sobre rows.length con igual valor son
+  // indistinguibles aquí), así que al menos un fallo nunca debe colorear.
   for (const call of candidateCalls()) {
     const response = call.response;
     if (!response) continue;
     if (target === response.status) {
+      if (extra?.passed === false) return;
       const expectObj = track(call);
       expectObj.status = expected !== undefined ? expected : actual;
       debugLog('status-set=' + expectObj.status);
@@ -392,6 +397,7 @@ export function setupChaiExpectInterceptor() {
         message,
         negatedMsg,
         flags: (this as unknown as { __flags?: unknown }).__flags,
+        passed: expression,
       });
     } catch {
       // Ignorar cualquier fallo interno para jamás romper la ejecución del test

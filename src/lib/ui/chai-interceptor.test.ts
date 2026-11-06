@@ -70,6 +70,29 @@ describe('chai-interceptor — recordAssertionOnApiCall', () => {
     vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.status).toBe(200);
   });
 
+  it('no registra status desde una aserción fallida (expected ≠ actual)', () => {
+    const call: ApiCall = {
+      id: '1',
+      request: { url: 'https://example.com', method: 'GET' },
+      response: {
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        body: { id: 1 },
+        duration: 10,
+        size: 20,
+      },
+      timestamp: Date.now(),
+    };
+    apiCalls.push(call);
+
+    // target coincide con el status almacenado pero la aserción falló:
+    // expected ≠ actual no es evidencia de nada y no debe pintar pills.
+    recordAssertionOnApiCall(200, 201, 200, { passed: false });
+
+    vitestExpect(apiCalls[0].expect).toBeUndefined();
+  });
+
   it('registra aserciones de propiedades en response.body', () => {
     const call: ApiCall = {
       id: '1',
