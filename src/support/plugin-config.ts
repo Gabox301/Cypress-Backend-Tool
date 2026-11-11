@@ -5,12 +5,20 @@ import type { CypressApiPluginConfig } from '$lib/types';
 // ============================================
 // Configuración del plugin
 // ============================================
+let lastSyncedJson: string | undefined;
+
 export function readPluginConfig(): CypressApiPluginConfig {
   const base = getPluginConfig((key: string) => Cypress.expose(key));
   const config = mergeConfig(base, getConfigOverrides());
   // Sincroniza directamente con el store reactivo que App.svelte lee.
   // Ya no es necesario pasar la configuración por props del componente en cada llamada
   // — el store se comparte entre este archivo y App.svelte.
-  Object.assign(pluginConfig, config);
+  // Solo muta cuando algo cambió: se invoca 2-3× por comando y los assigns
+  // redundantes disparan renders inútiles.
+  const json = JSON.stringify(config);
+  if (json !== lastSyncedJson) {
+    lastSyncedJson = json;
+    Object.assign(pluginConfig, config);
+  }
   return config;
 }

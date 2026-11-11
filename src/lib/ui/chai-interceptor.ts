@@ -393,11 +393,11 @@ export function setupChaiExpectInterceptor() {
           // not.be.null sobre string → verde: seteamos expected = actual (mismo valor)
           effExpected = this._obj;
           effActual = this._obj;
-          debugLog('null-assert negated target=' + JSON.stringify(String(this._obj).slice(0, 60)) + ' => green');
+          debugLog('null-assert negated target=', safePreview(String(this._obj).slice(0, 60)), '=> green');
         } else {
           effExpected = null;
           effActual = this._obj;
-          debugLog('null-assert target=' + JSON.stringify(String(this._obj).slice(0, 60)));
+          debugLog('null-assert target=', safePreview(String(this._obj).slice(0, 60)));
         }
       } else if (expected === undefined && actual === undefined && isUndefinedAssertion) {
         if (isNegated) {
@@ -414,8 +414,10 @@ export function setupChaiExpectInterceptor() {
         flags: (this as unknown as { __flags?: unknown }).__flags,
         passed: expression,
       });
-    } catch {
-      // Ignorar cualquier fallo interno para jamás romper la ejecución del test
+    } catch (err) {
+      // Nunca romper el test, pero hacerlo observable con DEBUG: un fallo de
+      // atribución silencioso pinta mal sin dejar rastro.
+      debugLog('assert-intercept failed', safePreview(err));
     }
     return originalAssert.apply(this, [expression, message, negatedMsg, expected, actual, showDiff]);
   };
@@ -490,8 +492,9 @@ export function setupChaiExpectInterceptor() {
             }
           }
         }
-      } catch {
-        // Safe fallback
+      } catch (err) {
+        // Nunca romper el test, pero hacerlo observable con DEBUG.
+        debugLog('property-intercept failed', safePreview(err));
       }
       return result;
     };

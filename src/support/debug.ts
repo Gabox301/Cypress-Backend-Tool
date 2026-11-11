@@ -1,10 +1,15 @@
 // ============================================
 // Configuración del plugin — debug helpers
 // ============================================
+import { pluginConfig } from '$lib/stores.svelte';
+
+/** Snapshot al importar (histórico). Preferir `logDebug`, que lee config viva. */
 export const DEBUG = (Cypress.expose('CYPRESS_PLUGIN_DEBUG') as boolean) ?? false;
 
 export function logDebug(...args: unknown[]) {
-  if (DEBUG) {
+  // Lectura viva (no el snapshot `DEBUG`): `configure({ CYPRESS_PLUGIN_DEBUG })`
+  // y `readPluginConfig()` sincronizan el store en cada comando.
+  if (pluginConfig.CYPRESS_PLUGIN_DEBUG) {
     console.warn('[cypress-backend-tool]', ...args);
   }
 }
