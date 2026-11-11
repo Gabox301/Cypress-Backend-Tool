@@ -49,8 +49,7 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "pg": "^8.23.1",
-    "set-cookie-parser": "^3.2.2"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
