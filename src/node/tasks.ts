@@ -27,6 +27,8 @@ export interface DbTaskConfig {
   connectionTimeoutMillis?: number;
   /** Tiempo de espera en reposo del Pool de pg en milisegundos */
   idleTimeoutMillis?: number;
+  /** Timeout por query (`statement_timeout` de pg) en milisegundos; `undefined` = sin límite */
+  statement_timeoutMillis?: number;
 }
 
 export interface DbTaskResult {
@@ -71,7 +73,8 @@ function isDbTaskOptions(value: unknown): value is DbTaskOptions {
  *   2. `DB_{KEY}`
  *   3. `options.defaults`
  *   4. No hardcoded Pool endpoint or credential values; missing values remain empty
- *      (PORT becomes `NaN`). Pool timeouts default to 2000 ms.
+ *      (PORT becomes `NaN`). Pool timeouts default to connection 2000 ms, idle
+ *      10000 ms, statement 30000 ms (all overridable via `defaults`).
  *
  * For backward compatibility, `db:query` applies Node-side fallbacks when explicit
  * overrides and resolved environment/default values are missing or empty: `localhost`,
@@ -236,15 +239,24 @@ export function setupDatabaseTasks(
         `o declaralo explícito con ${envPrefix}SSL=insecure si lo asumís.`,
     );
   }
+  const poolHost = defaultHost;
+  const poolPort = parseInt(readEnv('PORT'), 10);
+  const poolDatabase = readEnv('NAME', 'database');
+  const poolUser = readEnv('USER');
+  const poolPassword = readEnv('PASSWORD');
+  const poolConnectionTimeout = options?.defaults?.connectionTimeoutMillis ?? 2000;
+  const poolIdleTimeout = options?.defaults?.idleTimeoutMillis ?? 10_000;
+  const poolStatementTimeout = options?.defaults?.statement_timeoutMillis ?? 30_000;
   const pool = new pg.Pool({
     max: 1,
-    host: defaultHost,
-    port: parseInt(readEnv('PORT'), 10),
-    database: readEnv('NAME', 'database'),
-    user: readEnv('USER'),
-    password: readEnv('PASSWORD'),
-    connectionTimeoutMillis: options?.defaults?.connectionTimeoutMillis ?? 2000,
-    idleTimeoutMillis: options?.defaults?.idleTimeoutMillis ?? 2000,
+    host: poolHost,
+    port: poolPort,
+    database: poolDatabase,
+    user: poolUser,
+    password: poolPassword,
+    connectionTimeoutMillis: poolConnectionTimeout,
+    idleTimeoutMillis: poolIdleTimeout,
+    ...(poolStatementTimeout !== undefined ? { statement_timeout: poolStatementTimeout } : {}),
     ...(sslValue !== undefined ? { ssl: sslValue } : {}),
   });
   // Lifecycle (PH3-T2): un error idle del Pool emite 'error' y, sin listener,
@@ -270,6 +282,7 @@ export function setupDatabaseTasks(
       password?: string;
       ssl?: boolean | Record<string, unknown>;
       connectionTimeoutMillis?: number;
+      statement_timeoutMillis?: number;
     }): Promise<DbTaskResult> => {
       const defaultPort = parseInt(readEnv('PORT'), 10);
       const host = args.host || readEnv('HOST') || 'localhost';
@@ -279,22 +292,25 @@ export function setupDatabaseTasks(
       const password = args.password ?? readEnv('PASSWORD');
       const effectiveSsl = args.ssl ?? resolveSsl();
       const values = Array.isArray(args.values) ? args.values : undefined;
-      const poolOpts = pool.options as unknown as Record<string, unknown>;
-      const poolSsl = poolOpts['ssl'] as unknown;
+      const queryStatementTimeout =
+        (args as { statement_timeoutMillis?: number }).statement_timeoutMillis ??
+        options?.defaults?.statement_timeoutMillis ??
+        30_000;
 
       // Comparar ssl vía JSON stringify para detectar diferencias de config (undefined vs false vs object)
       const sslMismatch =
-        effectiveSsl !== undefined || poolSsl !== undefined
-          ? JSON.stringify(effectiveSsl) !== JSON.stringify(poolSsl)
+        effectiveSsl !== undefined || sslValue !== undefined
+          ? JSON.stringify(effectiveSsl) !== JSON.stringify(sslValue)
           : false;
 
       if (
-        host !== poolOpts.host ||
-        port !== poolOpts.port ||
-        database !== poolOpts.database ||
-        user !== poolOpts.user ||
-        password !== poolOpts.password ||
-        sslMismatch
+        host !== poolHost ||
+        port !== poolPort ||
+        database !== poolDatabase ||
+        user !== poolUser ||
+        password !== poolPassword ||
+        sslMismatch ||
+        queryStatementTimeout !== poolStatementTimeout
       ) {
         const client = new pg.Client({
           host,
@@ -306,6 +322,7 @@ export function setupDatabaseTasks(
             (args as { connectionTimeoutMillis?: number }).connectionTimeoutMillis ??
             options?.defaults?.connectionTimeoutMillis ??
             2000,
+          ...(queryStatementTimeout !== undefined ? { statement_timeout: queryStatementTimeout } : {}),
           ...(effectiveSsl !== undefined ? { ssl: effectiveSsl as never } : {}),
         });
         try {
