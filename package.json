@@ -41,7 +41,7 @@
     "build": "npm run check && npm run lint && npm run unit && vp build",
     "check": "tsc --noEmit",
     "lint": "vp lint .",
-    "test": "vp test run && cypress run",
+    "test": "npm run build && cypress run",
     "unit": "vp test run",
     "watch": "vp test",
     "coverage": "vp test run --coverage",
@@ -49,8 +49,7 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "pg": "^8.23.1",
-    "set-cookie-parser": "^3.2.2"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

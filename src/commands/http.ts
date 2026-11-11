@@ -100,8 +100,8 @@ export function registerHttpCommand(): void {
     // enmascarar en logs y paneles. La bandera es interna y no va al transporte.
     const redactionSettings =
       options.redact === false ? { ...baseRedactionSettings, hideCredentials: false } : baseRedactionSettings;
-    // T3: whitelist de transporte — solo campos documentados de cy.request.
-    // Los internos del plugin (expect, retry, redact) nunca llegan al transporte.
+    // Whitelist de transporte — solo campos de cy.request. Los internos del
+    // plugin (expect, retry, redact) nunca llegan al transporte.
     const transportOptions = {
       url: options.url,
       method: options.method,
@@ -109,6 +109,9 @@ export function registerHttpCommand(): void {
       body: options.body,
       qs: options.qs,
       auth: options.auth,
+      gzip: options.gzip,
+      encoding: options.encoding,
+      timeout: options.timeout,
     };
     const callId = newCallId();
     const retry = normalizeRetryOptions(options.retry, options.method);

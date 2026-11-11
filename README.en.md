@@ -324,13 +324,16 @@ cy.http({
   redact: false, // plugin-internal: never sent to the server
 });
 
-// Transport note: only url/method/headers/body/qs/auth reach the server.
-// Plugin internals (expect, retry, redact) never leave the plugin.
+// Transport note: url/method/headers/body/qs/auth plus gzip/encoding/timeout
+// reach the server (passthrough to cy.request). Plugin internals
+// (expect, retry, redact) never leave the plugin.
 
-// Retries (refined B): with retry, 5xx, 408 and 429 are retried with exponential
-// backoff (delay·2^n), independent of failOnStatusCode (applied after exhaustion);
-// other 4xx never retry; network fails on the first attempt.
-// NOTE: avoid retry on non-idempotent POSTs.
+// Retries: with retry, 5xx, 408 and 429 are retried only on idempotent methods
+// (GET/HEAD/OPTIONS/PUT/DELETE) with capped backoff + ±20% jitter and
+// `Retry-After` honored as a minimum, independent of failOnStatusCode (applied
+// after exhaustion); `retries` is clamped to 5 and `delay` to 10s; other 4xx
+// never retry; network fails on the first attempt. POST/PATCH with `retry`
+// are suppressed to a single attempt.
 cy.http({
   url: "https://api.example.com/flaky",
   method: "GET",
@@ -518,10 +521,10 @@ npm install
 # Package build (check + lint + unit + vp build)
 npm run build
 
-# All tests (unit + E2E)
+# All tests (gates + unit + build + E2E; E2E runs against freshly built dist/)
 npm test
 
-# Unit only (vp test, 405 tests)
+# Unit only (vp test)
 npm run unit
 
 # Watch
