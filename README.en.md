@@ -253,12 +253,13 @@ CYPRESS_DB_SSL={"ca":"..."}
 ```
 
 ```typescript
-// via defaults
+// via defaults — verified TLS (recommended)
 setupDatabaseTasks(on, {
   defaults: {
-    ssl: { rejectUnauthorized: false },
+    ssl: { ca: '...' },
     // or ssl: true  → verified TLS with pg defaults
     // or ssl: false → no SSL
+    // legacy insecure only as explicit opt-in: { rejectUnauthorized: false }
   },
 });
 ```
