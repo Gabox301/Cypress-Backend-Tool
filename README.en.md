@@ -227,7 +227,8 @@ The snapshot (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) merges into `con
 | `defaults.password`                | `string`            | —               | Database password                                          |
 | `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→verified TLS, `false`→no SSL, object passed to `pg` |
 | `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Pool/Client connection timeout                             |
-| `defaults.idleTimeoutMillis`       | `number`            | `2000`          | Pool idle timeout                                          |
+| `defaults.idleTimeoutMillis`       | `number`            | `10000`         | Pool idle timeout (avoids thrash in slow suites)           |
+| `defaults.statement_timeoutMillis` | `number`            | `30000`         | Per-query timeout (`statement_timeout`); per-query override |
 
 `options.defaults` has no connection values unless configured. For compatibility, when no environment value or per-query override is available, `db:query` uses `localhost`, port `5432`, database `test_db`, user `postgres`, and an empty password inside Node. These are query fallbacks, not Pool defaults; `db:getConfig` returns only configured connection metadata.
 

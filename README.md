@@ -227,7 +227,8 @@ La instantánea (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) se combina en
 | `defaults.password`                | `string`            | —               | Contraseña de la base de datos                               |
 | `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→TLS verificado, `false`→sin SSL, objeto pasado a `pg` |
 | `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Timeout de conexión del Pool/Client                          |
-| `defaults.idleTimeoutMillis`       | `number`            | `2000`          | Timeout idle del Pool                                        |
+| `defaults.idleTimeoutMillis`       | `number`            | `10000`         | Timeout idle del Pool (evita thrash en suites lentas)        |
+| `defaults.statement_timeoutMillis` | `number`            | `30000`         | Timeout por query (`statement_timeout`); override por consulta |
 
 `options.defaults` no contiene valores de conexión si no se configuran. Por compatibilidad, cuando no hay valores de entorno ni opciones por consulta, `db:query` usa dentro de Node `localhost`, puerto `5432`, base `test_db`, usuario `postgres` y contraseña vacía. Son valores de compatibilidad de la consulta, no valores predeterminados del Pool; `db:getConfig` devuelve únicamente los metadatos configurados.
 

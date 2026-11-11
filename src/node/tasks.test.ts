@@ -688,3 +688,42 @@ describe('pool lifecycle (PH3-T2)', () => {
     expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/pool|idle/i);
   });
 });
+
+// -----------------------------------------------------------------------
+// Timeouts del Pool (P1): defaults sanos y override por consulta
+// -----------------------------------------------------------------------
+describe('pool timeouts (P1)', () => {
+  it('Pool usa idle 10s y statement 30s por defecto', () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ idleTimeoutMillis: 10_000, statement_timeout: 30_000 }),
+    );
+  });
+
+  it('respeta defaults personalizados de timeouts', () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on, {
+      defaults: { connectionTimeoutMillis: 5000, idleTimeoutMillis: 15000, statement_timeoutMillis: 60000 },
+    });
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionTimeoutMillis: 5000,
+        idleTimeoutMillis: 15000,
+        statement_timeout: 60000,
+      }),
+    );
+  });
+
+  it('override de statement por consulta rutea por Client dedicado', async () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockClientQuery.mockResolvedValueOnce({ rows: [{ one: 1 }], rowCount: 1 });
+    const tasks = getTasks(on);
+    const query = tasks['db:query'] as (args: Record<string, unknown>) => Promise<unknown>;
+    const result = await query({ query: 'SELECT 1', statement_timeoutMillis: 1000 });
+    expect(result).toEqual({ rows: [{ one: 1 }], rowCount: 1 });
+    expect(mockClientCtor).toHaveBeenCalledWith(expect.objectContaining({ statement_timeout: 1000 }));
+    expect(mockClientEnd).toHaveBeenCalled();
+  });
+});

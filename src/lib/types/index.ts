@@ -23,13 +23,14 @@ export interface ApiRequestOptions extends ApiRequest {
   timeout?: number;
   expect?: unknown;
   /**
-   * Reintentos ante fallos transitorios (B refinada): con `retry` configurado se
-   * reintentan status 5xx, 408 y 429 con backoff exponencial sobre `delay`
-   * (espera `delay·2^(n-1)` antes del intento n+1), independiente de
+   * Reintentos ante fallos transitorios (P1): con `retry` configurado se
+   * reintentan status 5xx, 408 y 429 con backoff con cap + jitter ±20% sobre
+   * `delay` y respeto a `Retry-After` como espera mínima, independiente de
    * `failOnStatusCode` (tras agotar se aplica). Otros 4xx no reintentan; los
    * rechazos de transporte fallan en el primer intento (entry degradada H1).
-   * Sin `retry`, una sola petición. OJO: vale para todo método — evitá `retry`
-   * en POST no idempotentes (side effects duplicados).
+   * Solo métodos idempotentes (GET/HEAD/OPTIONS/PUT/DELETE): POST/PATCH con
+   * `retry` se suprimen a un intento para no duplicar side effects.
+   * `retries` se cota a 5 y `delay` a 10s. Sin `retry`, una sola petición.
    */
   retry?: { retries: number; delay: number };
 }
