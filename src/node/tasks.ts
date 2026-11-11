@@ -226,11 +226,14 @@ export function setupDatabaseTasks(
   const sslValue = resolveSsl();
   if (isInsecureSsl(sslValue)) {
     // Aviso una vez por setup (no por query): el histórico `"true"` sigue funcionando
-    // por compatibilidad, pero ahora grita su consecuencia en el log de Node.
+    // por compatibilidad como alias legacy de `insecure`, pero desactiva la
+    // verificación del certificado (posible MITM). Camino seguro por default:
+    // `require`/`verify` + CA (`*_SSL_CA` o `ssl: { ca }`).
     console.warn(
       `[cypress-backend-tool] ${envPrefix}SSL desactiva la verificación TLS ` +
-        `({ rejectUnauthorized: false }): posible MITM. ` +
-        `Usá ${envPrefix}SSL=require con ${envPrefix}SSL_CA, o un objeto ssl con ca.`,
+        `({ rejectUnauthorized: false }): posible MITM — modo legacy. ` +
+        `Preferí ${envPrefix}SSL=require con ${envPrefix}SSL_CA (verificado), ` +
+        `o declaralo explícito con ${envPrefix}SSL=insecure si lo asumís.`,
     );
   }
   const pool = new pg.Pool({

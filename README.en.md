@@ -150,7 +150,7 @@ Database credentials are resolved in this order (highest priority first):
 | 1 (max)  | `CYPRESS_DB_`               | `CYPRESS_DB_HOST=localhost`                             |
 | 2        | `DB_`                       | `DB_HOST=localhost`                                     |
 | 3        | defaults (code)             | `host: 'localhost'`                                     |
-| —        | `CYPRESS_DB_SSL` / `DB_SSL` | `CYPRESS_DB_SSL=true` → `{ rejectUnauthorized: false }` |
+| —        | `CYPRESS_DB_SSL` / `DB_SSL` | `CYPRESS_DB_SSL=require` → verified TLS (recommended); `=true` → legacy insecure `{ rejectUnauthorized: false }` |
 
 > `SSL` resolution follows the same priority: `CYPRESS_DB_SSL` → `DB_SSL` → `defaults.ssl`.
 
@@ -161,7 +161,7 @@ CYPRESS_DB_PORT=5432
 CYPRESS_DB_NAME=my_db
 CYPRESS_DB_USER=postgres
 CYPRESS_DB_PASSWORD=secret
-CYPRESS_DB_SSL=true           # true => {rejectUnauthorized:false} for Neon/Supabase (warns: no cert verification). Prefer require + CYPRESS_DB_SSL_CA; false disables; or JSON: {"rejectUnauthorized":false,"ca":"..."}
+CYPRESS_DB_SSL=require        # Verified TLS (recommended for Neon/Supabase/RDS). Legacy insecure: true => {rejectUnauthorized:false} (MITM warning). Best with CA: require + CYPRESS_DB_SSL_CA; false disables; or secure JSON: {"ca":"..."}
 # Optional timeouts via defaults (not via env, see below)
 
 # Fallback — only if CYPRESS_DB_* is not set
@@ -177,7 +177,8 @@ CYPRESS_DB_PORT=5432
 CYPRESS_DB_NAME=neondb
 CYPRESS_DB_USER=neondb_owner
 CYPRESS_DB_PASSWORD=npg_...
-CYPRESS_DB_SSL=true
+CYPRESS_DB_SSL=require
+CYPRESS_DB_SSL_CA="-----BEGIN CERTIFICATE-----..."
 ```
 
 > For local Postgres without SSL, omit `CYPRESS_DB_SSL` or set `CYPRESS_DB_SSL=false`.
@@ -202,7 +203,7 @@ export default defineConfig({
           database: "test_db",
           user: "postgres",
           password: "",
-          ssl: { rejectUnauthorized: false }, // or true, or false, or {ca: '...'}
+          ssl: { ca: '...' }, // Verified TLS (recommended). Legacy insecure: { rejectUnauthorized: false } only as explicit opt-in
           connectionTimeoutMillis: 5000,
           idleTimeoutMillis: 10000,
         },
@@ -230,12 +231,12 @@ The snapshot (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) merges into `con
 
 `options.defaults` has no connection values unless configured. For compatibility, when no environment value or per-query override is available, `db:query` uses `localhost`, port `5432`, database `test_db`, user `postgres`, and an empty password inside Node. These are query fallbacks, not Pool defaults; `db:getConfig` returns only configured connection metadata.
 
-> `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"true"`/`"1"`/`"yes"` → `{ rejectUnauthorized: false }` (warns in Node: no certificate verification), `"require"`/`"verify"` → verified TLS, `"insecure"`/`"no-verify"` → explicit opt-in to insecure mode, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object. `CYPRESS_DB_SSL_CA` / `DB_SSL_CA` provide the CA in PEM (literal `\n` newlines accepted); an explicit `false` wins over the CA.
+> `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"require"`/`"verify"` → verified TLS (recommended), `"true"`/`"1"`/`"yes"` → legacy insecure `{ rejectUnauthorized: false }` (MITM warning in Node: prefer `insecure` if you explicitly accept it), `"insecure"`/`"no-verify"` → explicit opt-in to insecure mode, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object. `CYPRESS_DB_SSL_CA` / `DB_SSL_CA` provide the CA in PEM (literal `\n` newlines accepted); an explicit `false` wins over the CA.
 
 #### SSL for Neon / Supabase / RDS
 
-- **Neon** (pooler) requires `CYPRESS_DB_SSL=true` (or `ssl: { rejectUnauthorized: false }` in `defaults`) and, if you use `DATABASE_URL`, append `?sslmode=require` to the URL.
-- **Supabase** similar: `CYPRESS_DB_SSL=true` or `ssl: { rejectUnauthorized: false }`.
+- **Neon** (pooler) uses `CYPRESS_DB_SSL=require` + `CYPRESS_DB_SSL_CA` (or `ssl: { ca: '...' }` in `defaults`) and, if you use `DATABASE_URL`, append `?sslmode=require` to the URL. Legacy insecure only as opt-in: `CYPRESS_DB_SSL=insecure`.
+- **Supabase** similar: `CYPRESS_DB_SSL=require` + CA. Legacy insecure: `CYPRESS_DB_SSL=insecure`.
 - **RDS / custom CA**: `CYPRESS_DB_SSL=require` + `CYPRESS_DB_SSL_CA="<pem>"` (or `ssl: { ca: '...' }` in `defaults`) for verified TLS with a custom CA.
 - **Local Postgres without SSL**: omit the variable or use `CYPRESS_DB_SSL=false` / `defaults.ssl: false`.
 
@@ -243,12 +244,12 @@ Both approaches are equivalent:
 
 ```env
 # via .env (recommended for Neon)
-CYPRESS_DB_SSL=true
-# or advanced JSON
-CYPRESS_DB_SSL={"rejectUnauthorized":false,"ca":"..."}
-# or verified TLS with a custom CA
 CYPRESS_DB_SSL=require
 CYPRESS_DB_SSL_CA="-----BEGIN CERTIFICATE-----..."
+# or verified JSON with CA
+CYPRESS_DB_SSL={"ca":"..."}
+# legacy insecure only as explicit opt-in
+# CYPRESS_DB_SSL=insecure
 ```
 
 ```typescript
