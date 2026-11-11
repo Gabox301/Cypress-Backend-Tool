@@ -62,11 +62,14 @@
     };
   });
   function renderPortal(node: HTMLDivElement, visible: boolean, style: string, text: string) {
-    if (!visible || !text) {
-      node.innerHTML = '';
-      return;
-    }
-    node.innerHTML = `<div class="custom-tooltip" style="${style}">${text.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]!)}</div>`;
+    node.replaceChildren();
+    if (!visible || !text) return;
+    const box = node.ownerDocument.createElement('div');
+    box.className = 'custom-tooltip';
+    const m = /left:(-?\d+(?:\.\d+)?)px;top:(-?\d+(?:\.\d+)?)px;/.exec(style);
+    if (m) box.setAttribute('style', `left:${m[1]}px;top:${m[2]}px;`);
+    box.textContent = text;
+    node.appendChild(box);
   }
   $effect(() => {
     if (!portalHost) return;

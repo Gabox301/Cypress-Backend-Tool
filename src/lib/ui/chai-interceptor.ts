@@ -1,7 +1,32 @@
-import { apiCalls } from '$lib/stores.svelte';
+import { apiCalls, pluginConfig } from '$lib/stores.svelte';
 import type { ApiCall } from '$lib/types';
 import { scheduleEntryRefresh } from './entry-refresh';
 import { deepEqual } from './expect-matcher';
+
+const MAX_DEBUG_ENTRIES = 100;
+const MAX_DEBUG_CHARS = 500;
+
+function safePreview(value: unknown, max = 200): string {
+  try {
+    const raw = typeof value === 'string' ? value : JSON.stringify(value);
+    return (raw ?? String(value)).slice(0, max);
+  } catch {
+    return String(Object.prototype.toString.call(value)).slice(0, max);
+  }
+}
+
+function debugLog(...parts: unknown[]): void {
+  try {
+    if (!pluginConfig.CYPRESS_PLUGIN_DEBUG) return;
+    const g = globalThis as Record<string, unknown>;
+    if (!Array.isArray(g.__cbtDebug)) g.__cbtDebug = [];
+    const arr = g.__cbtDebug as unknown[];
+    if (arr.length >= MAX_DEBUG_ENTRIES) arr.shift();
+    arr.push(parts.map((p) => safePreview(p, MAX_DEBUG_CHARS)).join(' '));
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * Llamada activa para atribución (PH2-T2): `cy.http()` la fija al entregar la
@@ -33,16 +58,6 @@ function isSameObject(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
   return deepEqual(a, b);
-}
-
-function debugLog(...parts: unknown[]): void {
-  try {
-    const g = globalThis as Record<string, unknown>;
-    if (typeof g.__cbtDebug !== 'object' || g.__cbtDebug === null) g.__cbtDebug = [];
-    (g.__cbtDebug as unknown[]).push(parts.join(' '));
-  } catch {
-    /* ignore */
-  }
 }
 
 /**
@@ -124,16 +139,16 @@ export function recordAssertionOnApiCall(
   extra?: { message?: unknown; negatedMsg?: unknown; flags?: unknown; passed?: boolean },
 ) {
   debugLog(
-    'assert target=' +
-      JSON.stringify(String(target).slice(0, 80)) +
-      ' expected=' +
-      JSON.stringify(expected) +
-      ' actual=' +
-      JSON.stringify(actual) +
-      ' msg=' +
-      String(extra?.message).slice(0, 60) +
-      ' apiCalls=' +
-      apiCalls.length,
+    'assert target=',
+    safePreview(String(target).slice(0, 80)),
+    ' expected=',
+    safePreview(expected),
+    ' actual=',
+    safePreview(actual),
+    ' msg=',
+    safePreview(String(extra?.message ?? '').slice(0, 60)),
+    ' apiCalls=',
+    apiCalls.length,
   );
   if (apiCalls.length === 0) return;
 
