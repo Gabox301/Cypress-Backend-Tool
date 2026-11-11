@@ -19,6 +19,29 @@ describe('expect-matcher — deepEqual, hasPath, getPath', () => {
     expect(deepEqual({ a: 1 }, { a: 1, b: 2 })).toBe(false);
   });
 
+  it('deepEqual no desborda con referencias circulares', () => {
+    const a: Record<string, unknown> = { x: 1 };
+    a.self = a;
+    const b: Record<string, unknown> = { x: 1 };
+    b.self = b;
+    expect(deepEqual(a, b)).toBe(true);
+    const c: Record<string, unknown> = { x: 2 };
+    c.self = c;
+    expect(deepEqual(a, c)).toBe(false);
+  });
+
+  it('deepEqual soporta Date, RegExp, Map, Set y NaN', () => {
+    expect(deepEqual(new Date('2026-01-01'), new Date('2026-01-01'))).toBe(true);
+    expect(deepEqual(new Date('2026-01-01'), new Date('2026-01-02'))).toBe(false);
+    expect(deepEqual(/ab+c/gi, /ab+c/gi)).toBe(true);
+    expect(deepEqual(/ab+c/gi, /ab+c/g)).toBe(false);
+    expect(deepEqual(new Map([['a', 1]]), new Map([['a', 1]]))).toBe(true);
+    expect(deepEqual(new Map([['a', 1]]), new Map([['a', 2]]))).toBe(false);
+    expect(deepEqual(new Set([1, 2]), new Set([2, 1]))).toBe(true);
+    expect(deepEqual(new Set([1, 2]), new Set([1, 3]))).toBe(false);
+    expect(deepEqual(Number.NaN, Number.NaN)).toBe(true);
+  });
+
   it('hasPath y getPath resuelven correctamente propiedades anidadas', () => {
     const data = { user: { name: 'John', details: { age: 30 } }, tags: ['admin', 'dev'] };
     expect(hasPath(data, ['user', 'name'])).toBe(true);
