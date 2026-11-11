@@ -1766,4 +1766,19 @@ describe('http retry refinado (PH2-T1)', () => {
       vi.restoreAllMocks();
     }
   });
+
+  it('P2: gzip/encoding/timeout llegan al transporte (no se descartan)', async () => {
+    const mockRequest = mockRequestSequence([{ status: 200, body: { ok: true } }]);
+    const result = await httpHandler()({
+      url: 'https://api.example.com/plain',
+      method: 'GET',
+      gzip: false,
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    expect(result.status).toBe(200);
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ gzip: false, encoding: 'utf8', timeout: 5000, log: false }),
+    );
+  });
 });
