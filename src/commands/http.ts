@@ -11,17 +11,79 @@ import { showApiUi } from '../support/plugin-ui';
 import { getTestStore } from '../support/test-store';
 
 /**
- * Política de reintento (B refinada, S3): solo estos fallos son transitorios.
+ * Política de reintento (B refinada + P1, S1): solo estos fallos son transitorios.
  * 408/429 son los únicos 4xx reintentables; todo 5xx sí; el resto no.
- * Solo se aplica con `retry` configurado; sin él, idéntico a v1.1.6.
+ * Solo se aplica con `retry` configurado y método idempotente; sin él, idéntico a v1.1.6.
  */
 export function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
-/** Backoff exponencial sobre el `delay` base: espera antes del intento n+1. */
+export const MAX_HTTP_RETRIES = 5;
+export const MAX_RETRY_DELAY_MS = 10_000;
+
+const IDEMPOTENT_RETRY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE']);
+
+/** `true` cuando el método tolera reintentos sin duplicar side effects (POST/PATCH no). */
+export function isIdempotentMethod(method?: string): boolean {
+  if (method === undefined || method === null) return true;
+  return IDEMPOTENT_RETRY_METHODS.has(String(method).toUpperCase());
+}
+
+/** Normaliza `retry`: entera/cota `retries` y `delay`, suprime métodos no idempotentes. */
+export function normalizeRetryOptions(
+  retry: { retries?: unknown; delay?: unknown } | undefined,
+  method?: string,
+): { retries: number; delay: number } | undefined {
+  if (retry === undefined || retry === null) return undefined;
+  if (!isIdempotentMethod(method)) return undefined;
+  const rawRetries = typeof retry.retries === 'number' ? Math.floor(retry.retries) : 0;
+  const rawDelay = typeof retry.delay === 'number' ? Math.floor(retry.delay) : 0;
+  const retries = Math.min(
+    MAX_HTTP_RETRIES,
+    Math.max(0, Number.isFinite(rawRetries) ? rawRetries : 0),
+  );
+  const delay = Math.min(
+    MAX_RETRY_DELAY_MS,
+    Math.max(0, Number.isFinite(rawDelay) ? rawDelay : 0),
+  );
+  if (retries <= 0) return undefined;
+  return { retries, delay };
+}
+
+/** Backoff exponencial puro sobre el `delay` base: espera antes del intento n+1. Sin jitter (puro, testeable). */
 export function retryBackoffMs(delay: number, attemptNumber: number): number {
   return delay * 2 ** (attemptNumber - 1);
+}
+
+function parseRetryAfterMs(headers: unknown): number | undefined {
+  if (!headers || typeof headers !== 'object') return undefined;
+  const record = headers as Record<string, unknown>;
+  const key = Object.keys(record).find((k) => k.toLowerCase() === 'retry-after');
+  if (!key) return undefined;
+  const raw = record[key];
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0)
+    return Math.min(MAX_RETRY_DELAY_MS, raw * 1000);
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    if (text === '') return undefined;
+    const seconds = Number(text);
+    if (Number.isFinite(seconds) && seconds >= 0 && /^\d+(\.\d+)?$/.test(text))
+      return Math.min(MAX_RETRY_DELAY_MS, seconds * 1000);
+    const at = Date.parse(text);
+    if (!Number.isNaN(at)) return Math.min(MAX_RETRY_DELAY_MS, Math.max(0, at - Date.now()));
+  }
+  return undefined;
+}
+
+/** Backoff con cap + jitter ±20% y respeto a `Retry-After` (mínimo). `delay: 0` sigue siendo `0`. */
+export function retryDelayMs(delay: number, attemptNumber: number, headers?: unknown): number {
+  const base = Math.min(MAX_RETRY_DELAY_MS, Math.max(0, retryBackoffMs(delay, attemptNumber)));
+  if (base <= 0) return parseRetryAfterMs(headers) ?? 0;
+  const jitter = base * 0.2 * (Math.random() * 2 - 1);
+  const wait = Math.min(MAX_RETRY_DELAY_MS, Math.max(0, Math.round(base + jitter)));
+  const retryAfter = parseRetryAfterMs(headers);
+  return retryAfter === undefined ? wait : Math.min(MAX_RETRY_DELAY_MS, Math.max(wait, retryAfter));
 }
 
 // ============================================
@@ -49,7 +111,13 @@ export function registerHttpCommand(): void {
       auth: options.auth,
     };
     const callId = newCallId();
-    const retry = options.retry;
+    const retry = normalizeRetryOptions(options.retry, options.method);
+    if (options.retry !== undefined && retry === undefined) {
+      logDebug(
+        'http retry suppressed: non-idempotent method or non-positive retries',
+        String(options.method),
+      );
+    }
     const maxAttempts = (retry?.retries ?? 0) + 1;
     const attemptDelay = retry?.delay ?? 0;
     const attempts: ApiResponse[] = [];
@@ -149,17 +217,18 @@ export function registerHttpCommand(): void {
               return response as unknown as Cypress.Chainable<ApiResponse>;
             }
 
-            // B refinada (S3): con `retry` configurado se reintentan los fallos
-            // transitorios (5xx, 408, 429) con backoff exponencial, independiente
-            // de failOnStatusCode. Tras agotar los intentos (o ante un fallo no
+            // P1 (S1): con `retry` normalizado se reintentan los fallos
+            // transitorios (5xx, 408, 429) con backoff con cap + jitter ±20%,
+            // independiente de failOnStatusCode. `Retry-After` se honra como
+            // espera mínima. Solo métodos idempotentes llegan acá: POST/PATCH
+            // con `retry` se suprimen a un intento (ver normalizeRetryOptions).
+            // Tras agotar los intentos (o ante un fallo no
             // reintentable como otros 4xx) se aplica failOnStatusCode como antes.
             // Sin `retry` configurado, idéntico a v1.1.6 (H1/H2 intactos).
-            // Nota: el intent explícito de `retry` vale para todo método — ver el
-            // warning sobre POST no idempotentes en los tipos/docs.
             if (retry !== undefined && attemptNumber < maxAttempts && isRetryableStatus(cyResponse.status)) {
               // V4/V9: este single-callback anidado sí asimila en el runner real.
               return cy
-                .wait(retryBackoffMs(attemptDelay, attemptNumber))
+                .wait(retryDelayMs(attemptDelay, attemptNumber, cyResponse.headers))
                 .then(() => doRequest(attemptNumber + 1) as unknown as Cypress.Chainable<ApiResponse>);
             }
 

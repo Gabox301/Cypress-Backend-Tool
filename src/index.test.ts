@@ -1634,7 +1634,12 @@ describe('http retry refinado (PH2-T1)', () => {
       retry: { retries: 2, delay: 50 },
     });
     expect(mockRequest).toHaveBeenCalledTimes(3);
-    expect(waitCalls()).toEqual([50, 100]);
+    const waits = waitCalls().map(Number);
+    expect(waits).toHaveLength(2);
+    expect(waits[0]).toBeGreaterThanOrEqual(40);
+    expect(waits[0]).toBeLessThanOrEqual(60);
+    expect(waits[1]).toBeGreaterThanOrEqual(80);
+    expect(waits[1]).toBeLessThanOrEqual(120);
     expect(result.status).toBe(200);
     expect(result.attempts).toHaveLength(3);
     expect(result.retryCount).toBe(2);
@@ -1650,7 +1655,12 @@ describe('http retry refinado (PH2-T1)', () => {
       }),
     ).rejects.toThrow('500');
     expect(mockRequest).toHaveBeenCalledTimes(3);
-    expect(waitCalls()).toEqual([50, 100]);
+    const waitsExhaust = waitCalls().map(Number);
+    expect(waitsExhaust).toHaveLength(2);
+    expect(waitsExhaust[0]).toBeGreaterThanOrEqual(40);
+    expect(waitsExhaust[0]).toBeLessThanOrEqual(60);
+    expect(waitsExhaust[1]).toBeGreaterThanOrEqual(80);
+    expect(waitsExhaust[1]).toBeLessThanOrEqual(120);
     const entry = apiCallsStore[0] as Record<string, any>;
     expect(entry.response.attempts).toHaveLength(3);
     expect(entry.response.retryCount).toBe(2);
@@ -1715,5 +1725,45 @@ describe('http retry refinado (PH2-T1)', () => {
     const entry = apiCallsStore[0] as Record<string, any>;
     expect(entry.response).toBeNull();
     expect(entry.error).toContain('ENOTFOUND');
+  });
+
+  it('P1: POST con retry se suprime a un intento (no duplica side effects)', async () => {
+    const mockRequest = mockRequestSequence([{ status: 500 }, { status: 500 }]);
+    await expect(
+      httpHandler()({
+        url: 'https://api.example.com/users',
+        method: 'POST',
+        body: { name: 'Ada' },
+        retry: { retries: 2, delay: 10 },
+        failOnStatusCode: false,
+      }),
+    ).resolves.toMatchObject({ status: 500 });
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(waitCalls()).toEqual([]);
+  });
+
+  it('P1: normalizeRetryOptions cota y valida', async () => {
+    const { normalizeRetryOptions, isIdempotentMethod } = await import('./commands/http');
+    expect(isIdempotentMethod('GET')).toBe(true);
+    expect(isIdempotentMethod('PUT')).toBe(true);
+    expect(isIdempotentMethod('POST')).toBe(false);
+    expect(isIdempotentMethod('PATCH')).toBe(false);
+    expect(normalizeRetryOptions({ retries: 2, delay: 10 }, 'GET')).toEqual({ retries: 2, delay: 10 });
+    expect(normalizeRetryOptions({ retries: 2, delay: 10 }, 'POST')).toBeUndefined();
+    expect(normalizeRetryOptions({ retries: -1, delay: 10 }, 'GET')).toBeUndefined();
+    expect(normalizeRetryOptions({ retries: 99, delay: 10 }, 'GET')?.retries).toBe(5);
+    expect(normalizeRetryOptions({ retries: 2, delay: -5 }, 'GET')).toEqual({ retries: 2, delay: 0 });
+  });
+
+  it('P1: retryDelayMs honra Retry-After como mínimo y cota el cap', async () => {
+    const { retryDelayMs } = await import('./commands/http');
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      expect(retryDelayMs(10, 1, { 'Retry-After': '5' })).toBe(5000);
+      expect(retryDelayMs(60_000, 1)).toBeLessThanOrEqual(10_000);
+      expect(retryDelayMs(0, 2)).toBe(0);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
