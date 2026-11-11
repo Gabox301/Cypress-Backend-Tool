@@ -3,11 +3,27 @@ import { mount, unmount } from 'svelte';
 import EntryPanel from '../components/EntryPanel.svelte';
 import { EntryRegistry } from './entry-registry';
 
+const MAX_DEBUG_ENTRIES = 100;
+const MAX_DEBUG_CHARS = 500;
+
 function debugLog(...parts: unknown[]): void {
   try {
+    if (!pluginConfig.CYPRESS_PLUGIN_DEBUG) return;
     const g = globalThis as Record<string, unknown>;
-    if (typeof g.__cbtDebug !== 'object' || g.__cbtDebug === null) g.__cbtDebug = [];
-    (g.__cbtDebug as unknown[]).push(parts.join(' '));
+    if (!Array.isArray(g.__cbtDebug)) g.__cbtDebug = [];
+    const arr = g.__cbtDebug as unknown[];
+    if (arr.length >= MAX_DEBUG_ENTRIES) arr.shift();
+    arr.push(
+      parts
+        .map((p) => {
+          try {
+            return String(p).slice(0, MAX_DEBUG_CHARS);
+          } catch {
+            return '[unpreviewable]';
+          }
+        })
+        .join(' '),
+    );
   } catch {
     /* ignore */
   }
@@ -37,8 +53,7 @@ export function refreshEntry(id: string): void {
   // apiCalls: es el objeto que SÍ tiene el expect ya mutado. Si no está en apiCalls
   // (p. ej. una DbQuery, que no pasa por el interceptor), conservamos entry.data.
   const liveCall = apiCalls.find((c) => c.id === id) ?? entry.data;
-  const entryData = liveCall as unknown as Record<string, unknown>;
-  debugLog(`refresh:${id}:remount expect=${JSON.stringify(entryData.expect)}`);
+  debugLog(`refresh:${id}:remount`);
   // 1. Desmonta el componente viejo — Svelte elimina su DOM pero no el div destino.
   void unmount(entry.component);
   // 2. Monta un EntryPanel nuevo en el MISMO elemento con la llamada viva (expect mutado).
@@ -75,21 +90,14 @@ export function refreshEntry(id: string): void {
           hasMatch,
           hasMismatch,
           hasNullish,
-          html: el.innerHTML.slice(0, 2000),
           timestamp: Date.now(),
         };
-        // Spec bridge (runner window)
+        // Spec bridge (runner window) — solo metadatos booleanos, nunca HTML.
         (globalThis as Record<string, unknown>).__cbtLastSnapshotInfo = info;
         // AUT window (cy.state('window')) — para que cy.window() lo vea
         try {
           const autWin = el.ownerDocument.defaultView as unknown as Record<string, unknown> | null;
           if (autWin) (autWin as Record<string, unknown>).__cbtLastSnapshotInfo = info;
-        } catch {
-          /* ignore */
-        }
-        // También exponer en el document para acceso directo
-        try {
-          (el.ownerDocument as unknown as Record<string, unknown>).__cbtLastSnapshotInfo = info;
         } catch {
           /* ignore */
         }
