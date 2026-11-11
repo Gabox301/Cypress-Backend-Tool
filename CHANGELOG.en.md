@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Safe idempotent retry (`http`, P1):** `retry` only retries idempotent methods (GET/HEAD/OPTIONS/PUT/DELETE); POST/PATCH are suppressed to a single attempt. Capped backoff (10s) + ±20% jitter with `Retry-After` honored as a minimum; `retries` clamped to 5 and `delay` to 10s.
+- **Configurable pool timeouts (`db`, P1):** `idleTimeoutMillis` defaults to 10s (was 2s) and new `statement_timeoutMillis` (30s by default, per-query overridable via a dedicated `Client`).
+- **Transport passthrough (`http`, P2):** declared `gzip`/`encoding`/`timeout` now reach `cy.request` (previously silently dropped); internals (`expect`, `retry`, `redact`) stay excluded.
+- **Live `DEBUG` (`dx`, P3):** `logDebug` reads the live store, so `configure({ CYPRESS_PLUGIN_DEBUG: true })` works without reimporting (new `support/debug.test.ts`).
+- **Hardened `deepEqual` (`ui`, P3):** cycle guard, `Date`/`RegExp`/`Map`/`Set` by value and `NaN` equals `NaN` like Chai; coloring indent detected instead of assuming 2 spaces.
+
+### Fixed
+
+- **Gated debug sink (`security`, P0):** `__cbtDebug` only with `CYPRESS_PLUGIN_DEBUG`, 100-entry cap, truncated cycle-safe previews.
+- **HTML-free snapshot (`security`, P0):** `__cbtLastSnapshotInfo` keeps booleans only; the `innerHTML.slice` dump and `document` exposure are gone.
+- **TitlePanel without `innerHTML` (`security`, P0):** the tooltip is built with `createElement` + `textContent` and validated `left/top`.
+- **Secure-by-default TLS (`security/docs`, P0):** `CYPRESS_DB_SSL=true` marked legacy with a MITM warning; ES/EN docs recommend `require` + CA, `insecure` only as explicit opt-in.
+- **Observable Chai interception (`ui`, P3):** internal attribution failures log via gated debug instead of vanishing; cycle-safe previews.
+- **Config sync without useless renders (`perf`, P3):** `readPluginConfig()` only mutates the store when the config actually changed.
+
+### Changed
+
+- **`npm test` builds first (P2):** `test` = `build` (check+lint+unit+`vp build`) + `cypress run`; E2E imports `dist/`, now guaranteed fresh.
+
+### Removed
+
+- **Dead dependency (P2):** `set-cookie-parser` removed from `dependencies` (no imports in `src/` or `cypress/`; cookies come from `cy.request`).
+
 ## [1.3.3] - 2026-11-06
 
 ### Fixed
