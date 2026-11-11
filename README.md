@@ -520,10 +520,10 @@ npm install
 # Build del paquete (check + lint + unit + vp build)
 npm run build
 
-# Todos los tests (unit + E2E)
+# Todos los tests (gates + unit + build + E2E; el E2E corre contra dist/ recién compilado)
 npm test
 
-# Solo unit (vp test, 405 tests)
+# Solo unit (vp test)
 npm run unit
 
 # Watch
