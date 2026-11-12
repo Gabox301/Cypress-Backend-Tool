@@ -13,25 +13,76 @@ export interface ExpectResult {
 
 /**
  * Comparación profunda de igualdad entre dos valores.
+ * CICLOS: co-inductiva por pares (un par ya visitado se asume igual) para no
+ * desbordar la pila con respuestas circulares. `NaN` equivale a `NaN` (como
+ * `expect(NaN).to.eq(NaN)` en Chai) y se soportan `Date`/`RegExp`/`Map`/`Set`.
  */
-export function deepEqual(a: unknown, b: unknown): boolean {
+export function deepEqual(
+  a: unknown,
+  b: unknown,
+  seen: WeakMap<object, WeakSet<object>> = new WeakMap(),
+): boolean {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
   if (a === null || b === null || a === undefined || b === undefined) return a === b;
-  if (typeof a !== 'object') return a === b;
+  if (typeof a !== 'object') {
+    return typeof a === 'number' && typeof b === 'number' && Number.isNaN(a) && Number.isNaN(b);
+  }
+
+  const objA = a as Record<string, unknown>;
+  const objB = b as Record<string, unknown>;
+
+  if (a instanceof Date || b instanceof Date) {
+    if (!(a instanceof Date) || !(b instanceof Date)) return false;
+    const tA = a.getTime();
+    const tB = b.getTime();
+    return tA === tB || (Number.isNaN(tA) && Number.isNaN(tB));
+  }
+
+  if (a instanceof RegExp || b instanceof RegExp) {
+    return a instanceof RegExp && b instanceof RegExp && a.source === b.source && a.flags === b.flags;
+  }
+
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) return false;
+    const restB = [...b.entries()];
+    for (const [kA, vA] of a.entries()) {
+      const idx = restB.findIndex(([kB, vB]) => deepEqual(kA, kB, seen) && deepEqual(vA, vB, seen));
+      if (idx === -1) return false;
+      restB.splice(idx, 1);
+    }
+    return true;
+  }
+
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) return false;
+    const restB = [...b.values()];
+    for (const vA of a.values()) {
+      const idx = restB.findIndex((vB) => deepEqual(vA, vB, seen));
+      if (idx === -1) return false;
+      restB.splice(idx, 1);
+    }
+    return true;
+  }
+
+  let pair = seen.get(objA);
+  if (pair?.has(objB)) return true;
+  if (!pair) {
+    pair = new WeakSet();
+    seen.set(objA, pair);
+  }
+  pair.add(objB);
 
   if (Array.isArray(a) !== Array.isArray(b)) return false;
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false;
+      if (!deepEqual(a[i], b[i], seen)) return false;
     }
     return true;
   }
 
-  const objA = a as Record<string, unknown>;
-  const objB = b as Record<string, unknown>;
   const keysA = Object.keys(objA);
   const keysB = Object.keys(objB);
 
@@ -39,7 +90,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 
   for (const k of keysA) {
     if (!Object.prototype.hasOwnProperty.call(objB, k)) return false;
-    if (!deepEqual(objA[k], objB[k])) return false;
+    if (!deepEqual(objA[k], objB[k], seen)) return false;
   }
 
   return true;
@@ -113,6 +164,17 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
   }
 
   const stack: StackItem[] = [];
+  // Unidad de indentación detectada de la primera línea indentada (el plugin
+  // formatea con 2 espacios, pero no se asume: soporta 4 espacios o tabs).
+  let indentUnit = 2;
+  for (const ln of lines) {
+    const m = ln.match(/^(\s+)\S/);
+    if (m?.[1]) {
+      indentUnit = m[1].length;
+      break;
+    }
+  }
+  if (!(indentUnit > 0)) indentUnit = 2;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -127,7 +189,7 @@ export function computeJsonLineStatuses(formattedData: string, rawData: unknown,
     }
 
     const indent = line.match(/^(\s*)/)?.[1].length || 0;
-    const depth = Math.floor(indent / 2);
+    const depth = Math.floor(indent / indentUnit);
 
     // Ajustar stack al nivel de profundidad actual
     while (stack.length > 0 && stack[stack.length - 1].depth >= depth) {

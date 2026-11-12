@@ -5,6 +5,33 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.4.0] - 2026-11-12
+
+### Added
+
+- **Retry seguro e idempotente (`http`, P1):** `retry` solo reintenta en métodos idempotentes (GET/HEAD/OPTIONS/PUT/DELETE); POST/PATCH se suprimen a un intento. Backoff con cap (10s) + jitter ±20% y `Retry-After` como mínimo; `retries` se cota a 5 y `delay` a 10s.
+- **Timeouts de pool configurables (`db`, P1):** `idleTimeoutMillis` por defecto 10s (antes 2s) y nuevo `statement_timeoutMillis` (30s por defecto, overridable por consulta con ruteo por `Client` dedicado).
+- **Passthrough de transporte (`http`, P2):** `gzip`/`encoding`/`timeout` declarados ahora llegan a `cy.request` (antes se descartaban en silencio); los internos (`expect`, `retry`, `redact`) siguen excluidos.
+- **`DEBUG` live (`dx`, P3):** `logDebug` lee el store en vivo, así `configure({ CYPRESS_PLUGIN_DEBUG: true })` funciona sin reimportar (nuevo `support/debug.test.ts`).
+- **`deepEqual` endurecido (`ui`, P3):** guarda anti-ciclos, `Date`/`RegExp`/`Map`/`Set` por valor y `NaN` equivale a `NaN` como en Chai; indentación del coloreo detectada en vez de asumir 2 espacios.
+
+### Fixed
+
+- **Sink de debug gateado (`security`, P0):** `__cbtDebug` solo con `CYPRESS_PLUGIN_DEBUG`, cap 100 entradas, previews truncadas y seguras ante circulares.
+- **Snapshot sin HTML (`security`, P0):** `__cbtLastSnapshotInfo` conserva solo booleanos; se eliminó el `innerHTML.slice` y la exposición en `document`.
+- **TitlePanel sin `innerHTML` (`security`, P0):** el tooltip se construye con `createElement` + `textContent` y `left/top` validados.
+- **TLS seguro por default (`security/docs`, P0):** `CYPRESS_DB_SSL=true` marcado como legacy con warning MITM; docs ES/EN recomiendan `require` + CA, `insecure` solo como opt-in explícito.
+- **Interceptor Chai observable (`ui`, P3):** los fallos internos de atribución se loguean vía debug gateado en vez de desvanecerse; previews circulares-seguras.
+- **Sync de config sin renders inútiles (`perf`, P3):** `readPluginConfig()` solo muta el store cuando la config realmente cambió.
+
+### Changed
+
+- **`npm test` con build primero (P2):** `test` = `build` (check+lint+unit+`vp build`) + `cypress run`; el E2E importa `dist/`, ahora garantizado fresco.
+
+### Removed
+
+- **Dependencia muerta (P2):** `set-cookie-parser` eliminado de `dependencies` (sin imports en `src/` ni `cypress/`; las cookies vienen de `cy.request`).
+
 ## [1.3.3] - 2026-11-06
 
 ### Fixed
