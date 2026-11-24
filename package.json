@@ -46,7 +46,8 @@
     "watch": "vp test",
     "coverage": "vp test run --coverage",
     "ui": "cypress open",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "pg": "^8.23.1"
