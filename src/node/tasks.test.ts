@@ -675,6 +675,91 @@ describe("SSL hardening (AUDIT-T1)", () => {
 });
 
 // -----------------------------------------------------------------------
+// SSL fail-closed (S3): un valor inválido no puede degradar a "sin TLS" en silencio
+// -----------------------------------------------------------------------
+describe("SSL fail-closed (S3)", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  /** Captura el mensaje del throw sin acoplar el test al constructor del Error. */
+  function setupError(): string {
+    const on = vi.fn();
+    try {
+      setupDatabaseTasks(on);
+    } catch (error) {
+      return (error as Error).message;
+    }
+    throw new Error("setupDatabaseTasks did not throw");
+  }
+
+  it("lanza con CYPRESS_DB_SSL desconocido en vez de desactivar TLS en silencio", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "maybe");
+    const on = vi.fn();
+    expect(() => setupDatabaseTasks(on)).toThrow(/CYPRESS_DB_SSL/);
+    expect(mockPoolCtor).not.toHaveBeenCalled();
+  });
+
+  it("el error de valor desconocido enumera los valores aceptados", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "maybe");
+    const message = setupError();
+    expect(message).toMatch(/require/);
+    expect(message).toMatch(/verify/);
+    expect(message).toMatch(/insecure/);
+    expect(message).toMatch(/disable/);
+    expect(message).toMatch(/JSON/i);
+  });
+
+  it("nombra DB_SSL cuando el valor desconocido viene del respaldo", () => {
+    vi.stubEnv("DB_SSL", "quizas");
+    expect(setupError()).toMatch(/DB_SSL/);
+  });
+
+  it("lanza con JSON inválido en vez de continuar sin TLS", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "{bad");
+    const on = vi.fn();
+    expect(() => setupDatabaseTasks(on)).toThrow(/CYPRESS_DB_SSL/);
+    expect(mockPoolCtor).not.toHaveBeenCalled();
+  });
+
+  it("marca el error de JSON inválido como tal", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "{bad");
+    expect(setupError()).toMatch(/JSON/i);
+  });
+
+  it("un valor desconocido no cae al defaults.ssl configurado", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "maybe");
+    const on = vi.fn();
+    expect(() => setupDatabaseTasks(on, { defaults: { ssl: false } })).toThrow(/CYPRESS_DB_SSL/);
+    expect(mockPoolCtor).not.toHaveBeenCalled();
+  });
+
+  it('un SSL vacío sigue significando "sin TLS" (sin throw)', () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "   ");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    const poolOptions = mockPoolCtor.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(poolOptions).not.toHaveProperty("ssl");
+  });
+
+  it("el JSON válido se sigue parseando como objeto", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", '{"rejectUnauthorized":false}');
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ ssl: { rejectUnauthorized: false } }),
+    );
+  });
+});
+
+// -----------------------------------------------------------------------
 // Lifecycle del Pool (PH3-T2): un error idle no puede tumbar el proceso Node
 // -----------------------------------------------------------------------
 describe("pool lifecycle (PH3-T2)", () => {

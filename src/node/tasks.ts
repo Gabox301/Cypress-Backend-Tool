@@ -89,6 +89,8 @@ function isDbTaskOptions(value: unknown): value is DbTaskOptions {
  *     (`"false"` disables SSL; JSON such as `'{"rejectUnauthorized":false}'` is parsed).
  *   - Or `options.defaults.ssl` as a `boolean | object`.
  *   No hardcoded host checks such as `host.includes('neon.tech')` or `supabase` are used.
+ *   Fail-closed: an unknown non-empty value or malformed JSON throws instead of
+ *   silently connecting without TLS.
  *
  * @param on - Cypress PluginEvents from setupNodeEvents
  * @param configOrOptions - Cypress config for the one-line setup
@@ -170,9 +172,21 @@ export function setupDatabaseTasks(
     );
   };
 
+  /**
+   * Lista de valores válidos de `{envPrefix}SSL`, citada en los errores para que un typo
+   * no derive en una conexión sin TLS silenciosa (S3).
+   */
+  const sslAcceptedValues =
+    `"require"|"verify"|"verify-full" (TLS verificado), ` +
+    `"insecure"|"no-verify" (opt-in explícito sin verificación), ` +
+    `"false"|"0"|"no"|"disable" (sin SSL), ` +
+    `"true"|"1"|"yes" (legacy inseguro) o un objeto JSON (ej. {"ca":"..."})`;
+
   const readSslEnv = (): boolean | Record<string, unknown> | undefined => {
-    const raw = process.env[envPrefix + "SSL"] ?? process.env["DB_SSL"];
+    const prefixed = process.env[envPrefix + "SSL"];
+    const raw = prefixed ?? process.env["DB_SSL"];
     if (raw !== undefined) {
+      const envName = prefixed !== undefined ? `${envPrefix}SSL` : "DB_SSL";
       const trimmed = raw.trim();
       if (trimmed === "") return undefined;
       const lower = trimmed.toLowerCase();
@@ -200,11 +214,22 @@ export function setupDatabaseTasks(
         try {
           return JSON.parse(trimmed) as Record<string, unknown>;
         } catch {
-          // continúa sin definir si el JSON no es válido
+          // Fail-closed (S3): un JSON malformado no puede degradar a "sin TLS" silencioso.
+          // No se ecoa el valor crudo: podría arrastrar secretos al log de error.
+          throw new Error(
+            `[cypress-backend-tool] ${envName} contiene JSON inválido. ` +
+              `Valores aceptados: ${sslAcceptedValues}.`,
+          );
         }
       }
-      // Valor no reconocido -> no configurar SSL (evita magic strings)
-      return undefined;
+      // Fail-closed (S3): valor no reconocido -> error explícito, nunca "sin TLS" silencioso.
+      throw new Error(
+        `[cypress-backend-tool] ${envName}="${
+          trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed
+        }" no es un valor SSL válido. ` +
+          `Valores aceptados: ${sslAcceptedValues}. ` +
+          `Omití la variable (o dejala vacía) para no configurar SSL.`,
+      );
     }
     const fromDefaults = options?.defaults?.ssl;
     if (fromDefaults !== undefined) {
