@@ -18,15 +18,16 @@
   let cfg = $derived(methodConfig[method] ?? methodConfig['GET']);
   let urlParts = $derived.by(() => {
     if (!url) return { origin: '', path: '', full: '' };
-    try {
-      const u = new URL(url);
-      return { origin: u.origin, path: u.pathname + u.search, full: url };
-    } catch {
+    // URL.parse no lanza (devuelve null) y evita el try/catch; el guard cubre
+    // browsers viejos donde URL.parse aún no existe.
+    const u = typeof URL.parse === 'function' ? URL.parse(url) : null;
+    if (!u) {
       const slash = url.indexOf('/', url.indexOf('//') + 2);
       const origin = slash >= 0 ? url.slice(0, slash) : url;
       const path = slash >= 0 ? url.slice(slash) : '';
       return { origin, path, full: url };
     }
+    return { origin: u.origin, path: u.pathname + u.search, full: url };
   });
   let tooltip = $state<{ visible: boolean; text: string; x: number; y: number }>({
     visible: false,

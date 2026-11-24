@@ -5,7 +5,11 @@ import {
   registerLiveCopyButton,
 } from "./copy-delegation";
 
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const flush = (): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, 0);
+  return promise;
+};
 
 function mockClipboard(writeText: (text: string) => void | Promise<void>): void {
   Object.defineProperty(document.defaultView!.navigator, "clipboard", {

@@ -91,7 +91,7 @@
     }
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "allowScripts": {
     "cypress@16.3.0": true

@@ -30,12 +30,12 @@ Cypress plugin for HTTP API testing and PostgreSQL database queries with an inte
 ## Stack
 
 - **Svelte 5** with runes (`$state`, `$derived.by`, `$effect`, `$props`) — 100% runes, `svelte.config.js: { runes: true }` and `vite.config.ts` aligned. No `onMount`, no `$:` or legacy `svelte/store`.
-- **Vite+ 1.3** (VoidZero unified toolchain: Vite 8, Vitest 5, Oxlint, Oxfmt) + `@sveltejs/vite-plugin-svelte 7` and `vite-plugin-dts` for library build (`dist/index.js` + `dist/tasks.js`).
+- **Vite+ 1.8** (VoidZero unified toolchain: Vite 8, Vitest 5, Oxlint, Oxfmt) + `@sveltejs/vite-plugin-svelte 7` and `vite-plugin-dts` for library build (`dist/index.js` + `dist/tasks.js`).
 - **TypeScript 6** and `vp check` (format + lint + types, 0 errors, 0 warnings); `eslint-plugin-svelte` as lint plugin.
 
 ## Requirements
 
-- Node.js >= 22
+- Node.js >= 24
 - Cypress >= 15.10.0
 
 ## Installation
@@ -45,6 +45,8 @@ npm install cypress-backend-tool
 # or
 yarn add cypress-backend-tool
 ```
+
+> ESM-only: on Node >= 24 (required), `require("cypress-backend-tool")` also works via native `require(esm)`.
 
 ## Configuration
 
@@ -66,7 +68,7 @@ The simplest way to configure database tasks is with `setupDatabaseTasks()`, whi
 import { defineConfig } from "cypress";
 import { setupDatabaseTasks } from "cypress-backend-tool/tasks";
 
-process.loadEnvFile(); // loads .env automatically (native Node >=22 loader)
+process.loadEnvFile(); // loads .env automatically (native Node >=24 loader)
 
 export default defineConfig({
   e2e: {

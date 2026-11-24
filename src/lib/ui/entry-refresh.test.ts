@@ -15,6 +15,12 @@ import { mount, unmount } from "svelte";
 import { refreshEntry, scheduleEntryRefresh } from "./entry-refresh";
 import { EntryRegistry } from "./entry-registry";
 
+const flush = (): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, 0);
+  return promise;
+};
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -147,7 +153,7 @@ describe("scheduleEntryRefresh", () => {
     expect(mount).not.toHaveBeenCalled();
     expect(unmount).not.toHaveBeenCalled();
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flush();
 
     expect(unmount).toHaveBeenCalledTimes(1);
     expect(mount).toHaveBeenCalledTimes(1);
@@ -165,7 +171,7 @@ describe("scheduleEntryRefresh", () => {
     scheduleEntryRefresh("abc");
     scheduleEntryRefresh("abc");
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flush();
 
     expect(mount).toHaveBeenCalledTimes(1);
     expect(unmount).toHaveBeenCalledTimes(1);
