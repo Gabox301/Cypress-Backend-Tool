@@ -33,7 +33,9 @@ const { pgRefs } = vi.hoisted(() => {
     return { query: mockPoolQuery, options: opts, on: mockPoolOn };
   });
   const mockClientCtor = vi.fn(function MockClient() {
-    return { query: mockClientQuery, connect: mockClientConnect, end: mockClientEnd };
+    // `on` (W-A): el handler per-query ahora registra client.on("error", …);
+    // sin este no-op el mock lanzaría TypeError si un test conduce la rama Client.
+    return { query: mockClientQuery, connect: mockClientConnect, end: mockClientEnd, on: vi.fn() };
   });
   return {
     pgRefs: {
@@ -988,8 +990,10 @@ describe("DB failure entries (FCU-02)", () => {
     });
   }
 
-  it("D2: db:query rejection renders an entry with connectionId + error and rethrows the original", async () => {
-    const dbError = new Error('relation "missing_table" does not exist');
+  it("D2: db:query rejection renders an entry with connectionId + error and rethrows a wrapped Error", async () => {
+    const dbError = Object.assign(new Error('relation "missing_table" does not exist'), {
+      code: "42P01",
+    });
     mockDbTasks({ queryError: dbError });
     const historyBefore = windowDbHistory().length;
 
@@ -1000,7 +1004,14 @@ describe("DB failure entries (FCU-02)", () => {
       caught = e;
     }
 
-    expect(caught).toBe(dbError);
+    expect(caught).toBeInstanceOf(Error);
+    // S3 (1.5.0): el rechazo ya no se reenvía tal cual — pg adjunta detalle de
+    // fila en el message (unique violations), así que el Error lleva sólo código
+    // e identificador de conexión. El detalle queda en la entrada del panel.
+    expect(caught).not.toBe(dbError);
+    expect((caught as Error).message).toBe(
+      "cy.query failed: db:query rejected (postgres 42P01) — connectionId localhost:5432/test_db",
+    );
     expect(dbQueriesStore).toHaveLength(1);
     const entry = dbQueriesStore[0] as Record<string, any>;
     expect(entry.connectionId).toBe("localhost:5432/test_db");
@@ -1033,7 +1044,12 @@ describe("DB failure entries (FCU-02)", () => {
       caught = e;
     }
 
-    expect(caught).toBe(dbError);
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(dbError);
+    expect((caught as Error).message).toBe(
+      "cy.query failed: db:query rejected (unknown cause) — connectionId " +
+        "override.example.test:5544/override_db",
+    );
     expect(task.mock.calls[0]?.[1]).toEqual({
       query: "SELECT $1::int",
       values: [42],
@@ -1114,7 +1130,9 @@ describe("DB failure entries (FCU-02)", () => {
     const dbError = new Error("column 'query-secret' does not exist");
     mockDbTasks({ queryError: dbError });
 
-    await expect(queryHandler()("SELECT 'query-secret'", ["bind-secret"])).rejects.toBe(dbError);
+    await expect(queryHandler()("SELECT 'query-secret'", ["bind-secret"])).rejects.toThrow(
+      "db:query rejected",
+    );
 
     const log = cypressLogMock();
     const logOptions = log.mock.calls[log.mock.calls.length - 1]?.[0] as {
@@ -2036,5 +2054,370 @@ describe("thrown-error redaction (S4)", () => {
     const entry = apiCallsStore[0] as Record<string, any>;
     expect((entry.request as Record<string, unknown>).url).toContain(HTTP_CANARY);
     expect(entry.error).toContain(HTTP_CANARY);
+  });
+});
+
+// ===========================================================================
+// 1.5.0 strict errors (#4 #5 #6 #8 #16)
+// ===========================================================================
+describe("1.5.0 strict errors (#4 #5 #6 #8 #16)", () => {
+  const SQL_CANARY = "CANARY_SQL_1f5a";
+  const CONN_CANARY = "CANARY_CONN_2b7c";
+  const BIND_CANARY = "CANARY_BIND_3c9d";
+  const ROW_CANARY = "CANARY_ROW_4d1e";
+  const HTTP_CANARY = "CANARY_HTTP_5e2f";
+  let dbQueriesStore: unknown[];
+  let apiCallsStore: unknown[];
+  let clearDbStore: () => void;
+  let clearApiStore: () => void;
+
+  beforeAll(async () => {
+    await import("./index");
+    const stores = await import("./lib/stores.svelte");
+    dbQueriesStore = stores.dbQueries as unknown[];
+    apiCallsStore = stores.apiCalls as unknown[];
+    clearDbStore = stores.clearDbQueries;
+    clearApiStore = stores.clearApiCalls;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+    clearApiStore();
+  });
+
+  function queryHandler() {
+    return capturedCommands["query"] as (...args: unknown[]) => Promise<unknown>;
+  }
+
+  function httpHandler() {
+    return capturedCommands["http"] as (options: unknown) => Promise<Record<string, any>>;
+  }
+
+  function mockExpose(overrides: Record<string, unknown>) {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key in overrides) return overrides[key];
+      if (key === "CYPRESS_PLUGIN_DEBUG") return false;
+      if (key === "snapshotOnly") return false;
+      if (key === "dbTaskPrefix") return "";
+      if (key === "hideCredentialsOptions")
+        return { headers: true, auth: true, body: true, query: true };
+      return undefined;
+    });
+  }
+
+  function mockDbTasks(options: { queryError?: unknown; queryResult?: unknown } = {}) {
+    const task = vi.fn((taskName: string, _args?: Record<string, unknown>) => {
+      if (taskName === "db:query") {
+        return options.queryError === undefined
+          ? Promise.resolve(options.queryResult ?? { rows: [{ value: 1 }], rowCount: 1 })
+          : Promise.reject(options.queryError);
+      }
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    return task;
+  }
+
+  async function catchQuery(...args: unknown[]) {
+    let caught: unknown;
+    try {
+      await queryHandler()(...args);
+    } catch (e) {
+      caught = e;
+    }
+    return caught;
+  }
+
+  async function catchHttp(options: unknown) {
+    let caught: unknown;
+    try {
+      await httpHandler()(options);
+    } catch (e) {
+      caught = e;
+    }
+    return caught;
+  }
+
+  // -------------------------------------------------------------------------
+  // #4 — fail closed when neither overrides nor the snapshot identify an endpoint
+  // -------------------------------------------------------------------------
+  it("#4: empty connectionOptions with no snapshot fails closed without echoing SQL or option values", async () => {
+    mockExpose({});
+    const task = mockDbTasks();
+    const sql = `SELECT * FROM users WHERE token = '${SQL_CANARY}'`;
+
+    const caught = await catchQuery(sql, [BIND_CANARY], { note: CONN_CANARY });
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("database connection is unknown");
+    expect(message).not.toContain(SQL_CANARY);
+    expect(message).not.toContain(CONN_CANARY);
+    expect(message).not.toContain(BIND_CANARY);
+    expect(message).not.toContain("SELECT");
+    expect(task).not.toHaveBeenCalled();
+    // Panel: la entrada conserva el detalle crudo para diagnóstico.
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe("unknown");
+    expect(entry.query).toBe(sql);
+    expect(entry.error).toContain(SQL_CANARY);
+  });
+
+  it("#4: blank connection keys are not intent — still fails closed with no snapshot", async () => {
+    mockExpose({});
+    const task = mockDbTasks();
+
+    const caught = await catchQuery(`SELECT '${SQL_CANARY}'`, {
+      host: "",
+      database: "",
+      port: undefined,
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain("database connection is unknown");
+    expect((caught as Error).message).not.toContain(SQL_CANARY);
+    expect(task).not.toHaveBeenCalled();
+  });
+
+  it("#4: a partial snapshot with host set is intent and proceeds", async () => {
+    mockExpose({ dbHost: "snapshot.example.test" });
+    const task = mockDbTasks({ queryResult: { rows: [], rowCount: 0 } });
+
+    await queryHandler()("SELECT 1");
+
+    expect(task).toHaveBeenCalledTimes(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe("snapshot.example.test:5432/test_db");
+    expect(entry.connectionId).not.toContain("undefined");
+  });
+
+  it("#4: user/password-only overrides count as connection intent and proceed", async () => {
+    mockExpose({});
+    const task = mockDbTasks();
+
+    await queryHandler()("SELECT 1", {
+      user: CONN_CANARY,
+      password: CONN_CANARY,
+    });
+
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(task.mock.calls[0]?.[1]).toEqual({
+      query: "SELECT 1",
+      user: CONN_CANARY,
+      password: CONN_CANARY,
+    });
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.connectionId).toBe("localhost:5432/test_db");
+  });
+
+  // -------------------------------------------------------------------------
+  // #5 — strict D2: wrap the db:query rejection, never echo the pg detail
+  // -------------------------------------------------------------------------
+  it("#5: D2 wraps a coded rejection without echoing the pg row detail; the panel keeps it", async () => {
+    const dbError = Object.assign(
+      new Error(
+        `duplicate key value violates unique constraint "users_email_key" ` +
+          `(email)=('leak-${ROW_CANARY}@example.test')`,
+      ),
+      { code: "23505" },
+    );
+    mockDbTasks({ queryError: dbError });
+
+    const caught = await catchQuery(`INSERT INTO users VALUES ('${SQL_CANARY}')`);
+
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(dbError);
+    const message = (caught as Error).message;
+    expect(message).toBe(
+      "cy.query failed: db:query rejected (postgres 23505) — connectionId localhost:5432/test_db",
+    );
+    expect(message).not.toContain(ROW_CANARY);
+    expect(message).not.toContain(SQL_CANARY);
+    expect(message).not.toContain("users_email_key");
+    expect(message).not.toContain("duplicate key");
+    // S4: el panel conserva el detalle completo.
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.error).toContain(ROW_CANARY);
+    expect(entry.error).toContain("users_email_key");
+  });
+
+  it("#5: D2 without a postgres code renders unknown cause and the resolved connectionId", async () => {
+    mockDbTasks({ queryError: new Error(`boom ${ROW_CANARY}`) });
+
+    const caught = await catchQuery("SELECT 1", {
+      host: "override.example.test",
+      port: 5544,
+      database: "override_db",
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toBe(
+      "cy.query failed: db:query rejected (unknown cause) — connectionId " +
+        "override.example.test:5544/override_db",
+    );
+    expect(message).not.toContain(ROW_CANARY);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.error).toContain(ROW_CANARY);
+  });
+
+  // -------------------------------------------------------------------------
+  // #6 — bounded `received` in the thrown error, full in the panel
+  // -------------------------------------------------------------------------
+  it("#6: invalid-result received is truncated in the Error and kept whole in the panel", async () => {
+    const hugeReceived = { rowCount: 1, pad: "A".repeat(2000), secret: ROW_CANARY };
+    mockDbTasks({ queryResult: hugeReceived });
+
+    const caught = await catchQuery(`UPDATE accounts SET token = '${SQL_CANARY}'`);
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("invalid db:query result");
+    expect(message).toContain("truncated");
+    expect(message).toContain("localhost:5432/test_db");
+    expect(message).toContain("queryArgs keys: [query]");
+    expect(message).not.toContain(ROW_CANARY);
+    expect(message).not.toContain(SQL_CANARY);
+    // Bound: la parte recibida no puede crecer con el valor inválido.
+    expect(message.length).toBeLessThan(1200);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.error).toContain(ROW_CANARY);
+    expect(entry.error.length).toBeGreaterThan(2000);
+  });
+
+  // -------------------------------------------------------------------------
+  // #8 — identifier enrichment for transport rejections without code/status
+  // -------------------------------------------------------------------------
+  it("#8: refused transport rejection identifies by redacted origin + (refused), not 'CypressError'/'0'", async () => {
+    const transportError = Object.assign(
+      new Error(`connect ECONNREFUSED https://api.example.test/refused?token=${HTTP_CANARY}`),
+      { name: "CypressError", code: 0 },
+    );
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi
+      .fn()
+      .mockRejectedValue(transportError);
+
+    const caught = await catchHttp({
+      url: `https://api.example.test/refused?token=${HTTP_CANARY}`,
+      method: "GET",
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // Forma exacta: método + origen redactado + identificador útil + clasificación.
+    expect(message).toBe(
+      "cy.http request failed: GET https://api.example.test/refused?token=*** " +
+        "(transport error: unknown rejection) (refused)",
+    );
+    expect(message).not.toContain(HTTP_CANARY);
+    expect(message).not.toContain("CypressError");
+    expect(message).not.toContain("ECONNREFUSED https");
+    // El detalle crudo queda en el panel.
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.error).toContain(HTTP_CANARY);
+  });
+
+  it("#8: timeout transport rejection is classified as (timeout) without echoing the message", async () => {
+    const transportError = Object.assign(
+      new Error(`connect ETIMEDOUT 10.9.9.9:443 for token ${HTTP_CANARY}`),
+      { name: "CypressError", code: 0 },
+    );
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi
+      .fn()
+      .mockRejectedValue(transportError);
+
+    const caught = await catchHttp({
+      url: `https://api.example.test/slow?token=${HTTP_CANARY}`,
+      method: "GET",
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("cy.http request failed");
+    expect(message).toContain("(timeout)");
+    expect(message).not.toContain("(refused)");
+    expect(message).not.toContain(HTTP_CANARY);
+    expect(message).not.toContain("10.9.9.9");
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.error).toContain(HTTP_CANARY);
+  });
+
+  // -------------------------------------------------------------------------
+  // #16 — toErrorMessage never throws (null-prototype / circular / hostile)
+  // -------------------------------------------------------------------------
+  it("#16: toErrorMessage survives null-prototype, circular and throwing-toString values", async () => {
+    const { toErrorMessage } = (await import("./support/debug")) as unknown as {
+      toErrorMessage: (err: unknown) => string;
+    };
+
+    const nullPrototype = Object.create(null) as Record<string, unknown>;
+    nullPrototype.message = undefined;
+    nullPrototype.secret = ROW_CANARY;
+
+    let nullProtoMessage = "";
+    expect(() => {
+      nullProtoMessage = toErrorMessage(nullPrototype);
+    }).not.toThrow();
+    expect(typeof nullProtoMessage).toBe("string");
+    expect(nullProtoMessage.length).toBeGreaterThan(0);
+
+    const circular: Record<string, unknown> = { name: "weird" };
+    circular.self = circular;
+    expect(() => toErrorMessage(circular)).not.toThrow();
+    expect(typeof toErrorMessage(circular)).toBe("string");
+
+    const throwingToString = {
+      toString() {
+        throw new Error("nope");
+      },
+    };
+    expect(() => toErrorMessage(throwingToString)).not.toThrow();
+    expect(typeof toErrorMessage(throwingToString)).toBe("string");
+  });
+
+  it("#16: a null-prototype transport rejection still renders a visible entry and a wrapped Error", async () => {
+    const rejection = Object.assign(Object.create(null) as Record<string, unknown>, {
+      status: 502,
+      statusText: "Bad Gateway",
+      headers: {},
+      body: { token: HTTP_CANARY },
+      message: `bad gateway ${HTTP_CANARY}`,
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi
+      .fn()
+      .mockRejectedValue(rejection);
+
+    const caught = await catchHttp({ url: "https://api.example.test/nullproto", method: "GET" });
+
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(rejection);
+    const message = (caught as Error).message;
+    expect(message).toContain("cy.http request failed");
+    expect(message).toContain("status 502");
+    expect(message).not.toContain(HTTP_CANARY);
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(typeof entry.error).toBe("string");
+    expect(entry.error).toContain(HTTP_CANARY);
+  });
+
+  it("#16: a null-prototype db:query rejection still wraps (postgres code) and keeps the panel detail", async () => {
+    const rejection = Object.assign(Object.create(null) as Record<string, unknown>, {
+      message: `unique violation ${ROW_CANARY}`,
+      code: "23505",
+    });
+    mockDbTasks({ queryError: rejection });
+
+    const caught = await catchQuery("SELECT 1");
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe(
+      "cy.query failed: db:query rejected (postgres 23505) — connectionId localhost:5432/test_db",
+    );
+    expect((caught as Error).message).not.toContain(ROW_CANARY);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(typeof entry.error).toBe("string");
+    expect(entry.error).toContain(ROW_CANARY);
   });
 });

@@ -47,4 +47,10 @@ export interface DbConnectionOptions {
   database?: string;
   user?: string;
   password?: string;
+  /** Configuración SSL para pg: `true`, `false` u objeto como `{ rejectUnauthorized: false }`. */
+  ssl?: boolean | Record<string, unknown>;
+  /** Tiempo de espera de conexión del Pool de pg en milisegundos */
+  connectionTimeoutMillis?: number;
+  /** Timeout por query (`statement_timeout` de pg) en milisegundos; `undefined` = sin límite */
+  statement_timeoutMillis?: number;
 }

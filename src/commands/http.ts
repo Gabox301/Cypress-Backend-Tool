@@ -63,7 +63,14 @@ export function retryBackoffMs(delay: number, attemptNumber: number): number {
  * un rechazo de `cy.request` puede arrastrar la URL completa (userinfo, tokens
  * en el query string), headers o cuerpo, así que el Error reenviado sólo lleva
  * clase, código y estado. La evidencia cruda queda en la entrada del panel.
+ *
+ * #8: `CypressError` y el código numérico `0` son ruido (no identifican nada),
+ * así que se filtran junto con los nombres genéricos; el origen redactado viaja
+ * fuera de este identificador y la clasificación refused/timeout se agrega como
+ * sufijo sin eco del message.
  */
+const GENERIC_ERROR_NAMES = new Set(["", "Object", "Error", "CypressError"]);
+
 function transportErrorIdentifier(err: unknown, carriedStatus: number | null): string {
   const parts: string[] = [];
   const name =
@@ -72,13 +79,29 @@ function transportErrorIdentifier(err: unknown, carriedStatus: number | null): s
       : typeof (err as { name?: unknown } | null)?.name === "string"
         ? (err as { name: string }).name
         : "";
-  // `Object` sólo aporta ruido: un rechazo plano ya se identifica por estado.
-  if (name !== "" && name !== "Object") parts.push(name);
+  if (!GENERIC_ERROR_NAMES.has(name)) parts.push(name);
   const code = (err as { code?: unknown } | null)?.code;
   if (typeof code === "string" && code !== "") parts.push(code);
-  else if (typeof code === "number" && Number.isFinite(code)) parts.push(String(code));
+  else if (typeof code === "number" && Number.isFinite(code) && code !== 0) parts.push(String(code));
   if (carriedStatus !== null) parts.push(`status ${carriedStatus}`);
   return parts.length > 0 ? parts.join(" ") : "unknown rejection";
+}
+
+/**
+ * #8: refused-vs-timeout se clasifica testeando el message (via `toErrorMessage`,
+ * que ya es seguro), nunca incluyendo su texto en el Error lanzado.
+ */
+function transportFailureKind(err: unknown): "refused" | "timeout" | null {
+  const message = toErrorMessage(err).toLowerCase();
+  if (
+    /econnrefused|connection refused|econnreset|ehostunreach|enetunreach|enotfound|eai_again|socket hang up|epipe/.test(
+      message,
+    )
+  ) {
+    return "refused";
+  }
+  if (/etimedout|esockettimedout|timeout|timed out/.test(message)) return "timeout";
+  return null;
 }
 
 function parseRetryAfterMs(headers: unknown): number | undefined {
@@ -328,10 +351,14 @@ export function registerHttpCommand(): void {
                 // identificador de clase/código/estado, y el detalle completo
                 // queda en la entrada del panel. Usa la config base (no el
                 // override `redact: false`, que sólo cubre logs y paneles).
+                // #8: refused/timeout se agrega como sufijo cuando el message
+                // (testeado, nunca copiado) lo delata.
+                const failureKind = transportFailureKind(err);
                 throw new Error(
                   `cy.http request failed: ${options.method ?? "GET"} ` +
                     `${redactUrl(options.url, baseRedactionSettings)} ` +
-                    `(transport error: ${transportErrorIdentifier(err, carriedStatus)})`,
+                    `(transport error: ${transportErrorIdentifier(err, carriedStatus)})` +
+                    `${failureKind === null ? "" : ` (${failureKind})`}`,
                 );
               },
             ) as unknown as Cypress.Chainable<ApiResponse>

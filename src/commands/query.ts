@@ -14,6 +14,61 @@ import type {
 import { showDbQueryUi } from "../support/plugin-ui";
 import { getTestStore } from "../support/test-store";
 
+/** Bounded del valor inválido en el Error lanzado (#6); el panel no se trunca. */
+const MAX_THROWN_RECEIVED_CHARS = 500;
+
+/** Claves que identifican intención de conexión en las overrides por consulta (#4). */
+const CONNECTION_KEYS = ["host", "port", "database", "user", "password"] as const;
+
+/** `''`, `null` y `undefined` cuentan como ausentes: no identifican un endpoint. */
+function valueMissing(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/** #4: `cy.query(sql, {})` no es intención de conexión; alguna clave real sí lo es. */
+function connectionOptionsHaveKeys(options: DbConnectionOptions | undefined): boolean {
+  if (options === undefined || options === null) return false;
+  const record = options as Record<string, unknown>;
+  return CONNECTION_KEYS.some((key) => !valueMissing(record[key]));
+}
+
+/**
+ * #5 (S3): código del rechazo de `db:query` para el Error envuelto. Sin código
+ * útil se rotula `unknown cause`; el detalle crudo queda en el panel.
+ */
+function postgresCause(err: unknown): string {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  if (typeof code === "string" && code.trim() !== "") {
+    return `postgres ${truncateForThrown(code.trim(), 40)}`;
+  }
+  if (typeof code === "number" && Number.isFinite(code) && code !== 0) return `postgres ${code}`;
+  return "unknown cause";
+}
+
+/** Recorta texto para el canal CI/AUT dejando marca explícita del recorte. */
+function truncateForThrown(text: string, max = MAX_THROWN_RECEIVED_CHARS): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}… [truncated, ${text.length} chars total]`;
+}
+
+/** Proyección segura del resultado inválido: JSON con fallbacks que no lanzan. */
+function safeReceivedProjection(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  try {
+    const json = JSON.stringify(value);
+    if (typeof json === "string") return json;
+  } catch {
+    // BigInt, circular o `toJSON` hostil: probamos la siguiente proyección.
+  }
+  try {
+    // eslint-disable-next-line typescript/no-base-to-string -- fallback intencional cuando JSON.stringify no produce texto
+    return String(value);
+  } catch {
+    return `[unreadable ${typeof value}]`;
+  }
+}
+
 export function registerQueryCommand(): void {
   Cypress.Commands.add(
     "query",
@@ -98,18 +153,20 @@ export function registerQueryCommand(): void {
       // setupDatabaseTasks escribe '' cuando no hay env: el snapshot existe pero
       // no identifica ningún endpoint real — '' cuenta como ausente para fallar
       // cerrado en vez de consultar localhost en silencio.
-      const snapshotValueMissing = (value: unknown): boolean =>
-        value === undefined || value === null || value === "";
       const snapshotAbsent =
-        snapshotValueMissing(exposedHost) &&
-        snapshotValueMissing(exposedPort) &&
-        snapshotValueMissing(exposedDatabase);
-      if (connectionOptions === undefined && snapshotAbsent) {
+        valueMissing(exposedHost) &&
+        valueMissing(exposedPort) &&
+        valueMissing(exposedDatabase);
+      // #4: un objeto de overrides sin claves de conexión (`{}`, `{log:false}`) no
+      // expresa intención; sólo host/port/database/user/password lo hacen. Partial
+      // con host vale como intención (se resuelve por segmento).
+      if (!connectionOptionsHaveKeys(connectionOptions) && snapshotAbsent) {
         // Sync-degraded (ex D1): no per-query overrides and no setup snapshot,
         // so the real endpoint is unknown — fail closed with the 'unknown'
         // sentinel instead of silently querying the local fallbacks.
         const reason =
-          `database connection is unknown: no per-query connectionOptions and no ` +
+          `database connection is unknown: no connection details in per-query ` +
+          `connectionOptions (host/port/database/user/password) and no ` +
           `setupDatabaseTasks(on, config) expose snapshot (dbHost/dbPort/dbDatabase)`;
         // S4: el panel conserva el detalle crudo (query incluida) para
         // diagnóstico y aserciones; el Error lanzado es el canal CI/AUT
@@ -150,32 +207,30 @@ export function registerQueryCommand(): void {
           const resultRows = (result as unknown as { rows?: unknown } | null | undefined)?.rows;
           if (!result || !Array.isArray(resultRows)) {
             const rawResult: unknown = result;
-            let received: string;
-            if (rawResult === undefined) received = "undefined";
-            else if (rawResult === null) received = "null";
-            else {
-              try {
-                // eslint-disable-next-line typescript/no-base-to-string -- diagnóstico intencional: mejor esfuerzo para mostrar el valor inválido tal cual en el panel y el error
-                received = JSON.stringify(rawResult) ?? String(rawResult);
-              } catch {
-                // eslint-disable-next-line typescript/no-base-to-string -- fallback intencional cuando JSON.stringify lanza (p. ej. BigInt o referencia circular)
-                received = String(rawResult);
-              }
-            }
+            const received = safeReceivedProjection(rawResult);
             // GUA-2: enriched diagnostics — the panel entry and the rethrown
             // error carry the same evidence so H1 (stale/foreign handler or
             // transport edge) vs H2 is decidable without re-running.
             const taskName = `${dbTaskPrefix}db:query`;
             const connectionId = `${host}:${port}/${database}`;
             const queryArgKeys = Object.keys(queryArgs).join(", ");
-            const reason =
-              `invalid ${taskName} result (expected {rows,rowCount}, got ${received}) ` +
+            const diagnostics =
               `— connectionId: ${connectionId}, queryArgs keys: [${queryArgKeys}], ` +
               `typeof result: ${typeof rawResult}`;
             // S4: misma separación que en el path sync-degraded — panel rico,
             // Error lanzado sin SQL ni bind values.
-            renderDbFailure(connectionId, database, `${reason} — for query: ${query}`);
-            throw new Error(`cy.query failed: ${reason} — for query: ${REDACTED_VALUE}`);
+            renderDbFailure(
+              connectionId,
+              database,
+              `invalid ${taskName} result (expected {rows,rowCount}, got ${received}) ` +
+                `${diagnostics} — for query: ${query}`,
+            );
+            // #6: el `received` del Error lanzado va acotado; el panel conserva
+            // el valor inválido completo para diagnóstico.
+            throw new Error(
+              `cy.query failed: invalid ${taskName} result (expected {rows,rowCount}, got ` +
+                `${truncateForThrown(received)}) ${diagnostics} — for query: ${REDACTED_VALUE}`,
+            );
           }
           const queryRows = resultRows as unknown[];
           const dbResponse: DbQueryResponse = {
@@ -232,11 +287,17 @@ export function registerQueryCommand(): void {
           return cy.wrap(dbResponse);
         },
         (err: unknown) => {
-          // D2: db:query rejected — host/port/database were already resolved
-          // above, so the entry carries the real connectionId. Rethrow the
-          // original error unchanged so Cypress still fails the command.
-          renderDbFailure(`${host}:${port}/${database}`, database, toErrorMessage(err));
-          throw err;
+          // D2 estricto (S3, #5): el rechazo de pg puede arrastrar detalle de
+          // fila en el message (unique violations), así que se envuelve en un
+          // Error que sólo lleva código SQLSTATE e identificador de conexión
+          // (host/port/database ya resueltos arriba). El detalle completo queda
+          // en la entrada del panel vía toErrorMessage.
+          const connectionId = `${host}:${port}/${database}`;
+          renderDbFailure(connectionId, database, toErrorMessage(err));
+          throw new Error(
+            `cy.query failed: db:query rejected (${postgresCause(err)}) ` +
+              `— connectionId ${connectionId}`,
+          );
         },
       );
     },
