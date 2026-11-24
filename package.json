@@ -52,31 +52,31 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@testing-library/jest-dom": "^7.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.2",
+    "@testing-library/jest-dom": "^8.0.0",
     "@testing-library/svelte": "^5.4.2",
-    "@testing-library/user-event": "^14.6.9",
-    "@types/node": "^26.6.6",
+    "@testing-library/user-event": "^14.6.13",
+    "@types/node": "^26.6.7",
     "@types/pg": "^8.23.1",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitest/coverage-v8": "5.1.0",
+    "@vitest/coverage-v8": "5.1.1",
     "cypress": "^16.3.0",
     "eslint-plugin-svelte": "^3.24.1",
     "globals": "^17.14.0",
-    "jsdom": "^31.0.0",
-    "svelte": "^5.57.3",
+    "jsdom": "^31.0.1",
+    "svelte": "^5.59.1",
     "typescript": "^6.0.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.6.0",
     "vite-plugin-dts": "^5.1.2",
     "vite-plus": "1.6.0",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   },
   "peerDependencies": {
     "cypress": ">=15.10.0"
   },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@1.6.0",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   },
   "devEngines": {
     "packageManager": {
