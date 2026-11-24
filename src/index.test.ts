@@ -758,7 +758,7 @@ describe("HTTP failure entries (FCU-01)", () => {
     expect(entry.error).toContain("503");
   });
 
-  it("H1: cy.request rejection renders a degraded entry with null response and rethrows the original error", async () => {
+  it("H1: cy.request rejection renders a degraded entry with null response and rethrows a redacted error", async () => {
     const transportError = new Error("getaddrinfo ENOTFOUND example.test");
     (globalThis.cy as unknown as Record<string, unknown>).request = vi
       .fn()
@@ -772,7 +772,11 @@ describe("HTTP failure entries (FCU-01)", () => {
       caught = e;
     }
 
-    expect(caught).toBe(transportError);
+    // S4: el rechazo crudo ya no se reenvía tal cual (message puede arrastrar
+    // URL/credenciales); el Error lanzado es un identificador redactado.
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(transportError);
+    expect((caught as Error).message).toContain("cy.http request failed");
     expect(apiCallsStore).toHaveLength(1);
     const entry = apiCallsStore[0] as Record<string, any>;
     expect(entry.request).toMatchObject({ url: "https://example.test/unreachable", method: "GET" });
@@ -802,7 +806,9 @@ describe("HTTP failure entries (FCU-01)", () => {
       caught = e;
     }
 
-    expect(caught).toBe(rejection);
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(rejection);
+    expect((caught as Error).message).toContain("status 502");
     expect(apiCallsStore).toHaveLength(1);
     const entry = apiCallsStore[0] as Record<string, any>;
     expect(entry.response).toMatchObject({ status: 502, body: { upstream: "down" } });
@@ -832,7 +838,9 @@ describe("HTTP failure entries (FCU-01)", () => {
       caught = e;
     }
 
-    expect(caught).toBe(rejection);
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(rejection);
+    expect((caught as Error).message).toContain("status 502");
     expect(apiCallsStore).toHaveLength(1);
     const entry = apiCallsStore[0] as Record<string, any>;
     expect(entry.response).toMatchObject({ status: 502 });
@@ -1750,7 +1758,7 @@ describe("http retry refinado (PH2-T1)", () => {
     expect(result.retryCount).toBe(0);
   });
 
-  it("el rechazo de transporte no reintenta: entry degradada y relanza el original", async () => {
+  it("el rechazo de transporte no reintenta: entry degradada y relanza un Error redactado", async () => {
     const boom = new Error("getaddrinfo ENOTFOUND example.test");
     const mockRequest = mockRequestSequence([boom, boom]);
     let caught: unknown;
@@ -1763,7 +1771,9 @@ describe("http retry refinado (PH2-T1)", () => {
     } catch (e) {
       caught = e;
     }
-    expect(caught).toBe(boom);
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(boom);
+    expect((caught as Error).message).toContain("cy.http request failed");
     expect(mockRequest).toHaveBeenCalledTimes(1);
     expect(waitCalls()).toEqual([]);
     const entry = apiCallsStore[0] as Record<string, any>;
@@ -1830,5 +1840,201 @@ describe("http retry refinado (PH2-T1)", () => {
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({ gzip: false, encoding: "utf8", timeout: 5000, log: false }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Redacción de errores lanzados (S4): el canal CI/AUT-visible no lleva SQL
+// crudo, bind values, headers ni credenciales. Las entradas del panel siguen
+// ricas (proyecciones crudas para aserciones + logs redactados).
+// ---------------------------------------------------------------------------
+describe("thrown-error redaction (S4)", () => {
+  const SQL_CANARY = "CANARY_SQL_7f3a";
+  const HTTP_CANARY = "CANARY_HTTP_9f3a";
+  let dbQueriesStore: unknown[];
+  let apiCallsStore: unknown[];
+  let clearDbStore: () => void;
+  let clearApiStore: () => void;
+
+  beforeAll(async () => {
+    await import("./index");
+    const stores = await import("./lib/stores.svelte");
+    dbQueriesStore = stores.dbQueries as unknown[];
+    apiCallsStore = stores.apiCalls as unknown[];
+    clearDbStore = stores.clearDbQueries;
+    clearApiStore = stores.clearApiCalls;
+  });
+
+  beforeEach(() => {
+    clearDbStore();
+    clearApiStore();
+  });
+
+  function queryHandler() {
+    return capturedCommands["query"] as (...args: unknown[]) => Promise<unknown>;
+  }
+
+  function httpHandler() {
+    return capturedCommands["http"] as (options: unknown) => Promise<Record<string, any>>;
+  }
+
+  function mockExposeWithoutSnapshot() {
+    cypressExposeMock.mockImplementation((key: string) => {
+      if (key === "CYPRESS_PLUGIN_DEBUG") return false;
+      if (key === "snapshotOnly") return false;
+      if (key === "hideCredentialsOptions")
+        return { headers: true, auth: true, body: true, query: true };
+      return undefined;
+    });
+  }
+
+  async function catchQuery(...args: unknown[]) {
+    let caught: unknown;
+    try {
+      await queryHandler()(...args);
+    } catch (e) {
+      caught = e;
+    }
+    return caught;
+  }
+
+  async function catchHttp(options: unknown) {
+    let caught: unknown;
+    try {
+      await httpHandler()(options);
+    } catch (e) {
+      caught = e;
+    }
+    return caught;
+  }
+
+  it("cy.query sync-degraded: el Error redacta el SQL y los bind values; la entrada conserva el detalle", async () => {
+    mockExposeWithoutSnapshot();
+    const task = vi.fn().mockRejectedValue(new Error("Unexpected task"));
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    const sql = `SELECT * FROM users WHERE password = '${SQL_CANARY}'`;
+
+    const caught = await catchQuery(sql, [`bind-${SQL_CANARY}`]);
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("cy.query failed");
+    expect(message).toContain("connection is unknown");
+    expect(message).toContain("***");
+    expect(message).not.toContain(SQL_CANARY);
+    expect(message).not.toContain("SELECT");
+    expect(task).not.toHaveBeenCalled();
+    // Panel: la entrada mantiene la query cruda y el detalle completo.
+    expect(dbQueriesStore).toHaveLength(1);
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.query).toBe(sql);
+    expect(entry.error).toContain(SQL_CANARY);
+  });
+
+  it("cy.query invalid result: el Error redacta el SQL y conserva las claves de diagnóstico", async () => {
+    const task = vi.fn((taskName: string) => {
+      if (taskName === "db:query") return Promise.resolve({ rowCount: 1 });
+      return Promise.reject(new Error(`Unexpected task: ${taskName}`));
+    });
+    (globalThis.cy as unknown as Record<string, unknown>).task = task;
+    const sql = `UPDATE accounts SET token = '${SQL_CANARY}'`;
+
+    const caught = await catchQuery(sql);
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("invalid db:query result");
+    expect(message).toContain("localhost:5432/test_db");
+    expect(message).toContain("queryArgs keys: [query]");
+    expect(message).toContain("***");
+    expect(message).not.toContain(SQL_CANARY);
+    expect(message).not.toContain("UPDATE");
+    const entry = dbQueriesStore[0] as Record<string, any>;
+    expect(entry.query).toBe(sql);
+    expect(entry.error).toContain(SQL_CANARY);
+  });
+
+  it("cy.http H1 transport rejection: el Error no filtra URL, headers ni auth del request", async () => {
+    const transportError = Object.assign(
+      new Error(`request to https://api.example.test/boom?token=${HTTP_CANARY} failed`),
+      { code: "ECONNREFUSED" },
+    );
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi
+      .fn()
+      .mockRejectedValue(transportError);
+
+    const caught = await catchHttp({
+      url: `https://api.example.test/boom?token=${HTTP_CANARY}`,
+      method: "GET",
+      headers: { authorization: `Bearer ${HTTP_CANARY}` },
+      auth: { username: `user-${HTTP_CANARY}`, password: HTTP_CANARY },
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(transportError);
+    const message = (caught as Error).message;
+    expect(message).toContain("cy.http request failed");
+    expect(message).toContain("GET");
+    expect(message).toContain("ECONNREFUSED");
+    for (const secret of [HTTP_CANARY, `user-${HTTP_CANARY}`, "Bearer"]) {
+      expect(message).not.toContain(secret);
+    }
+    // Panel: la entrada degradada conserva el mensaje crudo del rechazo.
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toBeNull();
+    expect(entry.error).toContain(HTTP_CANARY);
+  });
+
+  it("cy.http H1 rejection carrying status: el Error expone estado no sensible y ningún secreto", async () => {
+    const rejection = {
+      status: 502,
+      statusText: "Bad Gateway",
+      headers: { "x-api-key": HTTP_CANARY },
+      body: { token: HTTP_CANARY },
+      message: `Bad Gateway for key ${HTTP_CANARY}`,
+    };
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi
+      .fn()
+      .mockRejectedValue(rejection);
+
+    const caught = await catchHttp({ url: "https://api.example.test/gateway", method: "GET" });
+
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught).not.toBe(rejection);
+    const message = (caught as Error).message;
+    expect(message).toContain("cy.http request failed");
+    expect(message).toContain("status 502");
+    expect(message).not.toContain(HTTP_CANARY);
+    expect(message).not.toContain("x-api-key");
+    expect(apiCallsStore).toHaveLength(1);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect(entry.response).toMatchObject({ status: 502, body: { token: HTTP_CANARY } });
+    expect(entry.error).toContain(HTTP_CANARY);
+  });
+
+  it("cy.http H1: el override `redact: false` no debilita el Error lanzado (sólo logs y paneles)", async () => {
+    const transportError = new Error(
+      `connect failed for https://api.example.test/opt-out?token=${HTTP_CANARY}`,
+    );
+    (globalThis.cy as unknown as Record<string, unknown>).request = vi
+      .fn()
+      .mockRejectedValue(transportError);
+
+    const caught = await catchHttp({
+      url: `https://user:${HTTP_CANARY}@api.example.test/opt-out?token=${HTTP_CANARY}`,
+      method: "GET",
+      redact: false,
+    });
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("cy.http request failed");
+    // Userinfo y query string siguen enmascarados aunque la llamada opte por
+    // `redact: false`: ese override cubre logs y paneles, no el Error.
+    expect(message).not.toContain(HTTP_CANARY);
+    const entry = apiCallsStore[0] as Record<string, any>;
+    expect((entry.request as Record<string, unknown>).url).toContain(HTTP_CANARY);
+    expect(entry.error).toContain(HTTP_CANARY);
   });
 });

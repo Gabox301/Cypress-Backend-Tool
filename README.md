@@ -20,7 +20,7 @@ Plugin de Cypress para testing de APIs HTTP y consultas a bases de datos Postgre
 
 - **UI persistente**: Cada request/query tiene su propia entrada permanente en el DOM. Los snapshots de Cypress son estables entre `it()` blocks — nunca verás un panel en blanco al inspeccionar una llamada anterior.
 - **Soporte PostgreSQL**: Ejecuta consultas SQL desde Cypress sin exponer las credenciales predeterminadas al navegador.
-- **Enmascaramiento de credenciales**: Oculta valores sensibles en la interfaz, los registros de Cypress y el cURL generado de forma predeterminada; es posible desactivarlo explícitamente. En cuerpos y respuestas el enmascarado es por nombre de campo sensible (`password`, `token`, `api_key`, …) y preserva tipos y valores no sensibles; headers, auth, query y URL siguen con enmascarado total. `redact: false` por request desactiva el enmascarado de esa llamada.
+- **Enmascaramiento de credenciales**: Oculta valores sensibles en la interfaz, los registros de Cypress y el cURL generado de forma predeterminada; es posible desactivarlo explícitamente. En cuerpos y respuestas el enmascarado es por nombre de campo sensible (`password`, `token`, `api_key`, …) y preserva tipos y valores no sensibles; headers, auth, query y URL siguen con enmascarado total. `redact: false` por request desactiva el enmascarado de esa llamada. Los errores lanzados viajan siempre enmascarados: `redact: false` no los alcanza.
 - **Aislamiento de credenciales de base de datos**: Las credenciales predeterminadas permanecen en el proceso Node de Cypress; se mantienen las opciones explícitas por consulta.
 - **API moderna**: Usa las APIs `Cypress.expose()` y `cy.env()` de Cypress 15.10.0+
 - **Coloreo automático por `expect()`**: Cada `expect()` sobre `response.status`, `response.body`, `response.headers`, `response.cookies` o campos anidados colorea el `ResponsePanel`/`CodeBlock` en verde (match), rojo (mismatch) o amarillo (nullish). Las aserciones de cookies se registran como mapa nombre→valor (igual que los headers) y resaltan las filas de cookies; la comparación usa los valores originales mientras `hideCredentials` sigue ocultando el valor mostrado. Funciona con `eq`, `deep.eq`, `have.property` y `not` — sin configuración adicional. Las aserciones tardías (alias) colorean su llamada original aunque otra haya completado después (solo `cy.http()`).
@@ -486,7 +486,7 @@ El log de `cy.http()` guarda un primer snapshot `'response'` tras el montaje y, 
 
 ### Las llamadas fallidas permanecen visibles
 
-Las llamadas fallidas de `cy.http()`/`cy.query()` conservan su entrada en el historial del panel (request más respuesta cuando está disponible, de lo contrario el error) mientras Cypress sigue marcando el comando como fallido. El contenido del error aplica el mismo enmascaramiento `hideCredentials` que el resto de la salida del panel.
+Las llamadas fallidas de `cy.http()`/`cy.query()` conservan su entrada en el historial del panel (request más respuesta cuando está disponible, de lo contrario el error) mientras Cypress sigue marcando el comando como fallido. El contenido del error aplica el mismo enmascaramiento `hideCredentials` que el resto de la salida del panel. Excepción: si el task `db:query` es rechazado por el driver, se relanza el error original del driver.
 
 ## Aislamiento de credenciales de base de datos
 

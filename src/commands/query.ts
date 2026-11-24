@@ -108,12 +108,14 @@ export function registerQueryCommand(): void {
         // Sync-degraded (ex D1): no per-query overrides and no setup snapshot,
         // so the real endpoint is unknown — fail closed with the 'unknown'
         // sentinel instead of silently querying the local fallbacks.
-        const detail =
+        const reason =
           `database connection is unknown: no per-query connectionOptions and no ` +
-          `setupDatabaseTasks(on, config) expose snapshot (dbHost/dbPort/dbDatabase) ` +
-          `— for query: ${query}`;
-        renderDbFailure("unknown", "unknown", detail);
-        throw new Error(`cy.query failed: ${detail}`);
+          `setupDatabaseTasks(on, config) expose snapshot (dbHost/dbPort/dbDatabase)`;
+        // S4: el panel conserva el detalle crudo (query incluida) para
+        // diagnóstico y aserciones; el Error lanzado es el canal CI/AUT
+        // visible y solo lleva identificadores, nunca el SQL.
+        renderDbFailure("unknown", "unknown", `${reason} — for query: ${query}`);
+        throw new Error(`cy.query failed: ${reason} — for query: ${REDACTED_VALUE}`);
       }
       const host = connectionOptions?.host || exposedHost || "localhost";
       const port = connectionOptions?.port || Number(exposedPort) || 5432;
@@ -166,12 +168,14 @@ export function registerQueryCommand(): void {
             const taskName = `${dbTaskPrefix}db:query`;
             const connectionId = `${host}:${port}/${database}`;
             const queryArgKeys = Object.keys(queryArgs).join(", ");
-            const detail =
+            const reason =
               `invalid ${taskName} result (expected {rows,rowCount}, got ${received}) ` +
               `— connectionId: ${connectionId}, queryArgs keys: [${queryArgKeys}], ` +
-              `typeof result: ${typeof rawResult} — for query: ${query}`;
-            renderDbFailure(connectionId, database, detail);
-            throw new Error(`cy.query failed: ${detail}`);
+              `typeof result: ${typeof rawResult}`;
+            // S4: misma separación que en el path sync-degraded — panel rico,
+            // Error lanzado sin SQL ni bind values.
+            renderDbFailure(connectionId, database, `${reason} — for query: ${query}`);
+            throw new Error(`cy.query failed: ${reason} — for query: ${REDACTED_VALUE}`);
           }
           const queryRows = resultRows as unknown[];
           const dbResponse: DbQueryResponse = {

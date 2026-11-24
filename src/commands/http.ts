@@ -2,7 +2,12 @@ import { addApiCall, pushCapped } from "$lib/stores.svelte";
 import type { ApiCall, ApiResponse } from "$lib/types";
 import { setActiveApiCall } from "$lib/ui/chai-interceptor";
 import { bodySizeBytes, newCallId, nowMs } from "$lib/utils/metrics";
-import { REDACTED_VALUE, redactApiRequest, redactApiResponse } from "$lib/utils/redaction";
+import {
+  REDACTED_VALUE,
+  redactApiRequest,
+  redactApiResponse,
+  redactUrl,
+} from "$lib/utils/redaction";
 import { reserveCallPlaceholder } from "../support/command-ui";
 import { logDebug, toErrorMessage } from "../support/debug";
 import { readPluginConfig } from "../support/plugin-config";
@@ -51,6 +56,29 @@ export function normalizeRetryOptions(
 /** Backoff exponencial puro sobre el `delay` base: espera antes del intento n+1. Sin jitter (puro, testeable). */
 export function retryBackoffMs(delay: number, attemptNumber: number): number {
   return delay * 2 ** (attemptNumber - 1);
+}
+
+/**
+ * Identificador NO sensible de un rechazo de transporte (S4). El `message` de
+ * un rechazo de `cy.request` puede arrastrar la URL completa (userinfo, tokens
+ * en el query string), headers o cuerpo, así que el Error reenviado sólo lleva
+ * clase, código y estado. La evidencia cruda queda en la entrada del panel.
+ */
+function transportErrorIdentifier(err: unknown, carriedStatus: number | null): string {
+  const parts: string[] = [];
+  const name =
+    err instanceof Error
+      ? err.name
+      : typeof (err as { name?: unknown } | null)?.name === "string"
+        ? (err as { name: string }).name
+        : "";
+  // `Object` sólo aporta ruido: un rechazo plano ya se identifica por estado.
+  if (name !== "" && name !== "Object") parts.push(name);
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && code !== "") parts.push(code);
+  else if (typeof code === "number" && Number.isFinite(code)) parts.push(String(code));
+  if (carriedStatus !== null) parts.push(`status ${carriedStatus}`);
+  return parts.length > 0 ? parts.join(" ") : "unknown rejection";
 }
 
 function parseRetryAfterMs(headers: unknown): number | undefined {
@@ -294,7 +322,17 @@ export function registerHttpCommand(): void {
                         cookies: rejection?.cookies || [],
                       };
                 renderHttpFailure(failureResponse, toErrorMessage(err));
-                throw err;
+                // S4: el rechazo crudo puede contener la URL con credenciales,
+                // headers o tokens, así que no se reenvía tal cual (antes
+                // `throw err`): el Error lanzado lleva método + URL redactada +
+                // identificador de clase/código/estado, y el detalle completo
+                // queda en la entrada del panel. Usa la config base (no el
+                // override `redact: false`, que sólo cubre logs y paneles).
+                throw new Error(
+                  `cy.http request failed: ${options.method ?? "GET"} ` +
+                    `${redactUrl(options.url, baseRedactionSettings)} ` +
+                    `(transport error: ${transportErrorIdentifier(err, carriedStatus)})`,
+                );
               },
             ) as unknown as Cypress.Chainable<ApiResponse>
         );
