@@ -1,6 +1,6 @@
-import { getConfigOverrides, getPluginConfig, mergeConfig } from '$lib/config';
-import { pluginConfig } from '$lib/stores.svelte';
-import type { CypressApiPluginConfig } from '$lib/types';
+import { getConfigOverrides, getPluginConfig, mergeConfig } from "$lib/config";
+import { pluginConfig } from "$lib/stores.svelte";
+import type { CypressApiPluginConfig } from "$lib/types";
 
 // ============================================
 // Configuración del plugin

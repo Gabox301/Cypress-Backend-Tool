@@ -3,8 +3,8 @@
 // el historial crudo de llamadas/consultas); la UI del plugin ya no depende de él,
 // lee los stores compartidos apiCalls/dbQueries en su lugar.
 export function getTestStore() {
-  const testId = cy.state('runnable')?.id || 'unknown';
-  const win = cy.state('window') as Window;
+  const testId = cy.state("runnable")?.id || "unknown";
+  const win = cy.state("window") as Window;
   if (!win.__cypress_backend_tool__) {
     win.__cypress_backend_tool__ = {};
   }

@@ -1,32 +1,37 @@
-import { addDbQuery, pushCapped } from '$lib/stores.svelte';
-import type { DbQuery } from '$lib/types';
-import { newCallId, nowMs } from '$lib/utils/metrics';
-import { REDACTED_VALUE, redactValue } from '$lib/utils/redaction';
-import { reserveCallPlaceholder } from '../support/command-ui';
-import { logDebug, toErrorMessage } from '../support/debug';
-import { readPluginConfig } from '../support/plugin-config';
-import type { DbConnectionOptions, DbQueryResponse, DbQueryTaskThen, DbTaskResult } from '../support/plugin-types';
-import { showDbQueryUi } from '../support/plugin-ui';
-import { getTestStore } from '../support/test-store';
+import { addDbQuery, pushCapped } from "$lib/stores.svelte";
+import type { DbQuery } from "$lib/types";
+import { newCallId, nowMs } from "$lib/utils/metrics";
+import { REDACTED_VALUE, redactValue } from "$lib/utils/redaction";
+import { reserveCallPlaceholder } from "../support/command-ui";
+import { logDebug, toErrorMessage } from "../support/debug";
+import { readPluginConfig } from "../support/plugin-config";
+import type {
+  DbConnectionOptions,
+  DbQueryResponse,
+  DbQueryTaskThen,
+  DbTaskResult,
+} from "../support/plugin-types";
+import { showDbQueryUi } from "../support/plugin-ui";
+import { getTestStore } from "../support/test-store";
 
 export function registerQueryCommand(): void {
   Cypress.Commands.add(
-    'query',
+    "query",
     (
       query: string,
       valuesOrOptions?: unknown[] | DbConnectionOptions,
       maybeConnectionOptions?: DbConnectionOptions,
     ) => {
       const values = Array.isArray(valuesOrOptions) ? valuesOrOptions : undefined;
-      const connectionOptions = (Array.isArray(valuesOrOptions) ? maybeConnectionOptions : valuesOrOptions) as
-        | DbConnectionOptions
-        | undefined;
-      const dbTaskPrefix = (Cypress.expose('dbTaskPrefix') as string) ?? '';
+      const connectionOptions = (
+        Array.isArray(valuesOrOptions) ? maybeConnectionOptions : valuesOrOptions
+      ) as DbConnectionOptions | undefined;
+      const dbTaskPrefix = (Cypress.expose("dbTaskPrefix") as string) ?? "";
       const redactionSettings = readPluginConfig();
       const startTime = nowMs();
       const queryId = newCallId();
       // Placeholder en orden de llamada — ver command-ui.
-      reserveCallPlaceholder(queryId, 'query');
+      reserveCallPlaceholder(queryId, "query");
 
       // Renders a failure UI entry (store + log + mount + snapshot) for the
       // sync-degraded/D2/QIR paths below. Never throws: a render problem must
@@ -52,7 +57,9 @@ export function registerQueryCommand(): void {
               ? REDACTED_VALUE
               : query;
           const logValues =
-            values !== undefined && redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+            values !== undefined &&
+            redactionSettings.hideCredentials &&
+            redactionSettings.hideCredentialsOptions.query
               ? redactValue(values)
               : values;
           // One-policy redaction mapping for the free-text error: DB messages may
@@ -60,7 +67,7 @@ export function registerQueryCommand(): void {
           // hideCredentials while the store keeps the raw message for assertions.
           const logError = redactionSettings.hideCredentials ? REDACTED_VALUE : errorMessage;
           const log = Cypress.log({
-            name: 'QUERY',
+            name: "QUERY",
             autoEnd: false,
             message: logQuery,
             snapshot: false,
@@ -74,7 +81,7 @@ export function registerQueryCommand(): void {
           } as Partial<Cypress.LogConfig> & { snapshot?: boolean });
           showDbQueryUi(dbCall, log);
         } catch (e) {
-          logDebug('query failure UI render failed', e);
+          logDebug("query failure UI render failed", e);
         }
       }
 
@@ -85,14 +92,14 @@ export function registerQueryCommand(): void {
       // inside .then and no Promise casts — so Cypress thenable interop has no
       // inner yield to lose. The db:getConfig TASK stays registered for backward
       // compatibility but cy.query no longer calls it.
-      const exposedHost = Cypress.expose('dbHost') as string | undefined;
-      const exposedPort = Cypress.expose('dbPort') as string | number | undefined;
-      const exposedDatabase = Cypress.expose('dbDatabase') as string | undefined;
+      const exposedHost = Cypress.expose("dbHost") as string | undefined;
+      const exposedPort = Cypress.expose("dbPort") as string | number | undefined;
+      const exposedDatabase = Cypress.expose("dbDatabase") as string | undefined;
       // setupDatabaseTasks escribe '' cuando no hay env: el snapshot existe pero
       // no identifica ningún endpoint real — '' cuenta como ausente para fallar
       // cerrado en vez de consultar localhost en silencio.
       const snapshotValueMissing = (value: unknown): boolean =>
-        value === undefined || value === null || value === '';
+        value === undefined || value === null || value === "";
       const snapshotAbsent =
         snapshotValueMissing(exposedHost) &&
         snapshotValueMissing(exposedPort) &&
@@ -105,12 +112,12 @@ export function registerQueryCommand(): void {
           `database connection is unknown: no per-query connectionOptions and no ` +
           `setupDatabaseTasks(on, config) expose snapshot (dbHost/dbPort/dbDatabase) ` +
           `— for query: ${query}`;
-        renderDbFailure('unknown', 'unknown', detail);
+        renderDbFailure("unknown", "unknown", detail);
         throw new Error(`cy.query failed: ${detail}`);
       }
-      const host = connectionOptions?.host || exposedHost || 'localhost';
+      const host = connectionOptions?.host || exposedHost || "localhost";
       const port = connectionOptions?.port || Number(exposedPort) || 5432;
-      const database = connectionOptions?.database || exposedDatabase || 'test_db';
+      const database = connectionOptions?.database || exposedDatabase || "test_db";
       const safeOverrides: Record<string, unknown> = {
         ...(connectionOptions as Record<string, unknown> | undefined),
       };
@@ -124,7 +131,11 @@ export function registerQueryCommand(): void {
         ...(values !== undefined ? { values } : {}),
       };
       const taskOptions = redactionSettings.hideCredentials ? { log: false } : undefined;
-      const queryTask = cy.task<DbTaskResult>(`${dbTaskPrefix}db:query`, queryArgs, taskOptions) as unknown as {
+      const queryTask = cy.task<DbTaskResult>(
+        `${dbTaskPrefix}db:query`,
+        queryArgs,
+        taskOptions,
+      ) as unknown as {
         then: DbQueryTaskThen;
       };
       return queryTask.then(
@@ -138,8 +149,8 @@ export function registerQueryCommand(): void {
           if (!result || !Array.isArray(resultRows)) {
             const rawResult: unknown = result;
             let received: string;
-            if (rawResult === undefined) received = 'undefined';
-            else if (rawResult === null) received = 'null';
+            if (rawResult === undefined) received = "undefined";
+            else if (rawResult === null) received = "null";
             else {
               try {
                 // eslint-disable-next-line typescript/no-base-to-string -- diagnóstico intencional: mejor esfuerzo para mostrar el valor inválido tal cual en el panel y el error
@@ -154,7 +165,7 @@ export function registerQueryCommand(): void {
             // transport edge) vs H2 is decidable without re-running.
             const taskName = `${dbTaskPrefix}db:query`;
             const connectionId = `${host}:${port}/${database}`;
-            const queryArgKeys = Object.keys(queryArgs).join(', ');
+            const queryArgKeys = Object.keys(queryArgs).join(", ");
             const detail =
               `invalid ${taskName} result (expected {rows,rowCount}, got ${received}) ` +
               `— connectionId: ${connectionId}, queryArgs keys: [${queryArgKeys}], ` +
@@ -195,11 +206,13 @@ export function registerQueryCommand(): void {
               ? redactValue(queryRows)
               : queryRows;
           const logValues =
-            values !== undefined && redactionSettings.hideCredentials && redactionSettings.hideCredentialsOptions.query
+            values !== undefined &&
+            redactionSettings.hideCredentials &&
+            redactionSettings.hideCredentialsOptions.query
               ? redactValue(values)
               : values;
           const log = Cypress.log({
-            name: 'QUERY',
+            name: "QUERY",
             autoEnd: false,
             message: logQuery,
             snapshot: false,

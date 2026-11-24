@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
-import type { ApiCall, ApiResponse, DbQuery } from '$lib/types';
-import type { ApiRequestOptions, DbConnectionOptions, DbQueryResponse } from './plugin-types';
+import type { ApiCall, ApiResponse, DbQuery } from "$lib/types";
+import type { ApiRequestOptions, DbConnectionOptions, DbQueryResponse } from "./plugin-types";
 
 // ============================================
 // Ampliaciones del namespace de Cypress
@@ -10,10 +10,14 @@ declare global {
     interface Chainable {
       http(url: string, options?: Partial<ApiRequestOptions>): Chainable<ApiResponse>;
       http(options: ApiRequestOptions): Chainable<ApiResponse>;
-      query(query: string, values?: unknown[], connectionOptions?: DbConnectionOptions): Chainable<DbQueryResponse>;
+      query(
+        query: string,
+        values?: unknown[],
+        connectionOptions?: DbConnectionOptions,
+      ): Chainable<DbQueryResponse>;
       query(query: string, connectionOptions?: DbConnectionOptions): Chainable<DbQueryResponse>;
-      state(key: 'window'): Window;
-      state(key: 'runnable'): { id?: string; _currentRetry?: unknown } | undefined;
+      state(key: "window"): Window;
+      state(key: "runnable"): { id?: string; _currentRetry?: unknown } | undefined;
       state(key: string): unknown;
     }
 

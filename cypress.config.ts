@@ -1,10 +1,10 @@
-import { defineConfig } from 'cypress';
-import { setupDatabaseTasks } from './src/node/tasks';
+import { defineConfig } from "cypress";
+import { setupDatabaseTasks } from "./src/node/tasks";
 
 try {
   process.loadEnvFile();
 } catch (error) {
-  if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
 }
 
 export default defineConfig({
@@ -12,8 +12,8 @@ export default defineConfig({
     setupNodeEvents(on, config) {
       return setupDatabaseTasks(on, config);
     },
-    supportFile: 'cypress/support/e2e.ts',
-    specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
+    supportFile: "cypress/support/e2e.ts",
+    specPattern: "cypress/e2e/**/*.cy.{js,jsx,ts,tsx}",
     testIsolation: false,
     expose: {
       snapshotOnly: false,

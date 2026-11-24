@@ -1,4 +1,4 @@
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
 
 export interface ApiRequest {
   url: string;
@@ -116,7 +116,7 @@ export interface DbQuery {
 
 export interface TabItem {
   id: string;
-  type: 'api' | 'db';
+  type: "api" | "db";
   name: string;
   data: ApiCall | DbQuery;
 }

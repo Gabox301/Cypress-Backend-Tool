@@ -1,8 +1,8 @@
-import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from '$lib/types';
-import { ensurePluginMounted, mountEntry } from '$lib/ui';
-import { EntryRegistry } from '$lib/ui/entry-registry';
-import { logDebug } from './debug';
-import { readPluginConfig } from './plugin-config';
+import type { ApiCall, ApiResponse, CypressApiPluginConfig, DbQuery } from "$lib/types";
+import { ensurePluginMounted, mountEntry } from "$lib/ui";
+import { EntryRegistry } from "$lib/ui/entry-registry";
+import { logDebug } from "./debug";
+import { readPluginConfig } from "./plugin-config";
 
 // ============================================
 // UN contenedor persistente por documento activo — se crea una vez y NUNCA se
@@ -19,10 +19,10 @@ import { readPluginConfig } from './plugin-config';
 // getElementById devuelve null y creamos y (re)montamos desde cero.
 // ============================================
 export function getOrCreateContainer(doc: Document): HTMLElement {
-  let container = doc.getElementById('cypress-api-plugin-container') as HTMLElement | null;
+  let container = doc.getElementById("cypress-api-plugin-container") as HTMLElement | null;
   if (!container) {
-    container = doc.createElement('div');
-    container.id = 'cypress-api-plugin-container';
+    container = doc.createElement("div");
+    container.id = "cypress-api-plugin-container";
     doc.body.appendChild(container);
   }
   ensurePluginMounted(container, doc);
@@ -30,11 +30,11 @@ export function getOrCreateContainer(doc: Document): HTMLElement {
 }
 
 export function applySnapshotOnly(container: HTMLElement, config: CypressApiPluginConfig) {
-  container.classList.toggle('cypress-plugin-collapsed', config.snapshotOnly);
+  container.classList.toggle("cypress-plugin-collapsed", config.snapshotOnly);
 }
 
 function scrollToEntry(doc: Document, id: string) {
-  doc.getElementById(id)?.scrollIntoView({ block: 'end' });
+  doc.getElementById(id)?.scrollIntoView({ block: "end" });
 }
 
 export function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
@@ -43,7 +43,7 @@ export function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
   // state without crashing, so mount unconditionally and let the panel show the
   // request side. Dedicated error display belongs to FCU-03.
   const config = readPluginConfig();
-  const win = cy.state('window') as Window;
+  const win = cy.state("window") as Window;
   const doc = win.document;
   const container = getOrCreateContainer(doc);
   applySnapshotOnly(container, config);
@@ -58,14 +58,14 @@ export function showApiUi(call: ApiCall, log: Cypress.Log): ApiResponse {
   EntryRegistry.setLog(call.id, log as unknown as { snapshot: (name?: string) => unknown });
   const elementId = `cabt-entry-${call.id}`;
   scrollToEntry(doc, elementId);
-  const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
-  log.set({ $el }).snapshot('response').end();
+  const $el = Cypress.$("#cypress-api-plugin-container", { log: false });
+  log.set({ $el }).snapshot("response").end();
   return call.response as ApiResponse;
 }
 
 export function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
   const config = readPluginConfig();
-  const win = cy.state('window') as Window;
+  const win = cy.state("window") as Window;
   const doc = win.document;
   const container = getOrCreateContainer(doc);
   applySnapshotOnly(container, config);
@@ -76,7 +76,7 @@ export function showDbQueryUi(query: DbQuery, log: Cypress.Log): void {
   EntryRegistry.setLog(query.id, log as unknown as { snapshot: (name?: string) => unknown });
   const elementId = `cabt-entry-${query.id}`;
   scrollToEntry(doc, elementId);
-  const $el = Cypress.$('#cypress-api-plugin-container', { log: false });
-  log.set({ $el }).snapshot('response').end();
-  logDebug('DB Query UI rendered (id:', query.id, ')');
+  const $el = Cypress.$("#cypress-api-plugin-container", { log: false });
+  log.set({ $el }).snapshot("response").end();
+  logDebug("DB Query UI rendered (id:", query.id, ")");
 }

@@ -1,10 +1,10 @@
-import { pluginConfig } from '$lib/stores.svelte';
-import { mount, unmount } from 'svelte';
-import App from '../components/App.svelte';
-import { ensureCopyDelegation } from './copy-delegation';
-import { EntryRegistry } from './entry-registry';
-import { mountEntry, reserveEntry } from './mountEntry';
-import { ensureTooltipDelegation } from './tooltip-delegation';
+import { pluginConfig } from "$lib/stores.svelte";
+import { mount, unmount } from "svelte";
+import App from "../components/App.svelte";
+import { ensureCopyDelegation } from "./copy-delegation";
+import { EntryRegistry } from "./entry-registry";
+import { mountEntry, reserveEntry } from "./mountEntry";
+import { ensureTooltipDelegation } from "./tooltip-delegation";
 export { mountEntry, reserveEntry };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ function watchContainer(container: HTMLElement, doc: Document) {
  *   el escenario de blanqueo real).
  */
 function reviveOrReArm(doc: Document): void {
-  const existing = doc.getElementById('cypress-api-plugin-container');
+  const existing = doc.getElementById("cypress-api-plugin-container");
   if (existing) {
     watchContainer(existing as HTMLElement, doc);
     return;
@@ -122,9 +122,9 @@ function reviveInFreshContainer(doc: Document): void {
     return;
   }
   EntryRegistry.clear(); // desmonta los componentes viejos (los elementos ya están desmontados)
-  const container = doc.createElement('div');
-  container.id = 'cypress-api-plugin-container';
-  container.classList.toggle('cypress-plugin-collapsed', pluginConfig.snapshotOnly);
+  const container = doc.createElement("div");
+  container.id = "cypress-api-plugin-container";
+  container.classList.toggle("cypress-plugin-collapsed", pluginConfig.snapshotOnly);
   doc.body.appendChild(container);
   ensurePluginMounted(container, doc); // monta el shell; re-arma el watcher
   for (const { data } of payloads) {

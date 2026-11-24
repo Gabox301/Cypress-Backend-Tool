@@ -1,8 +1,8 @@
-import { pluginConfig } from '$lib/stores.svelte';
-import type { ApiCall, DbQuery } from '$lib/types';
-import { mount } from 'svelte';
-import EntryPanel from '../components/EntryPanel.svelte';
-import { EntryRegistry } from './entry-registry';
+import { pluginConfig } from "$lib/stores.svelte";
+import type { ApiCall, DbQuery } from "$lib/types";
+import { mount } from "svelte";
+import EntryPanel from "../components/EntryPanel.svelte";
+import { EntryRegistry } from "./entry-registry";
 
 /**
  * Reserva un div placeholder vacío #cabt-entry-{id} en orden de llamada, antes de
@@ -14,17 +14,17 @@ import { EntryRegistry } from './entry-registry';
 export function reserveEntry(id: string, doc: Document = document): HTMLElement {
   const existing = doc.getElementById(`cabt-entry-${id}`) as HTMLElement | null;
   if (existing) return existing;
-  const container = doc.getElementById('cypress-api-plugin-container');
+  const container = doc.getElementById("cypress-api-plugin-container");
   if (!container) {
-    throw new Error('reserveEntry: plugin container not found — call getOrCreateContainer first');
+    throw new Error("reserveEntry: plugin container not found — call getOrCreateContainer first");
   }
-  const scrollArea = container.querySelector('#cabt-scroll-area');
+  const scrollArea = container.querySelector("#cabt-scroll-area");
   if (!scrollArea) {
-    throw new Error('reserveEntry: scroll-area not found — App may not be mounted');
+    throw new Error("reserveEntry: scroll-area not found — App may not be mounted");
   }
-  const div = doc.createElement('div');
+  const div = doc.createElement("div");
   div.id = `cabt-entry-${id}`;
-  const anchor = scrollArea.querySelector('.bottom-anchor');
+  const anchor = scrollArea.querySelector(".bottom-anchor");
   if (anchor) {
     scrollArea.insertBefore(div, anchor);
   } else {
@@ -52,13 +52,13 @@ export function reserveEntry(id: string, doc: Document = document): HTMLElement 
  */
 export function mountEntry(data: ApiCall | DbQuery, doc: Document = document): HTMLElement {
   const id = data.id;
-  const container = doc.getElementById('cypress-api-plugin-container');
+  const container = doc.getElementById("cypress-api-plugin-container");
   if (!container) {
-    throw new Error('mountEntry: plugin container not found — call getOrCreateContainer first');
+    throw new Error("mountEntry: plugin container not found — call getOrCreateContainer first");
   }
-  const scrollArea = container.querySelector('#cabt-scroll-area');
+  const scrollArea = container.querySelector("#cabt-scroll-area");
   if (!scrollArea) {
-    throw new Error('mountEntry: scroll-area not found — App may not be mounted');
+    throw new Error("mountEntry: scroll-area not found — App may not be mounted");
   }
   let div = doc.getElementById(`cabt-entry-${id}`) as HTMLElement | null;
   if (div) {
@@ -73,22 +73,22 @@ export function mountEntry(data: ApiCall | DbQuery, doc: Document = document): H
         // En caso de que detach lógica cambie, re-adquiere
         div = doc.getElementById(`cabt-entry-${id}`) as HTMLElement | null;
         if (!div) {
-          div = doc.createElement('div');
+          div = doc.createElement("div");
           div.id = `cabt-entry-${id}`;
-          const anchor = scrollArea.querySelector('.bottom-anchor');
+          const anchor = scrollArea.querySelector(".bottom-anchor");
           if (anchor) scrollArea.insertBefore(div, anchor);
           else scrollArea.appendChild(div);
         }
       }
-      div.innerHTML = '';
+      div.innerHTML = "";
     } else {
       // Placeholder existente sin registro — simplemente vacía por si tenía contenido residual
-      div.innerHTML = '';
+      div.innerHTML = "";
     }
   } else {
-    div = doc.createElement('div');
+    div = doc.createElement("div");
     div.id = `cabt-entry-${id}`;
-    const anchor = scrollArea.querySelector('.bottom-anchor');
+    const anchor = scrollArea.querySelector(".bottom-anchor");
     if (anchor) {
       scrollArea.insertBefore(div, anchor);
     } else {

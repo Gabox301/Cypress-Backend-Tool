@@ -2,19 +2,19 @@
 
 // The ambient Cypress augmentation runs first: no runtime statements, so the
 // static import only orders the module graph — same chunk, no runtime trace.
-import './support/cypress-augment';
+import "./support/cypress-augment";
 
 // ============================================
 // Herramienta Backend de Cypress — Entrada unificada
 // Auto-inicialización con importación por efecto secundario.
 // Reemplaza cypress/support/plugin/index.ts
 // ============================================
-import { configure } from '$lib/config';
-import { registerHttpCommand } from './commands/http';
-import { registerQueryCommand } from './commands/query';
-import './support/hooks';
-import { getOrCreateContainer } from './support/plugin-ui';
-import './support/runtime-guards';
+import { configure } from "$lib/config";
+import { registerHttpCommand } from "./commands/http";
+import { registerQueryCommand } from "./commands/query";
+import "./support/hooks";
+import { getOrCreateContainer } from "./support/plugin-ui";
+import "./support/runtime-guards";
 
 // El orden de registro preserva el original: chai → guards → http → query → beforeEach.
 // runtime-guards corre el interceptor Chai + guards al importarse; hooks registra beforeEach.
@@ -29,4 +29,8 @@ export { getOrCreateContainer as createFreshContainer };
 export { configure };
 
 // Public types (type-only re-export: erased at build, no runtime trace).
-export type { ApiRequestOptions, DbConnectionOptions, DbQueryResponse } from './support/plugin-types';
+export type {
+  ApiRequestOptions,
+  DbConnectionOptions,
+  DbQueryResponse,
+} from "./support/plugin-types";

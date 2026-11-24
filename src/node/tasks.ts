@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-import pg from 'pg';
+import pg from "pg";
 
 // No cargar .env durante tests (Vitest) y evitar doble carga si cypress.config.ts ya lo hizo
 if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST) {
@@ -8,7 +8,7 @@ if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST)
   try {
     process.loadEnvFile();
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
   }
 }
 
@@ -56,9 +56,12 @@ export interface DbSetupConfig {
 
 /** A second argument carrying any of these keys is task options, not a Cypress config. */
 function isDbTaskOptions(value: unknown): value is DbTaskOptions {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const keys = Object.keys(value);
-  return keys.length === 0 || keys.some((key) => key === 'defaultPrefix' || key === 'envPrefix' || key === 'defaults');
+  return (
+    keys.length === 0 ||
+    keys.some((key) => key === "defaultPrefix" || key === "envPrefix" || key === "defaults")
+  );
 }
 
 // ============================================
@@ -122,8 +125,15 @@ function isDbTaskOptions(value: unknown): value is DbTaskOptions {
  * });
  * ```
  */
-export function setupDatabaseTasks(on: Cypress.PluginEvents, options?: DbTaskOptions): { dbTaskPrefix: string };
-export function setupDatabaseTasks<C extends object>(on: Cypress.PluginEvents, config: C, options?: DbTaskOptions): C;
+export function setupDatabaseTasks(
+  on: Cypress.PluginEvents,
+  options?: DbTaskOptions,
+): { dbTaskPrefix: string };
+export function setupDatabaseTasks<C extends object>(
+  on: Cypress.PluginEvents,
+  config: C,
+  options?: DbTaskOptions,
+): C;
 export function setupDatabaseTasks(
   on: Cypress.PluginEvents,
   configOrOptions?: unknown,
@@ -133,51 +143,60 @@ export function setupDatabaseTasks(
   // options-shaped values (any of defaultPrefix/envPrefix/defaults, or {})
   // stay legacy; anything else object-like is a config.
   const asRecord =
-    typeof configOrOptions === 'object' && configOrOptions !== null
+    typeof configOrOptions === "object" && configOrOptions !== null
       ? (configOrOptions as Record<string, unknown>)
       : undefined;
   const config: Record<string, unknown> | undefined =
     maybeOptions !== undefined ? asRecord : isDbTaskOptions(configOrOptions) ? undefined : asRecord;
   const options: DbTaskOptions | undefined =
-    maybeOptions ?? (config === undefined ? (configOrOptions as DbTaskOptions | undefined) : undefined);
-  const prefix = options?.defaultPrefix ?? '';
-  const envPrefix = options?.envPrefix ?? 'CYPRESS_DB_';
-  const readEnv = (key: string, defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig): string => {
+    maybeOptions ??
+    (config === undefined ? (configOrOptions as DbTaskOptions | undefined) : undefined);
+  const prefix = options?.defaultPrefix ?? "";
+  const envPrefix = options?.envPrefix ?? "CYPRESS_DB_";
+  const readEnv = (
+    key: string,
+    defaultKey: keyof DbTaskConfig = key.toLowerCase() as keyof DbTaskConfig,
+  ): string => {
     const fromDefaults = options?.defaults?.[defaultKey];
     return (
       process.env[envPrefix + key] ??
-      process.env['DB_' + key] ??
+      process.env["DB_" + key] ??
       (fromDefaults != null
-        ? typeof fromDefaults === 'object'
+        ? typeof fromDefaults === "object"
           ? JSON.stringify(fromDefaults)
           : String(fromDefaults)
         : undefined) ??
-      ''
+      ""
     );
   };
 
   const readSslEnv = (): boolean | Record<string, unknown> | undefined => {
-    const raw = process.env[envPrefix + 'SSL'] ?? process.env['DB_SSL'];
+    const raw = process.env[envPrefix + "SSL"] ?? process.env["DB_SSL"];
     if (raw !== undefined) {
       const trimmed = raw.trim();
-      if (trimmed === '') return undefined;
+      if (trimmed === "") return undefined;
       const lower = trimmed.toLowerCase();
-      if (lower === 'true' || lower === '1' || lower === 'yes') {
+      if (lower === "true" || lower === "1" || lower === "yes") {
         return { rejectUnauthorized: false };
       }
-      if (lower === 'false' || lower === '0' || lower === 'no' || lower === 'disable') {
+      if (lower === "false" || lower === "0" || lower === "no" || lower === "disable") {
         return false;
       }
       // Keywords seguros: verificación TLS completa (valor booleano `true` de pg).
-      if (lower === 'require' || lower === 'verify' || lower === 'verify-full' || lower === 'verify_full') {
+      if (
+        lower === "require" ||
+        lower === "verify" ||
+        lower === "verify-full" ||
+        lower === "verify_full"
+      ) {
         return true;
       }
       // Opt-in explícito al modo inseguro (mismo efecto que el histórico "true",
       // pero nombrando la consecuencia en vez de escondela).
-      if (lower === 'insecure' || lower === 'no-verify' || lower === 'noverify') {
+      if (lower === "insecure" || lower === "no-verify" || lower === "noverify") {
         return { rejectUnauthorized: false };
       }
-      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         try {
           return JSON.parse(trimmed) as Record<string, unknown>;
         } catch {
@@ -195,16 +214,18 @@ export function setupDatabaseTasks(
   };
 
   const readSslCa = (): string | undefined => {
-    const raw = process.env[envPrefix + 'SSL_CA'] ?? process.env['DB_SSL_CA'];
+    const raw = process.env[envPrefix + "SSL_CA"] ?? process.env["DB_SSL_CA"];
     if (raw === undefined) return undefined;
     // Acepta PEM con `\n` literales (típico en env vars) además de saltos reales.
-    const normalized = raw.replace(/\\n/g, '\n').trim();
-    return normalized === '' ? undefined : normalized;
+    const normalized = raw.replace(/\\n/g, "\n").trim();
+    return normalized === "" ? undefined : normalized;
   };
 
   /** `true` cuando la config desactiva la verificación del certificado (MITM posible). */
   const isInsecureSsl = (ssl: unknown): boolean =>
-    typeof ssl === 'object' && ssl !== null && (ssl as Record<string, unknown>).rejectUnauthorized === false;
+    typeof ssl === "object" &&
+    ssl !== null &&
+    (ssl as Record<string, unknown>).rejectUnauthorized === false;
 
   /**
    * Combina `readSslEnv()` con `readSslCa()`. Precedencia: `args.ssl` (por consulta,
@@ -217,7 +238,7 @@ export function setupDatabaseTasks(
     if (ca === undefined) return base;
     if (base === false) return false;
     if (base === true) return { ca };
-    if (typeof base === 'object' && base !== null) {
+    if (typeof base === "object" && base !== null) {
       const rec = base as Record<string, unknown>;
       return { ...rec, ca: rec.ca ?? ca };
     }
@@ -225,7 +246,7 @@ export function setupDatabaseTasks(
     return { ca };
   };
 
-  const defaultHost = readEnv('HOST');
+  const defaultHost = readEnv("HOST");
   const sslValue = resolveSsl();
   if (isInsecureSsl(sslValue)) {
     // Aviso una vez por setup (no por query): el histórico `"true"` sigue funcionando
@@ -240,10 +261,10 @@ export function setupDatabaseTasks(
     );
   }
   const poolHost = defaultHost;
-  const poolPort = parseInt(readEnv('PORT'), 10);
-  const poolDatabase = readEnv('NAME', 'database');
-  const poolUser = readEnv('USER');
-  const poolPassword = readEnv('PASSWORD');
+  const poolPort = parseInt(readEnv("PORT"), 10);
+  const poolDatabase = readEnv("NAME", "database");
+  const poolUser = readEnv("USER");
+  const poolPassword = readEnv("PASSWORD");
   const poolConnectionTimeout = options?.defaults?.connectionTimeoutMillis ?? 2000;
   const poolIdleTimeout = options?.defaults?.idleTimeoutMillis ?? 10_000;
   const poolStatementTimeout = options?.defaults?.statement_timeoutMillis ?? 30_000;
@@ -263,14 +284,17 @@ export function setupDatabaseTasks(
   // tumba el proceso Node de Cypress. Se loguea y se sigue (best-effort).
   // Sin hooks de salida: la muerte del proceso cierra TCP limpio (FIN) y los
   // hooks en proceso ajeno (Cypress) no son testeables ni confiables.
-  pool.on('error', (err: unknown) => {
-    console.error('[cypress-backend-tool] db pool idle error (continuing):', err instanceof Error ? err.message : err);
+  pool.on("error", (err: unknown) => {
+    console.error(
+      "[cypress-backend-tool] db pool idle error (continuing):",
+      err instanceof Error ? err.message : err,
+    );
   });
-  on('task', {
-    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, 'host' | 'port' | 'database'> => ({
-      host: readEnv('HOST'),
-      port: parseInt(readEnv('PORT'), 10),
-      database: readEnv('NAME', 'database'),
+  on("task", {
+    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, "host" | "port" | "database"> => ({
+      host: readEnv("HOST"),
+      port: parseInt(readEnv("PORT"), 10),
+      database: readEnv("NAME", "database"),
     }),
     [`${prefix}db:query`]: async (args: {
       query: string;
@@ -284,12 +308,12 @@ export function setupDatabaseTasks(
       connectionTimeoutMillis?: number;
       statement_timeoutMillis?: number;
     }): Promise<DbTaskResult> => {
-      const defaultPort = parseInt(readEnv('PORT'), 10);
-      const host = args.host || readEnv('HOST') || 'localhost';
+      const defaultPort = parseInt(readEnv("PORT"), 10);
+      const host = args.host || readEnv("HOST") || "localhost";
       const port = args.port || (Number.isNaN(defaultPort) ? 5432 : defaultPort);
-      const database = args.database || readEnv('NAME', 'database') || 'test_db';
-      const user = args.user || readEnv('USER') || 'postgres';
-      const password = args.password ?? readEnv('PASSWORD');
+      const database = args.database || readEnv("NAME", "database") || "test_db";
+      const user = args.user || readEnv("USER") || "postgres";
+      const password = args.password ?? readEnv("PASSWORD");
       const effectiveSsl = args.ssl ?? resolveSsl();
       const values = Array.isArray(args.values) ? args.values : undefined;
       const queryStatementTimeout =
@@ -322,12 +346,17 @@ export function setupDatabaseTasks(
             (args as { connectionTimeoutMillis?: number }).connectionTimeoutMillis ??
             options?.defaults?.connectionTimeoutMillis ??
             2000,
-          ...(queryStatementTimeout !== undefined ? { statement_timeout: queryStatementTimeout } : {}),
+          ...(queryStatementTimeout !== undefined
+            ? { statement_timeout: queryStatementTimeout }
+            : {}),
           ...(effectiveSsl !== undefined ? { ssl: effectiveSsl as never } : {}),
         });
         try {
           await client.connect();
-          const result = values !== undefined ? await client.query(args.query, values) : await client.query(args.query);
+          const result =
+            values !== undefined
+              ? await client.query(args.query, values)
+              : await client.query(args.query);
           return { rows: result.rows, rowCount: result.rowCount ?? 0 };
         } finally {
           try {
@@ -337,7 +366,8 @@ export function setupDatabaseTasks(
           }
         }
       }
-      const result = values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
+      const result =
+        values !== undefined ? await pool.query(args.query, values) : await pool.query(args.query);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
   });
@@ -349,9 +379,9 @@ export function setupDatabaseTasks(
   // clobbering consumer keys — fill only absent-or-undefined entries.
   const snapshot: Record<string, string> = {
     dbTaskPrefix: prefix,
-    dbHost: readEnv('HOST'),
-    dbPort: readEnv('PORT'),
-    dbDatabase: readEnv('NAME', 'database'),
+    dbHost: readEnv("HOST"),
+    dbPort: readEnv("PORT"),
+    dbDatabase: readEnv("NAME", "database"),
   };
   const expose = (config.expose ?? {}) as Record<string, unknown>;
   for (const [key, value] of Object.entries(snapshot)) {

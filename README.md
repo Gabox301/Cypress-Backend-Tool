@@ -145,11 +145,11 @@ export default defineConfig({
 
 Las credenciales de base de datos se resuelven en este orden (mayor prioridad primero):
 
-| Prioridad | Prefijo                     | Ejemplo                                                 |
-| --------- | --------------------------- | ------------------------------------------------------- |
-| 1 (máx)   | `CYPRESS_DB_`               | `CYPRESS_DB_HOST=localhost`                             |
-| 2         | `DB_`                       | `DB_HOST=localhost`                                     |
-| 3         | defaults (code)             | `host: 'localhost'`                                     |
+| Prioridad | Prefijo                     | Ejemplo                                                                                                            |
+| --------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 1 (máx)   | `CYPRESS_DB_`               | `CYPRESS_DB_HOST=localhost`                                                                                        |
+| 2         | `DB_`                       | `DB_HOST=localhost`                                                                                                |
+| 3         | defaults (code)             | `host: 'localhost'`                                                                                                |
 | —         | `CYPRESS_DB_SSL` / `DB_SSL` | `CYPRESS_DB_SSL=require` → TLS verificado (recomendado); `=true` → legacy inseguro `{ rejectUnauthorized: false }` |
 
 > La resolución de `SSL` sigue la misma prioridad: `CYPRESS_DB_SSL` → `DB_SSL` → `defaults.ssl`.
@@ -203,7 +203,7 @@ export default defineConfig({
           database: "test_db",
           user: "postgres",
           password: "",
-          ssl: { ca: '...' }, // TLS verificado (recomendado). Legacy inseguro: { rejectUnauthorized: false } solo como opt-in explícito
+          ssl: { ca: "..." }, // TLS verificado (recomendado). Legacy inseguro: { rejectUnauthorized: false } solo como opt-in explícito
           connectionTimeoutMillis: 5000,
           idleTimeoutMillis: 10000,
         },
@@ -215,19 +215,19 @@ export default defineConfig({
 
 La instantánea (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) se combina en `config.expose` sin sobrescribir tus claves. Así, `cy.query()` utiliza los mismos nombres de tarea registrados sin agregar una opción de prefijo por consulta.
 
-| Opción                             | Tipo                | Default         | Descripción                                                  |
-| ---------------------------------- | ------------------- | --------------- | ------------------------------------------------------------ |
-| `defaultPrefix`                    | `string`            | `''`            | Prefijo para los nombres de tarea registrados                |
-| `envPrefix`                        | `string`            | `'CYPRESS_DB_'` | Prefijo de variables de entorno a leer                       |
-| `defaults`                         | `object`            | —               | Valores fallback cuando no hay env vars                      |
-| `defaults.host`                    | `string`            | —               | Host de la base de datos                                     |
-| `defaults.port`                    | `number`            | —               | Puerto de la base de datos                                   |
-| `defaults.database`                | `string`            | —               | Nombre de la base de datos                                   |
-| `defaults.user`                    | `string`            | —               | Usuario de la base de datos                                  |
-| `defaults.password`                | `string`            | —               | Contraseña de la base de datos                               |
-| `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→TLS verificado, `false`→sin SSL, objeto pasado a `pg` |
-| `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Timeout de conexión del Pool/Client                          |
-| `defaults.idleTimeoutMillis`       | `number`            | `10000`         | Timeout idle del Pool (evita thrash en suites lentas)        |
+| Opción                             | Tipo                | Default         | Descripción                                                    |
+| ---------------------------------- | ------------------- | --------------- | -------------------------------------------------------------- |
+| `defaultPrefix`                    | `string`            | `''`            | Prefijo para los nombres de tarea registrados                  |
+| `envPrefix`                        | `string`            | `'CYPRESS_DB_'` | Prefijo de variables de entorno a leer                         |
+| `defaults`                         | `object`            | —               | Valores fallback cuando no hay env vars                        |
+| `defaults.host`                    | `string`            | —               | Host de la base de datos                                       |
+| `defaults.port`                    | `number`            | —               | Puerto de la base de datos                                     |
+| `defaults.database`                | `string`            | —               | Nombre de la base de datos                                     |
+| `defaults.user`                    | `string`            | —               | Usuario de la base de datos                                    |
+| `defaults.password`                | `string`            | —               | Contraseña de la base de datos                                 |
+| `defaults.ssl`                     | `boolean \| object` | `undefined`     | `true`→TLS verificado, `false`→sin SSL, objeto pasado a `pg`   |
+| `defaults.connectionTimeoutMillis` | `number`            | `2000`          | Timeout de conexión del Pool/Client                            |
+| `defaults.idleTimeoutMillis`       | `number`            | `10000`         | Timeout idle del Pool (evita thrash en suites lentas)          |
 | `defaults.statement_timeoutMillis` | `number`            | `30000`         | Timeout por query (`statement_timeout`); override por consulta |
 
 `options.defaults` no contiene valores de conexión si no se configuran. Por compatibilidad, cuando no hay valores de entorno ni opciones por consulta, `db:query` usa dentro de Node `localhost`, puerto `5432`, base `test_db`, usuario `postgres` y contraseña vacía. Son valores de compatibilidad de la consulta, no valores predeterminados del Pool; `db:getConfig` devuelve únicamente los metadatos configurados.
@@ -257,7 +257,7 @@ CYPRESS_DB_SSL={"ca":"..."}
 // vía defaults — TLS verificado (recomendado)
 setupDatabaseTasks(on, {
   defaults: {
-    ssl: { ca: '...' },
+    ssl: { ca: "..." },
     // o ssl: true  → TLS verificado
     // o ssl: false → sin SSL
     // legacy inseguro solo como opt-in explícito: { rejectUnauthorized: false }

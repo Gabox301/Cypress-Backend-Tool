@@ -1,17 +1,35 @@
-import { apiCalls, pluginConfig } from '$lib/stores.svelte';
-import type { ApiCall } from '$lib/types';
-import { scheduleEntryRefresh } from './entry-refresh';
-import { deepEqual } from './expect-matcher';
+import { apiCalls, pluginConfig } from "$lib/stores.svelte";
+import type { ApiCall } from "$lib/types";
+import { scheduleEntryRefresh } from "./entry-refresh";
+import { deepEqual } from "./expect-matcher";
 
 const MAX_DEBUG_ENTRIES = 100;
 const MAX_DEBUG_CHARS = 500;
 
 function safePreview(value: unknown, max = 200): string {
   try {
-    const raw = typeof value === 'string' ? value : JSON.stringify(value);
+    const raw = typeof value === "string" ? value : JSON.stringify(value);
     return (raw ?? String(value)).slice(0, max);
   } catch {
     return String(Object.prototype.toString.call(value)).slice(0, max);
+  }
+}
+
+/**
+ * Extrae texto de `extra.message` sin el `[object Object]` de `String()`
+ * sobre objetos (regla `no-base-to-string`): strings tal cual, `Error` por
+ * su `message`, objetos con `message` de texto por ese campo y resto por JSON.
+ */
+function messagePreview(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  if (value instanceof Error) return value.message;
+  const message = (value as { message?: unknown }).message;
+  if (typeof message === "string" && message.length > 0) return message;
+  try {
+    return JSON.stringify(value) ?? "";
+  } catch {
+    return Object.prototype.toString.call(value);
   }
 }
 
@@ -22,7 +40,7 @@ function debugLog(...parts: unknown[]): void {
     if (!Array.isArray(g.__cbtDebug)) g.__cbtDebug = [];
     const arr = g.__cbtDebug as unknown[];
     if (arr.length >= MAX_DEBUG_ENTRIES) arr.shift();
-    arr.push(parts.map((p) => safePreview(p, MAX_DEBUG_CHARS)).join(' '));
+    arr.push(parts.map((p) => safePreview(p, MAX_DEBUG_CHARS)).join(" "));
   } catch {
     /* ignore */
   }
@@ -56,16 +74,20 @@ function candidateCalls(): ApiCall[] {
 
 function isSameObject(a: unknown, b: unknown): boolean {
   if (a === b) return true;
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
   return deepEqual(a, b);
 }
 
 /**
  * Busca la ruta de claves hacia un valor o sub-objeto dentro de un objeto raíz.
  */
-export function findPathInObject(root: unknown, target: unknown, visited = new Set<unknown>()): string[] | null {
+export function findPathInObject(
+  root: unknown,
+  target: unknown,
+  visited = new Set<unknown>(),
+): string[] | null {
   if (root === target) return [];
-  if (root === null || root === undefined || typeof root !== 'object') return null;
+  if (root === null || root === undefined || typeof root !== "object") return null;
   if (visited.has(root)) return null;
   visited.add(root);
 
@@ -94,7 +116,7 @@ export function setDeepValue(obj: Record<string, unknown>, path: string[], value
   let curr = obj;
   for (let i = 0; i < path.length - 1; i++) {
     const segment = path[i];
-    if (!(segment in curr) || typeof curr[segment] !== 'object' || curr[segment] === null) {
+    if (!(segment in curr) || typeof curr[segment] !== "object" || curr[segment] === null) {
       curr[segment] = {};
     }
     curr = curr[segment] as Record<string, unknown>;
@@ -110,7 +132,11 @@ function cookiesArrayToMap(list: unknown): Record<string, unknown> {
   const map: Record<string, unknown> = {};
   if (!Array.isArray(list)) return map;
   for (const entry of list) {
-    if (entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).name === 'string') {
+    if (
+      entry &&
+      typeof entry === "object" &&
+      typeof (entry as Record<string, unknown>).name === "string"
+    ) {
       const rec = entry as Record<string, unknown>;
       map[rec.name as string] = rec.value;
     }
@@ -123,7 +149,11 @@ function cookiesArrayToMap(list: unknown): Record<string, unknown> {
  * `expect.headers`) y lo devuelve para registrar entradas por cookie.
  */
 function ensureCookiesMap(expectObj: Record<string, unknown>): Record<string, unknown> {
-  if (!expectObj.cookies || typeof expectObj.cookies !== 'object' || Array.isArray(expectObj.cookies)) {
+  if (
+    !expectObj.cookies ||
+    typeof expectObj.cookies !== "object" ||
+    Array.isArray(expectObj.cookies)
+  ) {
     expectObj.cookies = {};
   }
   return expectObj.cookies as Record<string, unknown>;
@@ -139,15 +169,15 @@ export function recordAssertionOnApiCall(
   extra?: { message?: unknown; negatedMsg?: unknown; flags?: unknown; passed?: boolean },
 ) {
   debugLog(
-    'assert target=',
+    "assert target=",
     safePreview(String(target).slice(0, 80)),
-    ' expected=',
+    " expected=",
     safePreview(expected),
-    ' actual=',
+    " actual=",
     safePreview(actual),
-    ' msg=',
-    safePreview(String(extra?.message ?? '').slice(0, 60)),
-    ' apiCalls=',
+    " msg=",
+    safePreview(messagePreview(extra?.message).slice(0, 60)),
+    " apiCalls=",
     apiCalls.length,
   );
   if (apiCalls.length === 0) return;
@@ -157,7 +187,7 @@ export function recordAssertionOnApiCall(
   // expect con la referencia nueva una vez que el bloque síncrono termine.
   // Solo para la llamada ATRIBUIDA (antes: siempre la última).
   function track(call: ApiCall): Record<string, unknown> {
-    if (!call.expect || typeof call.expect !== 'object') {
+    if (!call.expect || typeof call.expect !== "object") {
       call.expect = {};
     }
     scheduleEntryRefresh(call.id);
@@ -176,7 +206,7 @@ export function recordAssertionOnApiCall(
       if (extra?.passed === false) return;
       const expectObj = track(call);
       expectObj.status = expected !== undefined ? expected : actual;
-      debugLog('status-set=' + expectObj.status);
+      debugLog("status-set=" + expectObj.status);
       return;
     }
   }
@@ -187,7 +217,7 @@ export function recordAssertionOnApiCall(
     if (!response) continue;
     if (isSameObject(target, response)) {
       const expectObj = track(call);
-      if (typeof expected === 'object' && expected !== null) {
+      if (typeof expected === "object" && expected !== null) {
         Object.assign(expectObj, expected);
       }
       return;
@@ -200,10 +230,10 @@ export function recordAssertionOnApiCall(
     if (!response) continue;
     if (isSameObject(target, response.headers)) {
       const expectObj = track(call);
-      if (!expectObj.headers || typeof expectObj.headers !== 'object') {
+      if (!expectObj.headers || typeof expectObj.headers !== "object") {
         expectObj.headers = {};
       }
-      if (typeof expected === 'object' && expected !== null) {
+      if (typeof expected === "object" && expected !== null) {
         Object.assign(expectObj.headers as Record<string, unknown>, expected);
       }
       return;
@@ -216,10 +246,10 @@ export function recordAssertionOnApiCall(
     if (!response) continue;
     if (isSameObject(target, response.body)) {
       const expectObj = track(call);
-      if (!expectObj.body || typeof expectObj.body !== 'object') {
+      if (!expectObj.body || typeof expectObj.body !== "object") {
         expectObj.body = {};
       }
-      if (typeof expected === 'object' && expected !== null) {
+      if (typeof expected === "object" && expected !== null) {
         Object.assign(expectObj.body as Record<string, unknown>, expected);
       } else if (expected !== undefined) {
         expectObj.body = expected;
@@ -239,7 +269,7 @@ export function recordAssertionOnApiCall(
       const cookiesMap = ensureCookiesMap(expectObj);
       if (Array.isArray(expected)) {
         Object.assign(cookiesMap, cookiesArrayToMap(expected));
-      } else if (typeof expected === 'object' && expected !== null) {
+      } else if (typeof expected === "object" && expected !== null) {
         Object.assign(cookiesMap, expected);
       }
       return;
@@ -251,11 +281,11 @@ export function recordAssertionOnApiCall(
   for (const call of candidateCalls()) {
     const response = call.response;
     if (!response) continue;
-    if (response.body && typeof response.body === 'object') {
+    if (response.body && typeof response.body === "object") {
       const path = findPathInObject(response.body, target);
       if (path) {
         const expectObj = track(call);
-        if (!expectObj.body || typeof expectObj.body !== 'object') {
+        if (!expectObj.body || typeof expectObj.body !== "object") {
           expectObj.body = {};
         }
         const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
@@ -269,11 +299,11 @@ export function recordAssertionOnApiCall(
   for (const call of candidateCalls()) {
     const response = call.response;
     if (!response) continue;
-    if (response.headers && typeof response.headers === 'object') {
+    if (response.headers && typeof response.headers === "object") {
       const path = findPathInObject(response.headers, target);
       if (path) {
         const expectObj = track(call);
-        if (!expectObj.headers || typeof expectObj.headers !== 'object') {
+        if (!expectObj.headers || typeof expectObj.headers !== "object") {
           expectObj.headers = {};
         }
         const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
@@ -295,19 +325,26 @@ export function recordAssertionOnApiCall(
         const index = Number(path[0]);
         const cookieAt = Number.isInteger(index) ? response.cookies[index] : undefined;
         const cookieName =
-          cookieAt && typeof cookieAt === 'object' && typeof cookieAt.name === 'string' ? cookieAt.name : undefined;
+          cookieAt && typeof cookieAt === "object" && typeof cookieAt.name === "string"
+            ? cookieAt.name
+            : undefined;
         if (cookieName) {
           const expectObj = track(call);
           const cookiesMap = ensureCookiesMap(expectObj);
-          const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
+          const valToSet =
+            expected !== undefined ? expected : actual !== undefined ? actual : target;
           if (path.length === 1) {
             // target es el objeto cookie completo: extraer su valor
-            if (valToSet && typeof valToSet === 'object' && 'value' in (valToSet as Record<string, unknown>)) {
+            if (
+              valToSet &&
+              typeof valToSet === "object" &&
+              "value" in (valToSet as Record<string, unknown>)
+            ) {
               cookiesMap[cookieName] = (valToSet as Record<string, unknown>).value;
             } else {
               cookiesMap[cookieName] = valToSet;
             }
-          } else if (path[1] === 'value') {
+          } else if (path[1] === "value") {
             cookiesMap[cookieName] = valToSet;
           }
           // Otras sub-props (domain/path/expires/...) no son comparaciones de valor
@@ -350,18 +387,18 @@ export function setupChaiExpectInterceptor() {
   // Prioridad 1: globalThis — el módulo del plugin corre en el spec-bridge realm, el
   // MISMO donde Cypress 15 expone `specWindow.chai` (y por tanto `globalThis.chai`).
   // Cypress.chai ya no existe en Cypress 15 (null), así que debe quedar como fallback.
-  if (typeof globalThis !== 'undefined') {
+  if (typeof globalThis !== "undefined") {
     chaiInstance = (globalThis as unknown as { chai?: ChaiWithAssertion }).chai;
   }
-  if (!chaiInstance?.Assertion?.prototype && typeof window !== 'undefined') {
+  if (!chaiInstance?.Assertion?.prototype && typeof window !== "undefined") {
     chaiInstance = (window as unknown as { chai?: ChaiWithAssertion }).chai;
   }
-  if (!chaiInstance?.Assertion?.prototype && typeof Cypress !== 'undefined') {
+  if (!chaiInstance?.Assertion?.prototype && typeof Cypress !== "undefined") {
     chaiInstance = (Cypress as unknown as { chai?: ChaiWithAssertion }).chai;
   }
 
   if (!chaiInstance?.Assertion?.prototype) {
-    debugLog('setup:chai-not-ready');
+    debugLog("setup:chai-not-ready");
     return;
   }
 
@@ -384,20 +421,25 @@ export function setupChaiExpectInterceptor() {
       // Amarillo solo si el valor REAL es null/undefined (decisión del usuario).
       let effExpected: unknown = expected;
       let effActual: unknown = actual;
-      const msgStr = String(message) + '|' + String(negatedMsg);
+      const msgStr = String(message) + "|" + String(negatedMsg);
       const isNullAssertion = /null/.test(msgStr);
       const isUndefinedAssertion = /undefined/.test(msgStr);
-      const isNegated = !!(this as unknown as { __flags?: Record<string, unknown> }).__flags?.negate;
+      const isNegated = !!(this as unknown as { __flags?: Record<string, unknown> }).__flags
+        ?.negate;
       if (expected === undefined && actual === undefined && isNullAssertion) {
         if (isNegated) {
           // not.be.null sobre string → verde: seteamos expected = actual (mismo valor)
           effExpected = this._obj;
           effActual = this._obj;
-          debugLog('null-assert negated target=', safePreview(String(this._obj).slice(0, 60)), '=> green');
+          debugLog(
+            "null-assert negated target=",
+            safePreview(String(this._obj).slice(0, 60)),
+            "=> green",
+          );
         } else {
           effExpected = null;
           effActual = this._obj;
-          debugLog('null-assert target=', safePreview(String(this._obj).slice(0, 60)));
+          debugLog("null-assert target=", safePreview(String(this._obj).slice(0, 60)));
         }
       } else if (expected === undefined && actual === undefined && isUndefinedAssertion) {
         if (isNegated) {
@@ -417,9 +459,16 @@ export function setupChaiExpectInterceptor() {
     } catch (err) {
       // Nunca romper el test, pero hacerlo observable con DEBUG: un fallo de
       // atribución silencioso pinta mal sin dejar rastro.
-      debugLog('assert-intercept failed', safePreview(err));
+      debugLog("assert-intercept failed", safePreview(err));
     }
-    return originalAssert.apply(this, [expression, message, negatedMsg, expected, actual, showDiff]);
+    return originalAssert.apply(this, [
+      expression,
+      message,
+      negatedMsg,
+      expected,
+      actual,
+      showDiff,
+    ]);
   };
 
   // También interceptamos .property(name, val) para capturar:
@@ -428,7 +477,7 @@ export function setupChaiExpectInterceptor() {
   //   expect(response.cookies).to.have.property('session', 'val')
   // Corre DESPUÉS de originalProperty (que dispara assert → recordAssertionOnApiCall)
   // para no pisar lo que este último pueda haber escrito cuando expected es escalar.
-  if (typeof proto.property === 'function') {
+  if (typeof proto.property === "function") {
     const originalProperty = proto.property;
     proto.property = function (this: { _obj?: unknown }, ...args: unknown[]) {
       const targetObjBefore = this._obj;
@@ -440,11 +489,13 @@ export function setupChaiExpectInterceptor() {
           const targetObj = targetObjBefore;
           const candidates = candidateCalls();
           // expect(response.body).to.have.property('name', 'val')
-          const bodyCall = candidates.find((c) => c.response?.body && isSameObject(c.response.body, targetObj));
+          const bodyCall = candidates.find(
+            (c) => c.response?.body && isSameObject(c.response.body, targetObj),
+          );
           if (bodyCall?.response?.body && propName) {
-            if (!bodyCall.expect || typeof bodyCall.expect !== 'object') bodyCall.expect = {};
+            if (!bodyCall.expect || typeof bodyCall.expect !== "object") bodyCall.expect = {};
             const expObj = bodyCall.expect as Record<string, unknown>;
-            if (!expObj.body || typeof expObj.body !== 'object') expObj.body = {};
+            if (!expObj.body || typeof expObj.body !== "object") expObj.body = {};
             const actualVal = (targetObj as Record<string, unknown>)[propName];
             setDeepValue(
               expObj.body as Record<string, unknown>,
@@ -458,9 +509,10 @@ export function setupChaiExpectInterceptor() {
               (c) => c.response?.headers && isSameObject(c.response.headers, targetObj),
             );
             if (headersCall?.response?.headers && propName) {
-              if (!headersCall.expect || typeof headersCall.expect !== 'object') headersCall.expect = {};
+              if (!headersCall.expect || typeof headersCall.expect !== "object")
+                headersCall.expect = {};
               const expObj = headersCall.expect as Record<string, unknown>;
-              if (!expObj.headers || typeof expObj.headers !== 'object') expObj.headers = {};
+              if (!expObj.headers || typeof expObj.headers !== "object") expObj.headers = {};
               const actualVal = (targetObj as Record<string, unknown>)[propName];
               (expObj.headers as Record<string, unknown>)[propName] =
                 expectedVal !== undefined ? expectedVal : actualVal;
@@ -475,17 +527,23 @@ export function setupChaiExpectInterceptor() {
               if (cookiesCall?.response?.cookies && propName) {
                 const propKey = propName as string;
                 const isIndexProp = /^\d+$/.test(propKey);
-                const byIndex = isIndexProp ? cookiesCall.response.cookies[Number(propKey)] : undefined;
+                const byIndex = isIndexProp
+                  ? cookiesCall.response.cookies[Number(propKey)]
+                  : undefined;
                 const indexedName =
-                  byIndex && typeof byIndex === 'object' && typeof byIndex.name === 'string' ? byIndex.name : undefined;
-                if (propKey !== 'length' && (!isIndexProp || indexedName)) {
-                  if (!cookiesCall.expect || typeof cookiesCall.expect !== 'object') cookiesCall.expect = {};
+                  byIndex && typeof byIndex === "object" && typeof byIndex.name === "string"
+                    ? byIndex.name
+                    : undefined;
+                if (propKey !== "length" && (!isIndexProp || indexedName)) {
+                  if (!cookiesCall.expect || typeof cookiesCall.expect !== "object")
+                    cookiesCall.expect = {};
                   const expObj = cookiesCall.expect as Record<string, unknown>;
                   const cookiesMap = ensureCookiesMap(expObj);
                   const cookieName = indexedName ?? propKey;
                   const actualVal = (targetObj as Record<string, unknown>)[propKey];
                   const indexedVal = byIndex ? (byIndex.value ?? actualVal) : undefined;
-                  cookiesMap[cookieName] = expectedVal !== undefined ? expectedVal : (indexedVal ?? actualVal);
+                  cookiesMap[cookieName] =
+                    expectedVal !== undefined ? expectedVal : (indexedVal ?? actualVal);
                   scheduleEntryRefresh(cookiesCall.id);
                 }
               }
@@ -494,12 +552,14 @@ export function setupChaiExpectInterceptor() {
         }
       } catch (err) {
         // Nunca romper el test, pero hacerlo observable con DEBUG.
-        debugLog('property-intercept failed', safePreview(err));
+        debugLog("property-intercept failed", safePreview(err));
       }
       return result;
     };
   }
 
   isInterceptorInstalled = true;
-  debugLog('setup:installed chai=' + !!chaiInstance.Assertion + ' protoAssert=' + typeof proto.assert);
+  debugLog(
+    "setup:installed chai=" + !!chaiInstance.Assertion + " protoAssert=" + typeof proto.assert,
+  );
 }
