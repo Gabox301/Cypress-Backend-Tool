@@ -2,8 +2,10 @@
 
 import pg from "pg";
 
-// No cargar .env durante tests (Vitest) y evitar doble carga si cypress.config.ts ya lo hizo
-if (!process.env.VITEST && !process.env.CYPRESS_DB_HOST && !process.env.DB_HOST) {
+// No cargar .env durante tests (Vitest). En runtime se intenta siempre:
+// loadEnvFile no pisa variables ya presentes, así que definir DB_HOST/CYPRESS_DB_HOST
+// no puede impedir que se lean USER/PASSWORD del archivo (#14).
+if (!process.env.VITEST) {
   // loadEnvFile lanza ENOENT si falta .env (dotenv era silencioso): ignorar solo ese caso.
   try {
     process.loadEnvFile();
@@ -75,14 +77,19 @@ function isDbTaskOptions(value: unknown): value is DbTaskOptions {
  *   1. `{envPrefix}{KEY}` (default: `CYPRESS_DB_*`)
  *   2. `DB_{KEY}`
  *   3. `options.defaults`
- *   4. No hardcoded Pool endpoint or credential values; missing values remain empty
- *      (PORT becomes `NaN`). Pool timeouts default to connection 2000 ms, idle
- *      10000 ms, statement 30000 ms (all overridable via `defaults`).
+ *   4. Legacy Node-side fallbacks shared with `db:query`: host `localhost`, port
+ *      `5432`, database `test_db`, user `postgres`, empty password. Missing or
+ *      invalid `PORT` resolves to `5432` (never `NaN`), so the Pool is the same
+ *      endpoint the query handler resolves when no overrides are given.
  *
- * For backward compatibility, `db:query` applies Node-side fallbacks when explicit
- * overrides and resolved environment/default values are missing or empty: `localhost`,
- * `5432`, `test_db`, `postgres`, and an empty password. These are query-time compatibility
- * values, not Pool defaults, and `db:getConfig` does not return them.
+ * Pool timeouts default to connection 2000 ms, idle 10000 ms, statement 30000 ms
+ * (all overridable via `defaults`).
+ *
+ * `db:query` resolves the same values and only falls back to a dedicated
+ * `pg.Client` when a per-query override differs from the Pool:
+ * host/port/database/user/password, ssl, connectionTimeoutMillis,
+ * idleTimeoutMillis or statement_timeoutMillis. `db:getConfig` returns the
+ * resolved `host`/`port`/`database` only; fallback credentials are never exposed.
  *
  * SSL is consumer-configurable:
  *   - `CYPRESS_DB_SSL` / `DB_SSL` as the string `"true"` => `{ rejectUnauthorized: false }`
@@ -185,10 +192,11 @@ export function setupDatabaseTasks(
   const readSslEnv = (): boolean | Record<string, unknown> | undefined => {
     const prefixed = process.env[envPrefix + "SSL"];
     const raw = prefixed ?? process.env["DB_SSL"];
-    if (raw !== undefined) {
+    const trimmed = raw?.trim() ?? "";
+    // Vacío o solo blancos = unset (S3): no configura TLS por sí mismo y deja
+    // aplicar `defaults.ssl`, en vez de cortocircuitar a "sin SSL".
+    if (trimmed !== "") {
       const envName = prefixed !== undefined ? `${envPrefix}SSL` : "DB_SSL";
-      const trimmed = raw.trim();
-      if (trimmed === "") return undefined;
       const lower = trimmed.toLowerCase();
       if (lower === "true" || lower === "1" || lower === "yes") {
         return { rejectUnauthorized: false };
@@ -271,7 +279,15 @@ export function setupDatabaseTasks(
     return { ca };
   };
 
-  const defaultHost = readEnv("HOST");
+  // El Pool y el handler resuelven el mismo endpoint/credenciales (#1): si el Pool
+  // quedara con ""/NaN y el handler con localhost/5432/test_db/postgres, toda
+  // consulta sin overrides caería al Client temporal y el Pool nunca se usaría.
+  const poolHost = readEnv("HOST") || "localhost";
+  const parsedPoolPort = parseInt(readEnv("PORT"), 10);
+  const poolPort = Number.isNaN(parsedPoolPort) ? 5432 : parsedPoolPort;
+  const poolDatabase = readEnv("NAME", "database") || "test_db";
+  const poolUser = readEnv("USER") || "postgres";
+  const poolPassword = readEnv("PASSWORD");
   const sslValue = resolveSsl();
   if (isInsecureSsl(sslValue)) {
     // Aviso una vez por setup (no por query): el histórico `"true"` sigue funcionando
@@ -285,11 +301,6 @@ export function setupDatabaseTasks(
         `o declaralo explícito con ${envPrefix}SSL=insecure si lo asumís.`,
     );
   }
-  const poolHost = defaultHost;
-  const poolPort = parseInt(readEnv("PORT"), 10);
-  const poolDatabase = readEnv("NAME", "database");
-  const poolUser = readEnv("USER");
-  const poolPassword = readEnv("PASSWORD");
   const poolConnectionTimeout = options?.defaults?.connectionTimeoutMillis ?? 2000;
   const poolIdleTimeout = options?.defaults?.idleTimeoutMillis ?? 10_000;
   const poolStatementTimeout = options?.defaults?.statement_timeoutMillis ?? 30_000;
@@ -316,11 +327,15 @@ export function setupDatabaseTasks(
     );
   });
   on("task", {
-    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, "host" | "port" | "database"> => ({
-      host: readEnv("HOST"),
-      port: parseInt(readEnv("PORT"), 10),
-      database: readEnv("NAME", "database"),
-    }),
+    [`${prefix}db:getConfig`]: (): Pick<DbTaskConfig, "host" | "port" | "database"> => {
+      const port = parseInt(readEnv("PORT"), 10);
+      return {
+        host: readEnv("HOST"),
+        // #15: `NaN` cruza la frontera al browser como `null`; 5432 es el default real.
+        port: Number.isNaN(port) ? 5432 : port,
+        database: readEnv("NAME", "database"),
+      };
+    },
     [`${prefix}db:query`]: async (args: {
       query: string;
       values?: unknown[];
@@ -331,6 +346,7 @@ export function setupDatabaseTasks(
       password?: string;
       ssl?: boolean | Record<string, unknown>;
       connectionTimeoutMillis?: number;
+      idleTimeoutMillis?: number;
       statement_timeoutMillis?: number;
     }): Promise<DbTaskResult> => {
       const defaultPort = parseInt(readEnv("PORT"), 10);
@@ -345,6 +361,10 @@ export function setupDatabaseTasks(
         (args as { statement_timeoutMillis?: number }).statement_timeoutMillis ??
         options?.defaults?.statement_timeoutMillis ??
         30_000;
+      const queryConnectionTimeout =
+        args.connectionTimeoutMillis ?? options?.defaults?.connectionTimeoutMillis ?? 2000;
+      const queryIdleTimeout =
+        args.idleTimeoutMillis ?? options?.defaults?.idleTimeoutMillis ?? 10_000;
 
       // Comparar ssl vía JSON stringify para detectar diferencias de config (undefined vs false vs object)
       const sslMismatch =
@@ -359,7 +379,12 @@ export function setupDatabaseTasks(
         user !== poolUser ||
         password !== poolPassword ||
         sslMismatch ||
-        queryStatementTimeout !== poolStatementTimeout
+        queryStatementTimeout !== poolStatementTimeout ||
+        // #10: un timeout por consulta distinto del Pool se ignoraba en el camino
+        // pooled; incluirlo obliga a rutear por un Client dedicado. `idleTimeoutMillis`
+        // es del Pool: el Client dedicado cierra al terminar la query, sin idle.
+        queryConnectionTimeout !== poolConnectionTimeout ||
+        queryIdleTimeout !== poolIdleTimeout
       ) {
         const client = new pg.Client({
           host,
@@ -367,14 +392,19 @@ export function setupDatabaseTasks(
           database,
           user,
           password,
-          connectionTimeoutMillis:
-            (args as { connectionTimeoutMillis?: number }).connectionTimeoutMillis ??
-            options?.defaults?.connectionTimeoutMillis ??
-            2000,
+          connectionTimeoutMillis: queryConnectionTimeout,
           ...(queryStatementTimeout !== undefined
             ? { statement_timeout: queryStatementTimeout }
             : {}),
           ...(effectiveSsl !== undefined ? { ssl: effectiveSsl as never } : {}),
+        });
+        // #7: un 'error' del Client (socket caído) sin listener tumba el proceso
+        // Node de Cypress; mismo tratamiento best-effort que el Pool.
+        client.on("error", (err: unknown) => {
+          console.error(
+            "[cypress-backend-tool] db client error (continuing):",
+            err instanceof Error ? err.message : err,
+          );
         });
         try {
           await client.connect();

@@ -21,6 +21,7 @@ let mockClientQuery: ReturnType<typeof vi.fn>;
 let mockClientConnect: ReturnType<typeof vi.fn>;
 let mockClientEnd: ReturnType<typeof vi.fn>;
 let mockPoolOn: ReturnType<typeof vi.fn>;
+let mockClientOn: ReturnType<typeof vi.fn>;
 
 vi.mock("pg", () => {
   mockPoolQuery = vi.fn();
@@ -28,11 +29,17 @@ vi.mock("pg", () => {
   mockClientConnect = vi.fn();
   mockClientEnd = vi.fn();
   mockPoolOn = vi.fn();
+  mockClientOn = vi.fn();
   mockPoolCtor = vi.fn(function MockPool(opts?: Record<string, unknown>) {
     return { query: mockPoolQuery, options: opts, on: mockPoolOn } as never;
   });
   mockClientCtor = vi.fn(function MockClient() {
-    return { query: mockClientQuery, connect: mockClientConnect, end: mockClientEnd } as never;
+    return {
+      query: mockClientQuery,
+      connect: mockClientConnect,
+      end: mockClientEnd,
+      on: mockClientOn,
+    } as never;
   });
   return {
     default: { Pool: mockPoolCtor as unknown, Client: mockClientCtor as unknown },
@@ -41,9 +48,9 @@ vi.mock("pg", () => {
   };
 });
 
-// Stub native .env loader: the guard in tasks.ts skips loading under Vitest,
-// this spy guarantees no real `.env` is read if the guard ever changes.
-vi.spyOn(process, "loadEnvFile").mockImplementation(() => {});
+// Stub native .env loader: importing tasks.ts must never read a real `.env`.
+// The spy is also the observable for the #14 tests (load attempted or not).
+const loadEnvFileSpy = vi.spyOn(process, "loadEnvFile").mockImplementation(() => {});
 
 let setupDatabaseTasks: typeof import("./tasks").setupDatabaseTasks;
 
@@ -132,12 +139,12 @@ describe("setupDatabaseTasks", () => {
     expect(config.host).toBe("preferred.example.com");
   });
 
-  it("db:getConfig retorna vacío cuando no hay variables de entorno ni valores por defecto (sin respaldo hardcodeado)", () => {
+  it("db:getConfig cae a 5432 cuando falta el puerto y no hay valores por defecto (#15)", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
     const config = (getTasks(on)["db:getConfig"] as () => Record<string, unknown>)();
     expect(config.host).toBe("");
-    expect(config.port).toBeNaN();
+    expect(config.port).toBe(5432);
     expect(config.database).toBe("");
     expect(config).not.toHaveProperty("user");
     expect(config).not.toHaveProperty("password");
@@ -189,16 +196,16 @@ describe("setupDatabaseTasks", () => {
     );
   });
 
-  it("el pool se crea con configuración vacía cuando no hay variables de entorno ni valores por defecto (sin respaldo hardcodeado)", () => {
+  it("normaliza el Pool con los fallbacks del handler cuando no hay variables de entorno ni valores por defecto (#1)", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
     expect(mockPoolCtor).toHaveBeenCalledWith(
       expect.objectContaining({
         max: 1,
-        host: "",
-        port: NaN,
-        database: "",
-        user: "",
+        host: "localhost",
+        port: 5432,
+        database: "test_db",
+        user: "postgres",
         password: "",
       }),
     );
@@ -234,6 +241,42 @@ describe("setupDatabaseTasks", () => {
       password: "",
     });
     expect(mockPoolCtor).toHaveBeenCalledTimes(1);
+  });
+
+  it("reutiliza el Pool en el camino por defecto, sin abrir un Client por consulta (#1)", async () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockPoolQuery.mockResolvedValue({ rows: [{ one: 1 }], rowCount: 1 });
+
+    const result = await (
+      getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>
+    )({ query: "SELECT 1" });
+
+    expect(mockClientCtor).not.toHaveBeenCalled();
+    expect(mockPoolQuery).toHaveBeenCalledWith("SELECT 1");
+    expect(result).toEqual({ rows: [{ one: 1 }], rowCount: 1 });
+  });
+
+  it("no fuerza Client cuando solo HOST está definido: el resto usa los defaults del Pool (#1)", async () => {
+    vi.stubEnv("CYPRESS_DB_HOST", "db.example.test");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockPoolQuery.mockResolvedValue({ rows: [{ one: 1 }], rowCount: 1 });
+
+    await (getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: "SELECT 1",
+    });
+
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: "db.example.test",
+        port: 5432,
+        database: "test_db",
+        user: "postgres",
+      }),
+    );
+    expect(mockClientCtor).not.toHaveBeenCalled();
+    expect(mockPoolQuery).toHaveBeenCalledWith("SELECT 1");
   });
 
   // -----------------------------------------------------------------------
@@ -447,7 +490,7 @@ describe("setupDatabaseTasks", () => {
     );
   });
 
-  it("uses legacy Node-side connection fallbacks when env values, defaults, and overrides are absent", async () => {
+  it("normaliza los fallbacks legacy en el Pool y los reutiliza cuando env, defaults y overrides están ausentes (#1)", async () => {
     for (const key of [
       "CYPRESS_DB_HOST",
       "CYPRESS_DB_PORT",
@@ -461,17 +504,6 @@ describe("setupDatabaseTasks", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
     expect(mockPoolCtor).toHaveBeenCalledWith(
-      expect.objectContaining({ host: "", port: NaN, database: "", user: "", password: "" }),
-    );
-    mockClientQuery.mockResolvedValue({ rows: [{ value: 1 }], rowCount: 1 });
-
-    const result = await (
-      getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>
-    )({
-      query: "SELECT 1",
-    });
-
-    expect(mockClientCtor).toHaveBeenCalledWith(
       expect.objectContaining({
         host: "localhost",
         port: 5432,
@@ -480,21 +512,39 @@ describe("setupDatabaseTasks", () => {
         password: "",
       }),
     );
-    expect(mockClientQuery).toHaveBeenCalledWith("SELECT 1");
+    mockPoolQuery.mockResolvedValue({ rows: [{ value: 1 }], rowCount: 1 });
+
+    const result = await (
+      getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>
+    )({
+      query: "SELECT 1",
+    });
+
+    expect(mockClientCtor).not.toHaveBeenCalled();
+    expect(mockPoolQuery).toHaveBeenCalledWith("SELECT 1");
     expect(result).toEqual({ rows: [{ value: 1 }], rowCount: 1 });
   });
 
   // -----------------------------------------------------------------------
   // Casos límite
   // -----------------------------------------------------------------------
-  it("maneja la variable de puerto faltante como NaN cuando no hay valor por defecto (sin respaldo hardcodeado)", () => {
+  it("db:getConfig cae a 5432 cuando el puerto está ausente (#15)", () => {
     vi.stubEnv("CYPRESS_DB_HOST", "srv.example.com");
     // Puerto intencionalmente no definido y sin defaults
     const on = vi.fn();
     setupDatabaseTasks(on);
     const config = (getTasks(on)["db:getConfig"] as () => Record<string, unknown>)();
     expect(config.host).toBe("srv.example.com");
-    expect(Number.isNaN(config.port as number)).toBe(true);
+    expect(config.port).toBe(5432);
+  });
+
+  it("db:getConfig cae a 5432 cuando el puerto no es numérico (#15)", () => {
+    vi.stubEnv("CYPRESS_DB_HOST", "srv.example.com");
+    vi.stubEnv("CYPRESS_DB_PORT", "not-a-port");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    const config = (getTasks(on)["db:getConfig"] as () => Record<string, unknown>)();
+    expect(config.port).toBe(5432);
   });
 
   // -----------------------------------------------------------------------
@@ -741,12 +791,42 @@ describe("SSL fail-closed (S3)", () => {
     expect(mockPoolCtor).not.toHaveBeenCalled();
   });
 
-  it('un SSL vacío sigue significando "sin TLS" (sin throw)', () => {
+  it("un SSL vacío se trata como unset: sin defaults.ssl no configura TLS (sin throw)", () => {
     vi.stubEnv("CYPRESS_DB_SSL", "   ");
     const on = vi.fn();
     setupDatabaseTasks(on);
     const poolOptions = mockPoolCtor.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(poolOptions).not.toHaveProperty("ssl");
+  });
+
+  it("un CYPRESS_DB_SSL vacío cae al defaults.ssl configurado (#2/S3: vacío = unset)", () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "   ");
+    const on = vi.fn();
+    setupDatabaseTasks(on, { defaults: { ssl: true } });
+    expect(mockPoolCtor).toHaveBeenCalledWith(expect.objectContaining({ ssl: true }));
+  });
+
+  it("un DB_SSL vacío también cae al defaults.ssl configurado (#2/S3)", () => {
+    vi.stubEnv("DB_SSL", "");
+    const on = vi.fn();
+    setupDatabaseTasks(on, { defaults: { ssl: { rejectUnauthorized: true } } });
+    expect(mockPoolCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ ssl: { rejectUnauthorized: true } }),
+    );
+  });
+
+  it("un SSL vacío con defaults.ssl no desvía db:query al Client (Pool y handler coinciden)", async () => {
+    vi.stubEnv("CYPRESS_DB_SSL", "  ");
+    const on = vi.fn();
+    setupDatabaseTasks(on, { defaults: { ssl: true } });
+    mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    await (getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: "SELECT 1",
+    });
+
+    expect(mockPoolQuery).toHaveBeenCalledWith("SELECT 1");
+    expect(mockClientCtor).not.toHaveBeenCalled();
   });
 
   it("el JSON válido se sigue parseando como objeto", () => {
@@ -799,9 +879,62 @@ describe("pool lifecycle (PH3-T2)", () => {
 });
 
 // -----------------------------------------------------------------------
+// Lifecycle del Client temporal (#7): un 'error' sin listener tumba el proceso Node
+// -----------------------------------------------------------------------
+describe("temporary client lifecycle (#7)", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    errorSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  /** Ejecuta db:query por la rama de override, que crea un pg.Client dedicado. */
+  async function runOverrideQuery(): Promise<void> {
+    vi.stubEnv("CYPRESS_DB_HOST", "pool-host");
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockClientQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+    await (getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>)({
+      query: "SELECT 1",
+      host: "other-host",
+      port: 5432,
+      database: "test_db",
+      user: "postgres",
+      password: "override_password",
+    });
+  }
+
+  it("registra un handler de error en el Client temporal, igual que el Pool", async () => {
+    await runOverrideQuery();
+    expect(mockClientCtor).toHaveBeenCalledOnce();
+    expect(mockClientOn).toHaveBeenCalledWith("error", expect.any(Function));
+  });
+
+  it("un error del Client temporal se loguea sin tumbar el proceso", async () => {
+    await runOverrideQuery();
+    const handler = mockClientOn.mock.calls.find(([event]) => event === "error")?.[1] as (
+      err: unknown,
+    ) => void;
+    expect(() => handler(new Error("client socket error"))).not.toThrow();
+    expect(errorSpy).toHaveBeenCalledOnce();
+    expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/client/i);
+  });
+});
+
+// -----------------------------------------------------------------------
 // Timeouts del Pool (P1): defaults sanos y override por consulta
 // -----------------------------------------------------------------------
 describe("pool timeouts (P1)", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
   it("Pool usa idle 10s y statement 30s por defecto", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
@@ -840,5 +973,100 @@ describe("pool timeouts (P1)", () => {
       expect.objectContaining({ statement_timeout: 1000 }),
     );
     expect(mockClientEnd).toHaveBeenCalled();
+  });
+
+  it("override de connectionTimeoutMillis por consulta rutea por Client dedicado (#10)", async () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockClientQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const query = getTasks(on)["db:query"] as (
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+
+    await query({ query: "SELECT 1", connectionTimeoutMillis: 5000 });
+
+    expect(mockClientCtor).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionTimeoutMillis: 5000 }),
+    );
+    expect(mockPoolQuery).not.toHaveBeenCalled();
+    expect(mockClientEnd).toHaveBeenCalled();
+  });
+
+  it("override de idleTimeoutMillis por consulta rutea por Client dedicado (#10)", async () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockClientQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const query = getTasks(on)["db:query"] as (
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+
+    await query({ query: "SELECT 1", idleTimeoutMillis: 500 });
+
+    expect(mockClientCtor).toHaveBeenCalledOnce();
+    expect(mockPoolQuery).not.toHaveBeenCalled();
+    expect(mockClientEnd).toHaveBeenCalled();
+  });
+
+  it("timeouts por consulta iguales a los del Pool se quedan en el Pool", async () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on);
+    mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const query = getTasks(on)["db:query"] as (
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+
+    await query({ query: "SELECT 1", connectionTimeoutMillis: 2000, idleTimeoutMillis: 10_000 });
+
+    expect(mockPoolQuery).toHaveBeenCalledWith("SELECT 1");
+    expect(mockClientCtor).not.toHaveBeenCalled();
+  });
+
+  it("con defaults personalizados de timeouts, la consulta sin overrides sigue en el Pool", async () => {
+    const on = vi.fn();
+    setupDatabaseTasks(on, {
+      defaults: { connectionTimeoutMillis: 5000, idleTimeoutMillis: 15_000 },
+    });
+    mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const query = getTasks(on)["db:query"] as (
+      args: Record<string, unknown>,
+    ) => Promise<unknown>;
+
+    await query({ query: "SELECT 1" });
+
+    expect(mockPoolQuery).toHaveBeenCalledWith("SELECT 1");
+    expect(mockClientCtor).not.toHaveBeenCalled();
+  });
+});
+
+// -----------------------------------------------------------------------
+// Carga de .env (#14): siempre se intenta; loadEnvFile no pisa variables presentes
+// -----------------------------------------------------------------------
+describe(".env loading (#14)", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("carga .env aunque DB_HOST ya esté definido (no es todo-o-nada)", async () => {
+    vi.stubEnv("DB_HOST", "preset.example.com");
+    vi.stubEnv("CYPRESS_DB_HOST", "preset.example.com");
+    vi.stubEnv("VITEST", "");
+
+    await import("./tasks");
+
+    expect(loadEnvFileSpy).toHaveBeenCalled();
+  });
+
+  it("sigue sin cargar .env bajo el runner de tests (VITEST)", async () => {
+    vi.stubEnv("VITEST", "true");
+
+    await import("./tasks");
+
+    expect(loadEnvFileSpy).not.toHaveBeenCalled();
   });
 });
