@@ -5,13 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.5.0] - 2026-11-24
+
+### Changed
+
+- **Toolchain and runtime:** Vite+ 1.6.0 → 1.8.0; Node.js >= 24 required (`engines`); ESM-only package now also works via native `require(esm)` (`require("cypress-backend-tool")`).
+- **Publish guard:** `prepack` runs the full build first; the tarball always ships freshly compiled `dist/`.
+
+### Security
+
+- **Fail-closed TLS:** unknown `CYPRESS_DB_SSL` or malformed JSON aborts `setupDatabaseTasks` (previously silent no-TLS); empty variable = unset (`defaults.ssl` applies).
+- **Redacted, strict errors:** raw SQL and secrets are out of thrown `Error`s (the panel keeps the detail); `cy.query` fails closed without a resolvable endpoint and wraps `db:query` rejections (postgres code + connectionId); invalid `received` truncated to 500 in the throw; transport classified refused/timeout without echo; hardened `toErrorMessage`; complete per-query types in `DbConnectionOptions`.
 
 ### Fixed
 
-- **Real persistent Pool (`db`):** Pool config uses the handler fallbacks (localhost/5432/test_db/postgres); the default path reuses the Pool instead of opening a `pg.Client` per call. `db:getConfig` returns 5432 for non-numeric ports.
-- **Fail-closed TLS (`security`):** unknown `CYPRESS_DB_SSL` or malformed JSON aborts `setupDatabaseTasks` (previously silent no-TLS); empty variable = unset (`defaults.ssl` applies). Best-effort error listener on per-query Clients; per-query timeouts route Pool-vs-Client; `.env` always loads (never overrides).
-- **Strict errors (`security`):** `cy.query` fails closed without a resolvable endpoint; `db:query` rejections are wrapped (postgres code + connectionId); invalid `received` truncated to 500 in the throw; transport classified refused/timeout without echo; hardened `toErrorMessage`; complete per-query types in `DbConnectionOptions`.
+- **Real persistent Pool (`db`):** Pool config uses the handler fallbacks (localhost/5432/test_db/postgres); the default path reuses the Pool instead of opening a `pg.Client` per call. `db:getConfig` returns 5432 for non-numeric ports. Best-effort error listener on per-query Clients; per-query timeouts route Pool-vs-Client; `.env` always loads (never overrides).
 - **UI/panel (`ui`):** no double mount after snapshot restore (unmount on reset + liveness guard); DOM registry capped with the store (cap 100 per kind); ScrollArea drag in the AUT realm; negation and failed assertions no longer paint wrong pills (retries probe pending: needs an e2e run).
 
 ## [1.4.0] - 2026-11-12

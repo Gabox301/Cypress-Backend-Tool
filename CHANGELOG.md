@@ -5,13 +5,21 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [1.5.0] - 2026-11-24
+
+### Changed
+
+- **Toolchain y runtime:** Vite+ 1.6.0 → 1.8.0; Node.js >= 24 requerido (`engines`); al ser ESM-only, `require("cypress-backend-tool")` funciona vía `require(esm)` nativo.
+- **Guard de publish:** `prepack` corre el build completo primero; el tarball siempre incluye `dist/` recién compilado.
+
+### Security
+
+- **TLS fail-closed:** `CYPRESS_DB_SSL` desconocido o JSON malformado aborta `setupDatabaseTasks` (antes, sin TLS en silencio); variable vacía = unset (aplican `defaults.ssl`).
+- **Errores redactados y estrictos:** el SQL crudo y los secretos salieron de los `Error` lanzados (el panel conserva el detalle); `cy.query` falla en cerrado sin endpoint resoluble y envuelve el rechazo de `db:query` (código postgres + connectionId); `received` inválido truncado a 500 en el throw; transporte clasificado refused/timeout sin eco; `toErrorMessage` blindado; tipos per-query completos en `DbConnectionOptions`.
 
 ### Fixed
 
-- **Pool persistente real (`db`):** la config del Pool usa los mismos fallbacks que el handler (localhost/5432/test_db/postgres); en el path por defecto las queries reutilizan el Pool en vez de abrir un `pg.Client` por llamada. `db:getConfig` devuelve 5432 ante puerto no numérico.
-- **TLS fail-closed (`security`):** `CYPRESS_DB_SSL` desconocido o JSON malformado aborta `setupDatabaseTasks` (antes, sin TLS en silencio); variable vacía = unset (aplican `defaults.ssl`). Cliente por query con listener de error best-effort; timeouts por query participan del ruteo Pool-vs-Cliente; `.env` siempre se carga (nunca sobrescribe).
-- **Errores estrictos (`security`):** `cy.query` falla en cerrado sin endpoint resoluble; el rechazo de `db:query` se envuelve (código postgres + connectionId); `received` inválido truncado a 500 en el throw; transporte clasificado refused/timeout sin eco; `toErrorMessage` blindado; tipos per-query completos en `DbConnectionOptions`.
+- **Pool persistente real (`db`):** la config del Pool usa los mismos fallbacks que el handler (localhost/5432/test_db/postgres); en el path por defecto las queries reutilizan el Pool en vez de abrir un `pg.Client` por llamada. `db:getConfig` devuelve 5432 ante puerto no numérico. Cliente por query con listener de error best-effort; timeouts por query participan del ruteo Pool-vs-Cliente; `.env` siempre se carga (nunca sobrescribe).
 - **UI/panel (`ui`):** sin doble montaje tras restore de snapshot (unmount al reset + guard de liveness); registry DOM acotado con el store (cap 100 por tipo); drag de ScrollArea en el realm del AUT; negación y aserciones fallidas ya no pintan pills incorrectos (probe de retries pendiente: requiere run e2e).
 
 ## [1.4.0] - 2026-11-12
