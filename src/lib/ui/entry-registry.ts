@@ -24,6 +24,14 @@ export interface EntryRecord {
 // Map con ámbito de módulo — sin clase, sin instanciación, una instancia por realm de JS.
 const _entries = new Map<string, EntryRecord>();
 
+/** Tipo de entrada — cada tipo se acota con el bound de SU store. */
+export type EntryKind = "api" | "db";
+
+/** Discrimina el tipo por el payload: `DbQuery` trae `query`, `ApiCall` no. */
+export function entryKind(data: ApiCall | DbQuery): EntryKind {
+  return "query" in data ? "db" : "api";
+}
+
 /**
  * Singleton a nivel de módulo que gestiona los ciclos de vida de los componentes
  * de entradas persistentes.
@@ -104,6 +112,36 @@ export const EntryRegistry = {
     for (const id of Array.from(_entries.keys())) {
       this.unmount(id);
     }
+  },
+
+  /**
+   * Aplica la MISMA cota del store al DOM: desmonta y elimina las entradas más
+   * viejas de un tipo hasta dejar `limit`.
+   *
+   * El store evicta al empujar (`pushCapped`), pero antes el registry/DOM
+   * crecían sin límite: la llamada desaparecía de `apiCalls` y su entrada
+   * seguía montada, de modo que `refreshEntry` caía en silencio a `entry.data`
+   * (datos crudos de una llamada ya evictada). Una sola cota mantiene ambos
+   * alineados. Devuelve los ids evictados, en orden de inserción.
+   */
+  cap(kind: EntryKind, limit: number): string[] {
+    const evicted: string[] = [];
+    if (limit < 0) return evicted;
+    let count = 0;
+    for (const entry of _entries.values()) {
+      if (entryKind(entry.data) === kind) count++;
+    }
+    // Recolecta primero: unmount() muta el Map que se está iterando.
+    for (const [id, entry] of _entries) {
+      if (count <= limit) break;
+      if (entryKind(entry.data) !== kind) continue;
+      evicted.push(id);
+      count--;
+    }
+    for (const id of evicted) {
+      this.unmount(id);
+    }
+    return evicted;
   },
 
   /**

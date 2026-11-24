@@ -7,6 +7,7 @@ vi.mock("svelte", () => ({
 }));
 
 import {
+  MAX_STORE_ENTRIES,
   addApiCall,
   addDbQuery,
   apiCalls,
@@ -172,6 +173,63 @@ describe("mountEntry — múltiples llamadas", () => {
       2,
     );
     expect(EntryRegistry.size()).toBe(2);
+  });
+});
+
+// ===========================================================================
+// #9 — cota única: el DOM se evicta junto con el store, no solo el store
+// ===========================================================================
+describe("#9 — cota de DOM alineada con la cota de los stores", () => {
+  function domEntryIds(): string[] {
+    return Array.from(
+      document.querySelectorAll("#cabt-scroll-area > [id^='cabt-entry-']"),
+    ).map((el) => el.id);
+  }
+
+  it("evicta el DOM más viejo pasado MAX_STORE_ENTRIES, igual que el store", () => {
+    const total = MAX_STORE_ENTRIES + 5;
+    for (let i = 0; i < total; i++) {
+      const call = apiCall({ id: `cap-${i}` });
+      addApiCall(call);
+      mountEntry(call);
+    }
+
+    // Store y DOM quedan con el MISMO conjunto, en el mismo orden.
+    expect(apiCalls).toHaveLength(MAX_STORE_ENTRIES);
+    expect(EntryRegistry.size()).toBe(MAX_STORE_ENTRIES);
+    expect(domEntryIds()).toEqual(apiCalls.map((c) => `cabt-entry-${c.id}`));
+    // La entrada evictada no deja DOM huérfano (antes: 105 divs, 100 en el store).
+    expect(document.getElementById("cabt-entry-cap-0")).toBeNull();
+    expect(document.getElementById(`cabt-entry-cap-${total - 1}`)).not.toBeNull();
+  });
+
+  it("evicta consultas de BD con su propio bound, sin tocar las llamadas HTTP", () => {
+    const total = MAX_STORE_ENTRIES + 2;
+    for (let i = 0; i < total; i++) {
+      const q = dbQuery({ id: `dbcap-${i}` });
+      addDbQuery(q);
+      mountEntry(q);
+    }
+
+    expect(dbQueries).toHaveLength(MAX_STORE_ENTRIES);
+    expect(EntryRegistry.size()).toBe(MAX_STORE_ENTRIES);
+    expect(document.getElementById("cabt-entry-dbcap-0")).toBeNull();
+  });
+
+  it("no evicta entre tipos: 60 llamadas + 60 consultas conviven bajo las cotas", () => {
+    for (let i = 0; i < 60; i++) {
+      const call = apiCall({ id: `mix-api-${i}` });
+      addApiCall(call);
+      mountEntry(call);
+      const q = dbQuery({ id: `mix-db-${i}` });
+      addDbQuery(q);
+      mountEntry(q);
+    }
+
+    expect(apiCalls).toHaveLength(60);
+    expect(dbQueries).toHaveLength(60);
+    expect(EntryRegistry.size()).toBe(120);
+    expect(domEntryIds()).toHaveLength(120);
   });
 });
 

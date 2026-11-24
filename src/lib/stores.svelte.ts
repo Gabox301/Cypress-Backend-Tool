@@ -25,7 +25,9 @@ export const pluginConfig = $state<CypressApiPluginConfig>({
 /**
  * Cota por lista (PH3-T5): en tests gigantes se evicta lo más viejo para que
  * los stores no crezcan sin límite. El registro/DOM se limpia por test en los
- * hooks; esto acota el caso de cientos de llamadas dentro de un solo `it()`.
+ * hooks, y dentro de un mismo `it()` la MISMA cota se aplica al DOM desde
+ * `mountEntry` (EntryRegistry.cap con `entryKind`) — store y DOM nunca se
+ * desalinean (#9).
  */
 export const MAX_STORE_ENTRIES = 100;
 

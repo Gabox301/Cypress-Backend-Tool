@@ -347,3 +347,163 @@ describe("chai-interceptor — atribución por llamada (PH2-T2)", () => {
     vitestExpect(entryRefreshMocks.scheduleEntryRefresh).not.toHaveBeenCalledWith("b-last");
   });
 });
+
+// ---------------------------------------------------------------------------
+// #13 — negación de Chai y aserciones fallidas en TODAS las rutas
+//
+// Chai llama `assert(expr, msg, negatedMsg, expected, actual)` con `expr` SIN
+// aplicar la negación (chai/lib/chai/utils/test.js: `negate ? !expr : expr`).
+// Por eso una aserción negada exitosa llega con `passed === false` y una negada
+// fallida con `passed === true`: el interceptor debe normalizar con el flag
+// `negate`, y nunca pintar una aserción que falló.
+// ---------------------------------------------------------------------------
+describe("chai-interceptor — negación y aserciones fallidas (#13)", () => {
+  beforeEach(() => {
+    clearApiCalls();
+  });
+
+  function pushCall(): ApiCall {
+    const call: ApiCall = {
+      id: "neg-1",
+      request: { url: "https://example.com", method: "GET" },
+      response: {
+        status: 200,
+        statusText: "OK",
+        headers: { "content-type": "application/json" },
+        body: { id: 7, name: "Alice", tags: ["admin"] },
+        duration: 5,
+        size: 5,
+        cookies: [{ name: "session", value: "abc-cookie-secret" }],
+      },
+      timestamp: Date.now(),
+    };
+    apiCalls.push(call);
+    return call;
+  }
+
+  // La negación de cada ruta de atribución: la expectativa registrada debe ser
+  // el valor OBSERVADO (verde), nunca el valor prohibido (que pintaría mismatch).
+  it("ruta 1 (status): to.not.eq pinta el status observado, no el prohibido", () => {
+    pushCall();
+
+    // expect(response.status).to.not.eq(404) — status real 200 => pasa, expr false
+    recordAssertionOnApiCall(200, 404, 200, { flags: { negate: true }, passed: false });
+
+    vitestExpect(apiCalls[0].expect).toEqual({ status: 200 });
+  });
+
+  it("ruta 1 (status): un to.not.eq fallido no pinta nada", () => {
+    pushCall();
+
+    // expect(response.status).to.not.eq(200) — falla porque el status ES 200
+    recordAssertionOnApiCall(200, 200, 200, { flags: { negate: true }, passed: true });
+
+    vitestExpect(apiCalls[0].expect).toBeUndefined();
+  });
+
+  it("ruta 5 (campo de body) negada registra el valor observado", () => {
+    pushCall();
+
+    // expect(response.body.name).to.not.eq('Bob') — real 'Alice'
+    recordAssertionOnApiCall("Alice", "Bob", "Alice", {
+      flags: { negate: true },
+      passed: false,
+    });
+
+    vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.body).toEqual({ name: "Alice" });
+  });
+
+  it("ruta 6 (header) negada registra el valor observado", () => {
+    pushCall();
+
+    // expect(response.headers['content-type']).to.not.eq('text/plain')
+    recordAssertionOnApiCall("application/json", "text/plain", "application/json", {
+      flags: { negate: true },
+      passed: false,
+    });
+
+    vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.headers).toEqual({
+      "content-type": "application/json",
+    });
+  });
+
+  it("ruta 8 (cookie) negada registra el valor observado", () => {
+    pushCall();
+
+    // expect(response.cookies[0].value).to.not.eq('other')
+    recordAssertionOnApiCall("abc-cookie-secret", "other", "abc-cookie-secret", {
+      flags: { negate: true },
+      passed: false,
+    });
+
+    vitestExpect((apiCalls[0].expect as Record<string, unknown>)?.cookies).toEqual({
+      session: "abc-cookie-secret",
+    });
+  });
+
+  // Toda aserción fallida es no-evidencia, sin importar la ruta que la capture.
+  const failingCases: Array<{
+    path: string;
+    run: (call: ApiCall) => void;
+  }> = [
+    {
+      path: "1 status",
+      run: (call) =>
+        recordAssertionOnApiCall(call.response?.status, 201, 200, { passed: false }),
+    },
+    {
+      path: "2 response",
+      run: (call) => recordAssertionOnApiCall(call.response, { status: 201 }, call.response, {
+        passed: false,
+      }),
+    },
+    {
+      path: "3 headers",
+      run: (call) => recordAssertionOnApiCall(call.response?.headers, { "x-id": "1" }, null, {
+        passed: false,
+      }),
+    },
+    {
+      path: "4 body",
+      run: (call) =>
+        recordAssertionOnApiCall(call.response?.body, { id: 8, name: "Bob" }, null, {
+          passed: false,
+        }),
+    },
+    {
+      path: "5 campo de body",
+      run: () => recordAssertionOnApiCall("Alice", "Bob", "Alice", { passed: false }),
+    },
+    {
+      path: "6 header individual",
+      run: () =>
+        recordAssertionOnApiCall("application/json", "text/plain", "application/json", {
+          passed: false,
+        }),
+    },
+    {
+      path: "7 cookies (array)",
+      run: (call) =>
+        recordAssertionOnApiCall(call.response?.cookies, [{ name: "session", value: "x" }], null, {
+          passed: false,
+        }),
+    },
+    {
+      path: "8 valor de cookie",
+      run: () =>
+        recordAssertionOnApiCall("abc-cookie-secret", "other", "abc-cookie-secret", {
+          passed: false,
+        }),
+    },
+  ];
+
+  for (const { path, run } of failingCases) {
+    it(`ruta ${path}: una aserción fallida no registra expectativa`, () => {
+      const call = pushCall();
+
+      run(call);
+
+      vitestExpect(apiCalls[0].expect).toBeUndefined();
+    });
+  }
+});

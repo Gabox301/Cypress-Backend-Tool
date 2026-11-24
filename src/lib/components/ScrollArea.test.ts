@@ -490,3 +490,76 @@ describe("ScrollArea — resiliencia", () => {
     else delete (globalThis as unknown as Record<string, unknown>).ResizeObserver;
   });
 });
+
+// ---------------------------------------------------------------------------
+// #12 — realm: la UI vive en el iframe del AUT, no en el realm del bundle
+//
+// El bundle del plugin corre en el contexto del runner; la UI se monta en el
+// document del AUT (iframe). Los handlers de arrastre y los listeners del
+// $effect deben resolverse contra el document del mount (ownerDocument del
+// viewport), no contra las globales `window`/`document` del bundle.
+// ---------------------------------------------------------------------------
+describe("ScrollArea — realm del AUT (#12)", () => {
+  let iframe: HTMLIFrameElement | undefined;
+
+  function setupInAutFrame() {
+    iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+    if (!doc || !win) throw new Error("jsdom no creó el contexto del iframe del AUT");
+    // Constructores del realm del AUT (los `MouseEvent`/`Event` globales son del bundle).
+    const realm = win as unknown as typeof globalThis;
+    const host = doc.createElement("div");
+    doc.body.appendChild(host);
+
+    // `target` es la opción de montaje de @testing-library/svelte (no `container`).
+    const result = render(ScrollArea, {
+      target: host,
+      props: { children: makeSnippet("<span>aut</span>") },
+    });
+    const viewport = result.container.querySelector(
+      '[data-testid="scroll-area-viewport"]',
+    ) as HTMLElement;
+    const track = result.container.querySelector('[data-testid="scroll-track"]') as HTMLElement;
+    const thumb = result.container.querySelector('[data-testid="scroll-thumb"]') as HTMLElement;
+    return { doc, win, realm, viewport, track, thumb };
+  }
+
+  afterEach(() => {
+    iframe?.remove();
+    iframe = undefined;
+    document.body.style.userSelect = "";
+  });
+
+  it("el arrastre bloquea la selección en el body del AUT, no en el del bundle", async () => {
+    const { doc, win, realm, viewport, track, thumb } = setupInAutFrame();
+    mockLayout(viewport, track, { clientHeight: 400, scrollHeight: 1000, trackHeight: 400 });
+    await fireEvent.scroll(viewport);
+
+    await fireEvent.mouseDown(thumb, { clientY: 100 });
+
+    // El bloqueo de selección pertenece al documento donde vive la UI.
+    expect(doc.body.style.userSelect).toBe("none");
+    expect(document.body.style.userSelect).toBe("");
+
+    // El mousemove del AUT es el único que puede mover el pulgar.
+    win.dispatchEvent(new realm.MouseEvent("mousemove", { clientY: 150 }));
+    await tick();
+    expect(thumb.style.transform).toBe("translateY(50px)");
+
+    win.dispatchEvent(new realm.MouseEvent("mouseup"));
+    await tick();
+    expect(doc.body.style.userSelect).toBe("");
+  });
+
+  it("el listener de resize se registra en la ventana del AUT", async () => {
+    const { win, realm, viewport, track, thumb } = setupInAutFrame();
+    mockLayout(viewport, track, { clientHeight: 400, scrollHeight: 1000, trackHeight: 400 });
+
+    win.dispatchEvent(new realm.Event("resize"));
+    await tick();
+
+    expect(thumb.style.height).toBe("160px");
+  });
+});

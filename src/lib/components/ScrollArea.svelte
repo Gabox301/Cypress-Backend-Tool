@@ -16,6 +16,24 @@
   let dragStartY = 0;
   let dragStartTop = 0;
   let rafPending = false;
+  // Realm del arrastre en curso: los listeners se quitan de la MISMA ventana y
+  // el bloqueo de selección se restaura en el MISMO documento donde se puso.
+  let dragWindow: Window | null = null;
+  let dragDocument: Document | null = null;
+
+  // La UI vive en el document del AUT (iframe), pero el bundle se ejecuta en el
+  // contexto del runner: las globales `window`/`document` pueden ser OTRO realm.
+  // Todo lo que depende del DOM se resuelve desde el contexto de montaje — el
+  // ownerDocument del viewport — igual que la delegación de copy.
+  function autDocument(): Document | null {
+    if (viewport) return viewport.ownerDocument;
+    return typeof document !== 'undefined' ? document : null;
+  }
+  function autWindow(): Window | null {
+    const doc = autDocument();
+    if (doc?.defaultView) return doc.defaultView;
+    return typeof window !== 'undefined' ? window : null;
+  }
   function scheduleUpdateThumb(): void {
     if (rafPending) return;
     rafPending = true;
@@ -53,9 +71,11 @@
     isDragging = true;
     dragStartY = e.clientY;
     dragStartTop = thumbTop;
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', handleThumbMouseMove);
-    window.addEventListener('mouseup', handleThumbMouseUp);
+    dragDocument = autDocument();
+    dragWindow = autWindow();
+    if (dragDocument) dragDocument.body.style.userSelect = 'none';
+    dragWindow?.addEventListener('mousemove', handleThumbMouseMove);
+    dragWindow?.addEventListener('mouseup', handleThumbMouseUp);
   }
   function handleThumbMouseMove(e: MouseEvent): void {
     if (!viewport || !track) return;
@@ -69,9 +89,11 @@
   }
   function handleThumbMouseUp(): void {
     isDragging = false;
-    document.body.style.userSelect = '';
-    window.removeEventListener('mousemove', handleThumbMouseMove);
-    window.removeEventListener('mouseup', handleThumbMouseUp);
+    if (dragDocument) dragDocument.body.style.userSelect = '';
+    dragWindow?.removeEventListener('mousemove', handleThumbMouseMove);
+    dragWindow?.removeEventListener('mouseup', handleThumbMouseUp);
+    dragDocument = null;
+    dragWindow = null;
   }
   function handleTrackClick(e: MouseEvent): void {
     if (!viewport || !track) return;
@@ -87,35 +109,42 @@
   }
   $effect(() => {
     if (!viewport || !track) return;
+    // Realm de montaje: el observer, el resize y el reseteo de selección viven
+    // en el document del AUT, no en las globales del bundle.
+    const doc = viewport.ownerDocument;
+    const win = doc.defaultView ?? (typeof window !== 'undefined' ? window : null);
+    const MutationObserverImpl =
+      doc.defaultView?.MutationObserver ??
+      (typeof MutationObserver !== 'undefined' ? MutationObserver : undefined);
     updateThumb();
     let mo: MutationObserver | undefined;
-    if (typeof MutationObserver !== 'undefined') {
-      mo = new MutationObserver(() => scheduleUpdateThumb());
+    if (MutationObserverImpl) {
+      mo = new MutationObserverImpl(() => scheduleUpdateThumb());
       mo.observe(viewport, {
         childList: true,
       });
     }
     const onResize = (): void => scheduleUpdateThumb();
-    window.addEventListener('resize', onResize);
+    win?.addEventListener('resize', onResize);
     const onWindowError = (e: ErrorEvent) => {
       if (e.message?.includes('ResizeObserver loop') || String(e.error?.message ?? '').includes('ResizeObserver')) {
         e.stopImmediatePropagation();
         e.preventDefault();
       }
     };
-    window.addEventListener('error', onWindowError);
+    win?.addEventListener('error', onWindowError);
     const onRejection = (e: PromiseRejectionEvent) => {
       if (String(e.reason?.message ?? e.reason).includes('ResizeObserver')) e.preventDefault();
     };
-    window.addEventListener('unhandledrejection', onRejection);
+    win?.addEventListener('unhandledrejection', onRejection);
     return () => {
       mo?.disconnect();
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('error', onWindowError);
-      window.removeEventListener('unhandledrejection', onRejection);
-      window.removeEventListener('mousemove', handleThumbMouseMove);
-      window.removeEventListener('mouseup', handleThumbMouseUp);
-      document.body.style.userSelect = '';
+      win?.removeEventListener('resize', onResize);
+      win?.removeEventListener('error', onWindowError);
+      win?.removeEventListener('unhandledrejection', onRejection);
+      win?.removeEventListener('mousemove', handleThumbMouseMove);
+      win?.removeEventListener('mouseup', handleThumbMouseUp);
+      doc.body.style.userSelect = '';
     };
   });
 </script>

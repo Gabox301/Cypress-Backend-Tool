@@ -24,14 +24,31 @@ let mountedDocument: Document | null = null;
 /** El contenedor exacto donde vive la instancia montada: detecta reemplazos
  * sincrónicos del contenedor (el observer aún no corrió su microtask). */
 let mountedContainer: HTMLElement | null = null;
+/** El shell de App ya está presente en `mountedContainer` y el watcher está
+ * armado — con instancia Svelte propia o con un shell clonado adoptado. */
+let shellReady = false;
 let _observer: MutationObserver | null = null;
 /** El body del AUT capturado cuando se armó el watcher — la señal de intercambio de body. */
 let _watchBody: HTMLElement | null = null;
 
+/**
+ * Descarta el estado de montaje. La instancia viva se DESMONTA aquí: anular la
+ * referencia sin desmontar dejaba una App viva apuntando a DOM desconectado y,
+ * peor, permitía que el siguiente ensurePluginMounted montara una segunda App
+ * dentro de un contenedor que ya traía el shell (ids duplicados).
+ */
 function resetMountState(): void {
+  if (mountedInstance) {
+    try {
+      void unmount(mountedInstance);
+    } catch {
+      // El target puede estar ya desconectado; el reset nunca debe romper el observer.
+    }
+  }
   mountedInstance = null;
   mountedDocument = null;
   mountedContainer = null;
+  shellReady = false;
 }
 
 /**
@@ -92,9 +109,16 @@ function watchContainer(container: HTMLElement, doc: Document) {
  *   el escenario de blanqueo real).
  */
 function reviveOrReArm(doc: Document): void {
-  const existing = doc.getElementById("cypress-api-plugin-container");
+  const existing = doc.getElementById("cypress-api-plugin-container") as HTMLElement | null;
   if (existing) {
-    watchContainer(existing as HTMLElement, doc);
+    // El body de reemplazo ya trae el contenedor (con el shell clonado): se
+    // adopta tal cual. El clon es HTML estático sin instancia Svelte viva, así
+    // que montar App aquí duplicaría #cabt-scroll-area y los ids internos.
+    mountedInstance = null;
+    mountedDocument = doc;
+    mountedContainer = existing;
+    shellReady = true;
+    watchContainer(existing, doc);
     return;
   }
   reviveInFreshContainer(doc);
@@ -151,24 +175,29 @@ export function ensurePluginMounted(container: HTMLElement, doc: Document): void
   if (!container.isConnected || mountedDocument !== doc || mountedContainer !== container) {
     resetMountState();
   }
-  if (mountedDocument !== doc) {
-    mountedDocument = doc;
+  // Shell ya listo en este contenedor (instancia propia o clon adoptado): no
+  // re-montar ni re-armar el watcher en cada cy.http()/cy.query().
+  if (shellReady && mountedContainer === container) return;
+  mountedDocument = doc;
+  // Liveness: el contenedor puede traer ya el shell de App (clon restaurado de
+  // un snapshot). Montar otra App sobre ese DOM duplicaría el shell y todos sus
+  // ids; se adopta el existente y solo se arma el watcher.
+  if (container.querySelector("#cabt-scroll-area")) {
+    mountedContainer = container;
+    shellReady = true;
+    watchContainer(container, doc);
+    return;
   }
-  if (mountedInstance) return;
   mountedInstance = mount(App, { target: container });
   mountedContainer = container;
+  shellReady = true;
   watchContainer(container, doc);
 }
 
 /** Teardown explícito, expuesto por completitud / pruebas. No es necesario para
  * el funcionamiento normal — una recarga de página ya descarta todo. */
 export function teardownPluginUI(): void {
-  if (mountedInstance) {
-    void unmount(mountedInstance);
-    mountedInstance = null;
-    mountedDocument = null;
-    mountedContainer = null;
-  }
+  resetMountState();
   _observer?.disconnect();
   _observer = null;
   _watchBody = null;

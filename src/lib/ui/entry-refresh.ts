@@ -1,7 +1,7 @@
 import { apiCalls, pluginConfig } from "$lib/stores.svelte";
 import { mount, unmount } from "svelte";
 import EntryPanel from "../components/EntryPanel.svelte";
-import { EntryRegistry } from "./entry-registry";
+import { EntryRegistry, entryKind } from "./entry-registry";
 
 const MAX_DEBUG_ENTRIES = 100;
 const MAX_DEBUG_CHARS = 500;
@@ -51,8 +51,15 @@ export function refreshEntry(id: string): void {
   // ($state). Esas mutaciones NO se propagan al objeto crudo `entry.data` (la misma
   // referencia pasada a mountEntry). Por eso hay que leer la llamada VIVA desde
   // apiCalls: es el objeto que SÍ tiene el expect ya mutado. Si no está en apiCalls
-  // (p. ej. una DbQuery, que no pasa por el interceptor), conservamos entry.data.
-  const liveCall = apiCalls.find((c) => c.id === id) ?? entry.data;
+  // (una DbQuery, que no pasa por el interceptor) conservamos entry.data.
+  const live = apiCalls.find((c) => c.id === id);
+  if (!live && entryKind(entry.data) === "api") {
+    // Entrada HTTP sin llamada viva: el store la evictó por la cota. El DOM se
+    // evicta junto con el store (#9), así que esto solo ocurre en casos
+    // residuales — queda registrado para no caer a `entry.data` en silencio.
+    debugLog(`refresh:${id}:stale-entry-data`);
+  }
+  const liveCall = live ?? entry.data;
   debugLog(`refresh:${id}:remount`);
   // 1. Desmonta el componente viejo — Svelte elimina su DOM pero no el div destino.
   void unmount(entry.component);

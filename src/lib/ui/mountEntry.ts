@@ -1,8 +1,8 @@
-import { pluginConfig } from "$lib/stores.svelte";
+import { MAX_STORE_ENTRIES, pluginConfig } from "$lib/stores.svelte";
 import type { ApiCall, DbQuery } from "$lib/types";
 import { mount } from "svelte";
 import EntryPanel from "../components/EntryPanel.svelte";
-import { EntryRegistry } from "./entry-registry";
+import { EntryRegistry, entryKind } from "./entry-registry";
 
 /**
  * Reserva un div placeholder vacío #cabt-entry-{id} en orden de llamada, antes de
@@ -108,5 +108,9 @@ export function mountEntry(data: ApiCall | DbQuery, doc: Document = document): H
   // Registra la entrada (con su payload de datos) para poder desmontarla luego o
   // revivirla en un contenedor nuevo después de un intercambio de body.
   EntryRegistry.register(id, component, div, data);
+  // Cota única (#9): el store evicta al empujar y el DOM debe evictarse en el
+  // mismo punto; si solo se acota el store, la entrada queda huérfana montada y
+  // refreshEntry termina pintando datos crudos ya evictados.
+  EntryRegistry.cap(entryKind(data), MAX_STORE_ENTRIES);
   return div;
 }

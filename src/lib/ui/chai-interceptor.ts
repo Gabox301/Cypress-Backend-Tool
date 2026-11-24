@@ -79,6 +79,15 @@ function isSameObject(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * `true` si la aserción de Chai fue negada (`expect(x).to.not.eq(...)`).
+ * El flag vive en `Assertion.__flags.negate`; el interceptor lo reenvía tal cual.
+ */
+function isNegated(flags: unknown): boolean {
+  if (!flags || typeof flags !== "object") return false;
+  return (flags as { negate?: unknown }).negate === true;
+}
+
+/**
  * Busca la ruta de claves hacia un valor o sub-objeto dentro de un objeto raíz.
  */
 export function findPathInObject(
@@ -182,6 +191,19 @@ export function recordAssertionOnApiCall(
   );
   if (apiCalls.length === 0) return;
 
+  // #13 — Chai entrega `expression` SIN aplicar la negación (chai/utils/test.js:
+  // `negate ? !expr : expr`). Normalizar con el flag `negate` evita dos errores:
+  //   • una aserción negada EXITOSA llega con `passed === false` y se descartaba;
+  //   • una aserción negada FALLIDA llega con `passed === true` y se pintaba.
+  // Una aserción que falló (en cualquier ruta) no es evidencia: nunca pinta.
+  const negated = isNegated(extra?.flags);
+  const assertionPassed =
+    extra?.passed === undefined ? true : negated ? !extra.passed : extra.passed;
+  if (!assertionPassed) return;
+  // En una aserción negada, `expected` es el valor PROHIBIDO: registrar el valor
+  // observado es lo que refleja la aserción (verde), nunca el prohibido (mismatch).
+  const expectedValue = negated && actual !== undefined ? actual : expected;
+
   // Las aserciones del test mutan `call.expect` DESPUÉS del montaje de la
   // entrada; programar un refresh diferido para que EntryPanel re-evalúe el
   // expect con la referencia nueva una vez que el bloque síncrono termine.
@@ -203,9 +225,8 @@ export function recordAssertionOnApiCall(
     const response = call.response;
     if (!response) continue;
     if (target === response.status) {
-      if (extra?.passed === false) return;
       const expectObj = track(call);
-      expectObj.status = expected !== undefined ? expected : actual;
+      expectObj.status = expectedValue !== undefined ? expectedValue : actual;
       debugLog("status-set=" + expectObj.status);
       return;
     }
@@ -217,8 +238,8 @@ export function recordAssertionOnApiCall(
     if (!response) continue;
     if (isSameObject(target, response)) {
       const expectObj = track(call);
-      if (typeof expected === "object" && expected !== null) {
-        Object.assign(expectObj, expected);
+      if (typeof expectedValue === "object" && expectedValue !== null) {
+        Object.assign(expectObj, expectedValue);
       }
       return;
     }
@@ -233,8 +254,8 @@ export function recordAssertionOnApiCall(
       if (!expectObj.headers || typeof expectObj.headers !== "object") {
         expectObj.headers = {};
       }
-      if (typeof expected === "object" && expected !== null) {
-        Object.assign(expectObj.headers as Record<string, unknown>, expected);
+      if (typeof expectedValue === "object" && expectedValue !== null) {
+        Object.assign(expectObj.headers as Record<string, unknown>, expectedValue);
       }
       return;
     }
@@ -249,10 +270,10 @@ export function recordAssertionOnApiCall(
       if (!expectObj.body || typeof expectObj.body !== "object") {
         expectObj.body = {};
       }
-      if (typeof expected === "object" && expected !== null) {
-        Object.assign(expectObj.body as Record<string, unknown>, expected);
-      } else if (expected !== undefined) {
-        expectObj.body = expected;
+      if (typeof expectedValue === "object" && expectedValue !== null) {
+        Object.assign(expectObj.body as Record<string, unknown>, expectedValue);
+      } else if (expectedValue !== undefined) {
+        expectObj.body = expectedValue;
       }
       return;
     }
@@ -267,10 +288,10 @@ export function recordAssertionOnApiCall(
     if (response.cookies && isSameObject(target, response.cookies)) {
       const expectObj = track(call);
       const cookiesMap = ensureCookiesMap(expectObj);
-      if (Array.isArray(expected)) {
-        Object.assign(cookiesMap, cookiesArrayToMap(expected));
-      } else if (typeof expected === "object" && expected !== null) {
-        Object.assign(cookiesMap, expected);
+      if (Array.isArray(expectedValue)) {
+        Object.assign(cookiesMap, cookiesArrayToMap(expectedValue));
+      } else if (typeof expectedValue === "object" && expectedValue !== null) {
+        Object.assign(cookiesMap, expectedValue);
       }
       return;
     }
@@ -288,7 +309,8 @@ export function recordAssertionOnApiCall(
         if (!expectObj.body || typeof expectObj.body !== "object") {
           expectObj.body = {};
         }
-        const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
+        const valToSet =
+          expectedValue !== undefined ? expectedValue : actual !== undefined ? actual : target;
         setDeepValue(expectObj.body as Record<string, unknown>, path, valToSet);
         return;
       }
@@ -306,7 +328,8 @@ export function recordAssertionOnApiCall(
         if (!expectObj.headers || typeof expectObj.headers !== "object") {
           expectObj.headers = {};
         }
-        const valToSet = expected !== undefined ? expected : actual !== undefined ? actual : target;
+        const valToSet =
+          expectedValue !== undefined ? expectedValue : actual !== undefined ? actual : target;
         setDeepValue(expectObj.headers as Record<string, unknown>, path, valToSet);
         return;
       }
@@ -332,7 +355,7 @@ export function recordAssertionOnApiCall(
           const expectObj = track(call);
           const cookiesMap = ensureCookiesMap(expectObj);
           const valToSet =
-            expected !== undefined ? expected : actual !== undefined ? actual : target;
+            expectedValue !== undefined ? expectedValue : actual !== undefined ? actual : target;
           if (path.length === 1) {
             // target es el objeto cookie completo: extraer su valor
             if (
