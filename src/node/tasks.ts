@@ -29,7 +29,7 @@ export interface DbTaskConfig {
   connectionTimeoutMillis?: number;
   /** Tiempo de espera en reposo del Pool de pg en milisegundos */
   idleTimeoutMillis?: number;
-  /** Timeout por query (`statement_timeout` de pg) en milisegundos; `undefined` = sin límite */
+  /** Timeout por query (`statement_timeout` de pg) en milisegundos; `undefined` = default 30000 (solo `0` lo desactiva) */
   statement_timeoutMillis?: number;
 }
 

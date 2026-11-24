@@ -5,6 +5,15 @@ Todos los cambios notables de este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Pool persistente real (`db`):** la config del Pool usa los mismos fallbacks que el handler (localhost/5432/test_db/postgres); en el path por defecto las queries reutilizan el Pool en vez de abrir un `pg.Client` por llamada. `db:getConfig` devuelve 5432 ante puerto no numérico.
+- **TLS fail-closed (`security`):** `CYPRESS_DB_SSL` desconocido o JSON malformado aborta `setupDatabaseTasks` (antes, sin TLS en silencio); variable vacía = unset (aplican `defaults.ssl`). Cliente por query con listener de error best-effort; timeouts por query participan del ruteo Pool-vs-Cliente; `.env` siempre se carga (nunca sobrescribe).
+- **Errores estrictos (`security`):** `cy.query` falla en cerrado sin endpoint resoluble; el rechazo de `db:query` se envuelve (código postgres + connectionId); `received` inválido truncado a 500 en el throw; transporte clasificado refused/timeout sin eco; `toErrorMessage` blindado; tipos per-query completos en `DbConnectionOptions`.
+- **UI/panel (`ui`):** sin doble montaje tras restore de snapshot (unmount al reset + guard de liveness); registry DOM acotado con el store (cap 100 por tipo); drag de ScrollArea en el realm del AUT; negación y aserciones fallidas ya no pintan pills incorrectos (probe de retries pendiente: requiere run e2e).
+
 ## [1.4.0] - 2026-11-12
 
 ### Added

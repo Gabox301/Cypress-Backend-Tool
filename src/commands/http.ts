@@ -82,7 +82,8 @@ function transportErrorIdentifier(err: unknown, carriedStatus: number | null): s
   if (!GENERIC_ERROR_NAMES.has(name)) parts.push(name);
   const code = (err as { code?: unknown } | null)?.code;
   if (typeof code === "string" && code !== "") parts.push(code);
-  else if (typeof code === "number" && Number.isFinite(code) && code !== 0) parts.push(String(code));
+  else if (typeof code === "number" && Number.isFinite(code) && code !== 0)
+    parts.push(String(code));
   if (carriedStatus !== null) parts.push(`status ${carriedStatus}`);
   return parts.length > 0 ? parts.join(" ") : "unknown rejection";
 }

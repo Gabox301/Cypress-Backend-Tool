@@ -448,20 +448,21 @@ describe("chai-interceptor — negación y aserciones fallidas (#13)", () => {
   }> = [
     {
       path: "1 status",
-      run: (call) =>
-        recordAssertionOnApiCall(call.response?.status, 201, 200, { passed: false }),
+      run: (call) => recordAssertionOnApiCall(call.response?.status, 201, 200, { passed: false }),
     },
     {
       path: "2 response",
-      run: (call) => recordAssertionOnApiCall(call.response, { status: 201 }, call.response, {
-        passed: false,
-      }),
+      run: (call) =>
+        recordAssertionOnApiCall(call.response, { status: 201 }, call.response, {
+          passed: false,
+        }),
     },
     {
       path: "3 headers",
-      run: (call) => recordAssertionOnApiCall(call.response?.headers, { "x-id": "1" }, null, {
-        passed: false,
-      }),
+      run: (call) =>
+        recordAssertionOnApiCall(call.response?.headers, { "x-id": "1" }, null, {
+          passed: false,
+        }),
     },
     {
       path: "4 body",

@@ -94,7 +94,7 @@ Credentials are configured via environment variables (see [Environment variables
 
 `setupDatabaseTasks(on, config)` registers `db:getConfig` and `db:query` and returns the same `config` with a non-secret snapshot merged into `config.expose` (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`); `cy.query()` reads it synchronously via `Cypress.expose()`. Existing keys are never overwritten. The legacy no-`config` pattern (`setupDatabaseTasks(on)` + manually merging the returned `{ dbTaskPrefix }` metadata) is still supported, but without the snapshot, queries without `connectionOptions` fail closed with `unknown` instead of guessing an endpoint.
 
-The plugin reads DB env vars in Node at setup (snapshot) and at query time (handler). If your credentials live in a file, YOUR loader (e.g. `process.loadEnvFile()`) must run for both `process.env` launches and `--env` flag launches — that wiring is yours, not the plugin's.
+The plugin reads DB env vars in Node at setup (snapshot) and at query time (handler). If your credentials live in a root `.env` file, the plugin loads it automatically (`process.loadEnvFile()`, which never overrides already-defined variables).
 
 > **Secure default:** request and response values are redacted in the plugin panels, Cypress log text and console properties, and generated cURL output. The cURL command may need credentials restored before replay.
 
@@ -234,7 +234,7 @@ The snapshot (`dbTaskPrefix`, `dbHost`, `dbPort`, `dbDatabase`) merges into `con
 
 `options.defaults` has no connection values unless configured. For compatibility, when no environment value or per-query override is available, `db:query` uses `localhost`, port `5432`, database `test_db`, user `postgres`, and an empty password inside Node. These are query fallbacks, not Pool defaults; `db:getConfig` returns only configured connection metadata.
 
-> `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"require"`/`"verify"` → verified TLS (recommended), `"true"`/`"1"`/`"yes"` → legacy insecure `{ rejectUnauthorized: false }` (MITM warning in Node: prefer `insecure` if you explicitly accept it), `"insecure"`/`"no-verify"` → explicit opt-in to insecure mode, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object. `CYPRESS_DB_SSL_CA` / `DB_SSL_CA` provide the CA in PEM (literal `\n` newlines accepted); an explicit `false` wins over the CA. Any other non-empty value — or malformed JSON — aborts `setupDatabaseTasks` with an error listing the accepted values (fail-closed: it never connects without TLS silently). Leave the variable empty to configure no SSL.
+> `CYPRESS_DB_SSL` / `DB_SSL` take priority over `defaults.ssl`. Env values: `"require"`/`"verify"` → verified TLS (recommended), `"true"`/`"1"`/`"yes"` → legacy insecure `{ rejectUnauthorized: false }` (MITM warning in Node: prefer `insecure` if you explicitly accept it), `"insecure"`/`"no-verify"` → explicit opt-in to insecure mode, `"false"`/`"0"`/`"no"`/`"disable"` → `false`, JSON (`{"rejectUnauthorized":false,"ca":"..."}`) is parsed as object. `CYPRESS_DB_SSL_CA` / `DB_SSL_CA` provide the CA in PEM (literal `\n` newlines accepted); an explicit `false` wins over the CA. Any other non-empty value — or malformed JSON — aborts `setupDatabaseTasks` with an error listing the accepted values (fail-closed: it never connects without TLS silently). An empty variable equals unset: `defaults.ssl` decides (without `defaults.ssl`, no TLS).
 
 #### SSL for Neon / Supabase / RDS
 

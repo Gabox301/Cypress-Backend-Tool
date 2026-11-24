@@ -979,9 +979,7 @@ describe("pool timeouts (P1)", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
     mockClientQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    const query = getTasks(on)["db:query"] as (
-      args: Record<string, unknown>,
-    ) => Promise<unknown>;
+    const query = getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>;
 
     await query({ query: "SELECT 1", connectionTimeoutMillis: 5000 });
 
@@ -996,9 +994,7 @@ describe("pool timeouts (P1)", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
     mockClientQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    const query = getTasks(on)["db:query"] as (
-      args: Record<string, unknown>,
-    ) => Promise<unknown>;
+    const query = getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>;
 
     await query({ query: "SELECT 1", idleTimeoutMillis: 500 });
 
@@ -1011,9 +1007,7 @@ describe("pool timeouts (P1)", () => {
     const on = vi.fn();
     setupDatabaseTasks(on);
     mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    const query = getTasks(on)["db:query"] as (
-      args: Record<string, unknown>,
-    ) => Promise<unknown>;
+    const query = getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>;
 
     await query({ query: "SELECT 1", connectionTimeoutMillis: 2000, idleTimeoutMillis: 10_000 });
 
@@ -1027,9 +1021,7 @@ describe("pool timeouts (P1)", () => {
       defaults: { connectionTimeoutMillis: 5000, idleTimeoutMillis: 15_000 },
     });
     mockPoolQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    const query = getTasks(on)["db:query"] as (
-      args: Record<string, unknown>,
-    ) => Promise<unknown>;
+    const query = getTasks(on)["db:query"] as (args: Record<string, unknown>) => Promise<unknown>;
 
     await query({ query: "SELECT 1" });
 

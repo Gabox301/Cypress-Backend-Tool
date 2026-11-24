@@ -181,9 +181,9 @@ describe("mountEntry — múltiples llamadas", () => {
 // ===========================================================================
 describe("#9 — cota de DOM alineada con la cota de los stores", () => {
   function domEntryIds(): string[] {
-    return Array.from(
-      document.querySelectorAll("#cabt-scroll-area > [id^='cabt-entry-']"),
-    ).map((el) => el.id);
+    return Array.from(document.querySelectorAll("#cabt-scroll-area > [id^='cabt-entry-']")).map(
+      (el) => el.id,
+    );
   }
 
   it("evicta el DOM más viejo pasado MAX_STORE_ENTRIES, igual que el store", () => {

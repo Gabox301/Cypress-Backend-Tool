@@ -154,9 +154,7 @@ export function registerQueryCommand(): void {
       // no identifica ningún endpoint real — '' cuenta como ausente para fallar
       // cerrado en vez de consultar localhost en silencio.
       const snapshotAbsent =
-        valueMissing(exposedHost) &&
-        valueMissing(exposedPort) &&
-        valueMissing(exposedDatabase);
+        valueMissing(exposedHost) && valueMissing(exposedPort) && valueMissing(exposedDatabase);
       // #4: un objeto de overrides sin claves de conexión (`{}`, `{log:false}`) no
       // expresa intención; sólo host/port/database/user/password lo hacen. Partial
       // con host vale como intención (se resuelve por segmento).
